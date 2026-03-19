@@ -1730,9 +1730,12 @@ if ('serviceWorker' in navigator) {
         <!-- ② 경기명 -->
         <div style="margin-bottom:10px;">
           <label style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:4px;">경기명 <span style="font-size:9px;">(선택)</span></label>
-          <input type="text" id="r-game" placeholder="예: 다저스 vs 양키스" list="game-suggestions"
-            style="width:100%;padding:7px 10px;font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);box-sizing:border-box;">
-          <datalist id="game-suggestions"></datalist>
+          <div style="position:relative;">
+            <input type="text" id="r-game" placeholder="예: 맨시티 승/첼시 패"
+              style="width:100%;padding:7px 10px;font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);box-sizing:border-box;"
+              oninput="onGameInput(this)" onblur="setTimeout(()=>closeGameSuggest(),200)" autocomplete="off">
+            <div id="game-suggest-box" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px;z-index:500;max-height:180px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.4);"></div>
+          </div>
         </div>
 
         <!-- ③ 종목 / 형식 -->
@@ -8646,20 +8649,62 @@ function renderRecentTable() {
 }
 
 function updateGameSuggestions() {
-  const dl = document.getElementById('game-suggestions');
-  if (!dl) return;
+  // 이전 팀명/경기명 목록 수집 (슬래시로 분리)
+  window._gameSuggestList = getGameSuggestList();
+}
+
+function getGameSuggestList() {
   const allBets = [...bets];
   const vaultRaw = localStorage.getItem('edge_vault');
-  if (vaultRaw) {
-    try { allBets.push(...JSON.parse(vaultRaw)); } catch(e) {}
-  }
-  const names = [...new Set(
+  if (vaultRaw) { try { allBets.push(...JSON.parse(vaultRaw)); } catch(e) {} }
+  return [...new Set(
     allBets.flatMap(b => (b.game && b.game !== '-')
       ? b.game.split('/').map(s => s.trim()).filter(s => s.length > 0)
       : []
     )
   )].sort();
-  dl.innerHTML = names.map(n => `<option value="${n}">`).join('');
+}
+
+function onGameInput(input) {
+  const val = input.value;
+  const slashIdx = val.lastIndexOf('/');
+  const current = slashIdx >= 0 ? val.slice(slashIdx + 1).trimStart() : val;
+  const box = document.getElementById('game-suggest-box');
+  if (!box) return;
+
+  if (!current || current.length < 1) { box.style.display = 'none'; return; }
+
+  const list = window._gameSuggestList || getGameSuggestList();
+  const matches = list.filter(n => n.includes(current)).slice(0, 8);
+
+  if (!matches.length) { box.style.display = 'none'; return; }
+
+  box.innerHTML = matches.map(n => `
+    <div onclick="selectGameSuggest('${n.replace(/'/g,"\\'")}', this)"
+      style="padding:8px 12px;font-size:13px;color:var(--text2);cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05);"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      ${n}
+    </div>`).join('');
+  box.style.display = 'block';
+}
+
+function selectGameSuggest(name) {
+  const input = document.getElementById('r-game');
+  if (!input) return;
+  const val = input.value;
+  const slashIdx = val.lastIndexOf('/');
+  if (slashIdx >= 0) {
+    input.value = val.slice(0, slashIdx + 1) + name;
+  } else {
+    input.value = name;
+  }
+  closeGameSuggest();
+  input.focus();
+}
+
+function closeGameSuggest() {
+  const box = document.getElementById('game-suggest-box');
+  if (box) box.style.display = 'none';
 }
 
 let _folderResultBetId = null;
