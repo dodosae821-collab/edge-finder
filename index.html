@@ -6446,15 +6446,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!header) return;
     const hh = header.offsetHeight;
     const subtab = document.querySelector('.mobile-subtab-bar');
-    const subtab2 = document.querySelector('.mobile-subtab2-bar');
+    const subtab2 = document.getElementById('mobile-subtab2-bar');
     const main = document.querySelector('main');
     if (subtab) subtab.style.top = hh + 'px';
     const subtabH = subtab ? subtab.offsetHeight : 0;
+    const subtab2Visible = subtab2 && subtab2.children.length > 0 && subtab2.style.display !== 'none';
     if (subtab2) subtab2.style.top = (hh + subtabH) + 'px';
+    const subtab2H = subtab2Visible ? subtab2.offsetHeight : 0;
     if (main) {
-      main.style.paddingTop = (hh + subtabH + 10) + 'px';
+      main.style.paddingTop = (hh + subtabH + subtab2H + 10) + 'px';
     }
   }
+  window._adjustMobileLayout = adjustMobileLayout;
   setTimeout(adjustMobileLayout, 100);
   window.addEventListener('resize', adjustMobileLayout);
 
@@ -13920,11 +13923,13 @@ function mobileSubtab(section, subId) {
     if (mainEl) mainEl.classList.add('has-subtab2');
     // 첫 번째 2단계 탭 자동 선택
     mobileSubtab2(section, subId, subs2[0].id);
+    setTimeout(() => window._adjustMobileLayout && window._adjustMobileLayout(), 50);
   } else {
     bar2.style.display = 'none';
     bar2.innerHTML = '';
     if (mainEl) mainEl.classList.remove('has-subtab2');
     if (sub.page) switchTabMobile(sub.page);
+    setTimeout(() => window._adjustMobileLayout && window._adjustMobileLayout(), 50);
   }
 }
 
