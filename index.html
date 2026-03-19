@@ -1047,6 +1047,42 @@ if ('serviceWorker' in navigator) {
 
     /* 자금관리 모바일 */
     #page-simulator [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+    #page-simulator [style*="repeat(12,1fr)"] { grid-template-columns: repeat(6,1fr) !important; }
+    #page-simulator [style*="repeat(3,1fr)"] { grid-template-columns: 1fr 1fr !important; }
+
+    /* 목표추적 모바일 */
+    #page-goal [style*="repeat(6,1fr)"] { grid-template-columns: repeat(3,1fr) !important; }
+    #page-goal [style*="grid-template-columns:1fr 1fr 1fr"],
+    #page-goal [style*="repeat(3,1fr)"] { grid-template-columns: 1fr 1fr !important; }
+    #page-goal [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+    /* 분석 탭 모바일 */
+    #page-analyze [style*="repeat(5,1fr)"],
+    #page-analyze [style*="repeat(4,1fr)"],
+    #page-analyze [style*="repeat(6,1fr)"] { grid-template-columns: repeat(2,1fr) !important; }
+    #page-analyze [style*="grid-template-columns:1fr 1fr 1fr"] { grid-template-columns: 1fr !important; }
+    #page-analyze [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+    /* 예측 탭 모바일 */
+    #page-predict [style*="repeat(4,1fr)"],
+    #page-predict [style*="repeat(3,1fr)"] { grid-template-columns: repeat(2,1fr) !important; }
+    #page-predict [style*="grid-template-columns:1fr 1fr 1fr"] { grid-template-columns: 1fr !important; }
+    #page-predict [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+    /* 예측력 탭 모바일 */
+    #page-predpower [style*="grid-template-columns:auto 1fr"] { grid-template-columns: 1fr !important; }
+    #page-predpower [style*="repeat(4,1fr)"],
+    #page-predpower [style*="repeat(3,1fr)"] { grid-template-columns: repeat(2,1fr) !important; }
+    #page-predpower [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+    /* 통계 탭 모바일 */
+    #page-analysis [style*="repeat(4,1fr)"],
+    #page-analysis [style*="repeat(3,1fr)"] { grid-template-columns: repeat(2,1fr) !important; }
+    #page-analysis [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+    #page-analysis2 [style*="repeat(4,1fr)"],
+    #page-analysis2 [style*="repeat(3,1fr)"] { grid-template-columns: repeat(2,1fr) !important; }
+    #page-analysis3 [style*="repeat(4,1fr)"],
+    #page-analysis3 [style*="repeat(3,1fr)"] { grid-template-columns: repeat(2,1fr) !important; }
 
     /* PWA safe area */
     .mobile-bottom-nav { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
