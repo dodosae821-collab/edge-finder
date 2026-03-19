@@ -1000,23 +1000,46 @@ if ('serviceWorker' in navigator) {
     #page-settings [style*="padding:12px"] { padding: 12px !important; }
     /* 회차 구분 버튼 3개 */
     #page-settings [style*="display:flex"][style*="gap:8px"] > button { flex: 1 1 auto !important; min-width: 0 !important; }
-    #page-decision .grid-2-col { grid-template-columns: 1fr !important; }
-    #dec-op-grid { grid-template-columns: 1fr 1fr !important; }
 
-    /* 베팅 결정 탭 전체 최적화 */
+    /* 베팅 결정 탭 모바일 - 전체 1열 */
+    #page-decision [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+    #page-decision [style*="grid-template-columns:1fr 1fr 1fr 1fr"] { grid-template-columns: 1fr 1fr !important; }
+    #page-decision [style*="repeat(4,1fr)"] { grid-template-columns: repeat(2,1fr) !important; }
     #page-decision > div { padding: 0 !important; }
-    #page-decision .card { margin-bottom: 10px; }
+    #page-decision .card { margin-bottom: 10px !important; }
+    /* 경기 맥락 체크리스트 텍스트 잘림 방지 */
+    #dec-context-checks label { white-space: normal !important; word-break: keep-all !important; height: auto !important; }
+    #dec-context-checks label span { white-space: normal !important; line-height: 1.5 !important; }
+
+    /* jp-decision 내부도 동일 적용 */
+    #jp-decision [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+    #jp-decision [style*="repeat(4,1fr)"] { grid-template-columns: repeat(2,1fr) !important; }
+    #jp-decision [style*="grid-template-columns:1fr 1fr 1fr 1fr"] { grid-template-columns: 1fr 1fr !important; }
+
+    /* 베팅일지 탭 모바일 */
+    #page-journal [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+    #page-journal [style*="repeat(4,1fr)"] { grid-template-columns: repeat(2,1fr) !important; }
+    /* 베팅일지 내부 탭버튼 가로스크롤 */
+    #page-journal > div > div[style*="display:flex"] { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch !important; scrollbar-width: none !important; padding-bottom: 0 !important; }
+    #page-journal button[id^="jt-"] { flex-shrink: 0 !important; padding: 8px 10px !important; font-size: 11px !important; white-space: nowrap !important; }
+
+    /* 분석 탭 테이블 잘림 방지 */
+    #page-analyze table { min-width: 0 !important; width: 100% !important; table-layout: fixed !important; }
+    #page-analyze td, #page-analyze th { overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 11px !important; padding: 5px 4px !important; }
+    #page-analyze [style*="repeat(3,1fr)"] { grid-template-columns: 1fr 1fr !important; }
 
     /* 테이블 모바일 최적화 */
     table { font-size: 11px; min-width: 0 !important; width: 100%; }
     .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-    /* 베팅 기록 폼 모바일 */
-    #page-record .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
-    #sport-btns, #type-btns { grid-template-columns: repeat(3, 1fr) !important; }
-
-    /* 폴더 행 모바일 */
-    .folder-row > div { grid-template-columns: 28px 1fr 1fr 32px !important; }
+    /* 베팅 기록 탭 모바일 */
+    #page-record [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+    #page-record [style*="repeat(4,1fr)"] { grid-template-columns: repeat(2,1fr) !important; }
+    #page-record [style*="repeat(3,1fr)"] { grid-template-columns: 1fr 1fr !important; }
+    /* 폴더 행 */
+    .folder-row > div { grid-template-columns: 28px 1fr 72px 32px !important; gap: 4px !important; }
+    /* 폴더 추가/제거 버튼 */
+    #multi-ev-wrap [style*="display:flex;gap"] { flex-wrap: wrap !important; }
 
     /* EV 계산기 모바일 */
     #page-value .grid-2 { grid-template-columns: 1fr !important; }
