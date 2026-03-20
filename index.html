@@ -1124,6 +1124,8 @@ if ('serviceWorker' in navigator) {
   #page-strategy input[type=number]::-webkit-inner-spin-button,
   #page-strategy input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   #page-strategy input[type=number] { -moz-appearance: textfield; }
+
+  @media (min-width: 601px) {
     .mobile-bottom-nav { display: none !important; }
     .mobile-subtab-bar { display: none !important; }
     .mobile-subtab2-bar { display: none !important; }
@@ -7454,6 +7456,8 @@ function switchTab(name, el) {
   if (name === 'decision')  initDecisionTab();
   if (name === 'settings')  { loadSettingsDisplay(); updateWeeklySeedStatus(); setTodayKST(); renderPrincipleList(); }
   if (name === 'vault')     renderVault();
+  if (name === 'strategy')  initSimulator();
+  if (name === 'journal')   { loadJournal(); switchJournalTab(_journalTab || 'plan'); }
 }
 
 // ========== VALUE ANALYSIS ==========
@@ -14868,6 +14872,17 @@ async function gdriveSync() {
         localStorage.setItem('edge_settings', JSON.stringify(cloudData.settings));
       }
 
+      // 전략베팅 시뮬레이터 복원 (클라우드 우선)
+      if (cloudData.simState) {
+        localStorage.setItem('edge_sim_state', JSON.stringify(cloudData.simState));
+        simState = cloudData.simState;
+        simSnaps = [];
+      }
+      if (cloudData.simGoal) {
+        localStorage.setItem('edge_sim_goal', cloudData.simGoal);
+        SIM_GOAL = parseInt(cloudData.simGoal);
+      }
+
       // 드라이브에 최신 데이터 업로드
       await gdriveUpload();
     } else {
@@ -14894,6 +14909,8 @@ async function gdriveUpload() {
     settings: JSON.parse(localStorage.getItem('edge_settings') || '{}'),
     diaries: JSON.parse(localStorage.getItem('edge_diaries') || '{}'),
     plans: JSON.parse(localStorage.getItem('edge_plans') || '[]'),
+    simState: JSON.parse(localStorage.getItem('edge_sim_state') || 'null'),
+    simGoal: localStorage.getItem('edge_sim_goal') || null,
     syncedAt: new Date().toISOString()
   };
   const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
