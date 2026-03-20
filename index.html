@@ -6988,12 +6988,15 @@ function simApplyResult(key, newBal, sv, b2, b3, o2, o3, ex2, ex3) {
   if (b2 > 0 || b3 > 0) {
     localStorage.setItem('edge_bets', JSON.stringify(bets));
     _gdriveAutoSync && _gdriveAutoSync();
-    // 베팅기록 탭으로 이동
     if (window.innerWidth <= 600) {
       mobileNav('betting');
-      setTimeout(() => mobileSubtab('betting', 'record'), 100);
+      setTimeout(() => {
+        mobileSubtab('betting', 'record');
+        renderTable();
+      }, 150);
     } else {
       switchTab('record', document.querySelector('.tab.active'));
+      renderTable();
     }
   }
 
