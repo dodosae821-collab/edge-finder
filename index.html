@@ -3382,15 +3382,19 @@ if ('serviceWorker' in navigator) {
         <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:12px;">이번 회차 베팅 설정</div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-          <div>
+          <div style="position:relative;">
             <label style="font-size:10px;color:var(--accent);display:block;margin-bottom:5px;">A 메모 (어떤 경기?)</label>
             <input type="text" id="sim-i-memo" placeholder="예: 맨시티 승/첼시 패" maxlength="60"
-              style="width:100%;padding:8px 10px;font-size:13px;background:var(--bg3);border:1px solid rgba(0,229,255,0.3);border-radius:6px;color:var(--text2);">
+              style="width:100%;padding:8px 10px;font-size:13px;background:var(--bg3);border:1px solid rgba(0,229,255,0.3);border-radius:6px;color:var(--text2);"
+              oninput="simMemoInput(this,'sim-suggest-a')" onblur="setTimeout(()=>closeSimSuggest('sim-suggest-a'),200)" autocomplete="off">
+            <div id="sim-suggest-a" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px;z-index:500;max-height:160px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.4);"></div>
           </div>
-          <div>
+          <div style="position:relative;">
             <label style="font-size:10px;color:var(--green);display:block;margin-bottom:5px;">B 메모 (어떤 경기?)</label>
             <input type="text" id="sim-i-memo-b" placeholder="예: 레알 승/바르샤 패" maxlength="60"
-              style="width:100%;padding:8px 10px;font-size:13px;background:var(--bg3);border:1px solid rgba(0,230,118,0.3);border-radius:6px;color:var(--text2);">
+              style="width:100%;padding:8px 10px;font-size:13px;background:var(--bg3);border:1px solid rgba(0,230,118,0.3);border-radius:6px;color:var(--text2);"
+              oninput="simMemoInput(this,'sim-suggest-b')" onblur="setTimeout(()=>closeSimSuggest('sim-suggest-b'),200)" autocomplete="off">
+            <div id="sim-suggest-b" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px;z-index:500;max-height:160px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.4);"></div>
           </div>
         </div>
 
@@ -7035,6 +7039,52 @@ function simRender() {
   const gb=document.getElementById('sim-goal-banner'); if(gb) gb.style.display=simState.goalReached?'block':'none';
   const gt=document.getElementById('sim-goal-text'); if(gt&&simState.goalReached) gt.textContent=`${simFmt(bal)}원 달성 — ${simState.round-1}회차 완료`;
   simRenderHistory();
+}
+
+function simMemoInput(input, boxId) {
+  const val = input.value;
+  const slashIdx = val.lastIndexOf('/');
+  const current = slashIdx >= 0 ? val.slice(slashIdx + 1).trimStart() : val;
+  const box = document.getElementById(boxId);
+  if (!box) return;
+  if (!current || current.length < 1) { box.style.display = 'none'; return; }
+
+  const list = window._gameSuggestList || getGameSuggestList();
+  // 전략베팅 히스토리 메모도 포함
+  const simMemos = simState.history.flatMap(h => {
+    const arr = [];
+    if (h.memo) h.memo.split('/').map(s=>s.trim()).filter(Boolean).forEach(s=>arr.push(s));
+    if (h.memoB) h.memoB.split('/').map(s=>s.trim()).filter(Boolean).forEach(s=>arr.push(s));
+    return arr;
+  });
+  const combined = [...new Set([...list, ...simMemos])].sort();
+  const matches = combined.filter(n => n.includes(current)).slice(0, 8);
+
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(n =>
+    `<div onclick="simSelectMemo('${n.replace(/'/g,"\\'")}','${boxId}',this)"
+      style="padding:8px 12px;font-size:13px;color:var(--text2);cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05);"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      ${n}
+    </div>`
+  ).join('');
+  box.style.display = 'block';
+}
+
+function simSelectMemo(name, boxId, el) {
+  const inputId = boxId === 'sim-suggest-a' ? 'sim-i-memo' : 'sim-i-memo-b';
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const val = input.value;
+  const slashIdx = val.lastIndexOf('/');
+  input.value = slashIdx >= 0 ? val.slice(0, slashIdx + 1) + name : name;
+  closeSimSuggest(boxId);
+  input.focus();
+}
+
+function closeSimSuggest(boxId) {
+  const box = document.getElementById(boxId);
+  if (box) box.style.display = 'none';
 }
 
 function simToggleResult(idx, result) {
