@@ -14579,13 +14579,13 @@ const MOBILE_NAV_CONFIG = {
   },
   betting: {
     subtabs: [
+      { id: 'strategy', label: '⚡ 전략베팅',  page: 'strategy' },
       { id: 'record',   label: '📝 기록 입력', page: 'record' },
       { id: 'vault',    label: '🗄️ 보관함',   page: 'vault' },
-      { id: 'strategy', label: '⚡ 전략베팅',  page: 'strategy' },
       { id: 'value',    label: '🧮 EV 계산기', page: 'value', hidden: true },
       { id: 'journal',  label: '📓 베팅일지',  page: null, sub2: true, hidden: true },
     ],
-    default: 'record',
+    default: 'strategy',
     sub2: {
       journal: [
         { id: 'journal-plan',     label: '예정 경기', page: 'journal', tab: 'plan' },
