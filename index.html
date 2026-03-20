@@ -7037,6 +7037,38 @@ function simRender() {
   simRenderHistory();
 }
 
+function simToggleResult(idx, result) {
+  const h = simState.history[idx];
+  if (!h) return;
+
+  const sv = h.save, b2 = h.bet2, b3 = h.bet3, o2 = h.odds2, o3 = h.odds3;
+  let newKey, newAfter;
+
+  if (result === 'win') {
+    newKey = 'both';
+    newAfter = sv + Math.round(b2 * o2) + (b3 > 0 ? Math.round(b3 * o3) : 0);
+  } else {
+    newKey = 'lose';
+    newAfter = sv;
+  }
+
+  const diff = newAfter - h.after;
+  h.key = newKey;
+  h.after = newAfter;
+
+  // 이후 회차 잔액 연쇄 업데이트
+  for (let i = idx + 1; i < simState.history.length; i++) {
+    simState.history[i].before += diff;
+    simState.history[i].after  += diff;
+  }
+  if (simState.history.length > 0) {
+    simState.balance = simState.history[simState.history.length - 1].after;
+  }
+
+  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); localStorage.setItem('edge_sim_goal', SIM_GOAL); } catch(e) {}
+  simRender(); simOnInput();
+}
+
 function simRenderHistory() {
   const list=document.getElementById('sim-hlist'), hstats=document.getElementById('sim-hstats');
   if(!list) return;
@@ -7045,7 +7077,8 @@ function simRenderHistory() {
   const parts=simState.history.filter(h=>h.key==='only3').length;
   const loses=simState.history.filter(h=>h.key==='lose').length;
   if(hstats) hstats.textContent=`성공 ${wins} / 부분 ${parts} / 실패 ${loses}`;
-  list.innerHTML=[...simState.history].reverse().map(h=>{
+  list.innerHTML=[...simState.history].reverse().map((h,revIdx)=>{
+    const realIdx = simState.history.length - 1 - revIdx;
     const cls=h.key==='both'||h.key==='only2'?'var(--green)':h.key==='only3'?'#a78bfa':'var(--red)';
     const diff=h.after-h.before;
     const chips=[];
@@ -7053,6 +7086,8 @@ function simRenderHistory() {
     if(h.save>0) chips.push(`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(255,215,0,0.1);color:var(--gold);">세이브 ${simFmt(h.save)}</span>`);
     if(h.bet2>0) chips.push(`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(0,229,255,0.1);color:var(--accent);">A(x${h.odds2}) ${simFmt(h.bet2)}</span>`);
     if(h.bet3>0) chips.push(`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(167,139,250,0.1);color:#a78bfa;">B(x${h.odds3}) ${simFmt(h.bet3)}</span>`);
+    const isWin = h.key==='both'||h.key==='only2';
+    const isLose = h.key==='lose';
     return `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         <span style="font-size:11px;color:var(--text3);min-width:28px;">${h.round}회</span>
@@ -7060,6 +7095,8 @@ function simRenderHistory() {
         <span style="font-size:11px;color:var(--text3);">→</span>
         <span style="font-size:13px;font-weight:700;color:${cls};font-family:'JetBrains Mono',monospace;">${simFmt(h.after)}원</span>
         <span style="font-size:11px;color:${diff>=0?'rgba(0,230,118,0.6)':'rgba(255,59,92,0.6)'};">${diff>=0?'+':''}${simFmt(diff)}</span>
+        <button onclick="simToggleResult(${realIdx},'win')" style="padding:5px 10px;font-size:11px;border-radius:20px;border:1px solid ${isWin?'var(--green)':'var(--border)'};background:${isWin?'rgba(0,230,118,0.15)':'var(--bg3)'};color:${isWin?'var(--green)':'var(--text3)'};cursor:pointer;">✓ 성공</button>
+        <button onclick="simToggleResult(${realIdx},'lose')" style="padding:5px 10px;font-size:11px;border-radius:20px;border:1px solid ${isLose?'var(--red)':'var(--border)'};background:${isLose?'rgba(255,59,92,0.12)':'var(--bg3)'};color:${isLose?'var(--red)':'var(--text3)'};cursor:pointer;">✗ 실패</button>
       </div>
       ${h.memo?`<div style="font-size:11px;color:var(--text3);padding-left:36px;font-style:italic;margin-top:3px;">"${h.memo}"</div>`:''}
     </div>`;
@@ -7815,7 +7852,7 @@ function addBet() {
 
   if (editId) {
     // 수정 모드 — 기존 기록 덮어쓰기
-    const idx = bets.findIndex(b => b.id === parseInt(editId));
+    const idx = bets.findIndex(b => String(b.id) === String(editId));
     if (idx !== -1) {
       bets[idx] = { ...bets[idx], ...betData };
     }
