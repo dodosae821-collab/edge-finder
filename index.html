@@ -633,7 +633,7 @@ if ('serviceWorker' in navigator) {
     .grid-2-1, .grid-1-2 { grid-template-columns: 1fr; }
     main { padding: 16px; }
     header { padding: 14px 16px; }
-    nav { padding: 4px 10px; overflow-x: auto; gap: 2px; }
+    nav { padding: 4px 10px; overflow-x: auto; overflow-y: visible; gap: 2px; }
   }
 
   /* RESPONSIVE — 모바일 */
@@ -3355,6 +3355,26 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
 
+      <!-- 로드맵 액자 -->
+      <div class="card" style="margin-bottom:12px;border:1px solid rgba(0,229,255,0.15);background:rgba(5,8,16,0.6);">
+        <div style="font-size:10px;color:var(--accent);letter-spacing:2px;font-weight:700;margin-bottom:10px;">ROAD MAP</div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:10px;font-family:'JetBrains Mono',monospace;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);">
+                <th style="padding:5px 6px;text-align:left;color:var(--text3);font-weight:500;">회차</th>
+                <th style="padding:5px 6px;text-align:right;color:var(--text3);font-weight:500;">보유</th>
+                <th style="padding:5px 6px;text-align:right;color:var(--gold);font-weight:500;">세이브</th>
+                <th style="padding:5px 6px;text-align:center;color:var(--text3);font-weight:500;">베팅</th>
+                <th style="padding:5px 6px;text-align:right;color:var(--green);font-weight:500;">성공</th>
+                <th style="padding:5px 6px;text-align:right;color:var(--red);font-weight:500;">실패</th>
+              </tr>
+            </thead>
+            <tbody id="sim-roadmap-body"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div id="sim-save-row" style="display:none;background:var(--bg2);border:1px solid rgba(255,215,0,0.2);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:none;justify-content:space-between;align-items:center;">
         <div>
           <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">세이브 포인트</div>
@@ -3397,6 +3417,11 @@ if ('serviceWorker' in navigator) {
             <div id="sim-suggest-b" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px;z-index:500;max-height:160px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.4);"></div>
           </div>
         </div>
+        <div id="sim-c-memo-wrap" style="display:none;margin-bottom:10px;">
+          <label style="font-size:10px;color:var(--accent2);display:block;margin-bottom:5px;">C 메모 (모험 베팅 경기?)</label>
+          <input type="text" id="sim-i-memo-c" placeholder="예: 레스터 승리 (3~4배 도전)" maxlength="60"
+            style="width:100%;padding:8px 10px;font-size:13px;background:var(--bg3);border:1px solid rgba(255,107,53,0.3);border-radius:6px;color:var(--text2);" autocomplete="off">
+        </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
           <div>
@@ -3415,6 +3440,11 @@ if ('serviceWorker' in navigator) {
               style="width:100%;padding:8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg3);border:1px solid rgba(0,230,118,0.3);border-radius:6px;color:var(--text2);">
           </div>
         </div>
+        <div id="sim-c-bet-wrap" style="display:none;margin-bottom:10px;">
+          <label style="font-size:10px;color:var(--accent2);display:block;margin-bottom:5px;">C 베팅 / 모험 (원)</label>
+          <input type="number" id="sim-i-b4" placeholder="0" min="0" oninput="simOnInput()"
+            style="width:100%;padding:8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg3);border:1px solid rgba(255,107,53,0.3);border-radius:6px;color:var(--text2);">
+        </div>
 
         <div style="margin-bottom:10px;">
           <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">배당 설정</div>
@@ -3423,7 +3453,7 @@ if ('serviceWorker' in navigator) {
               <div style="font-size:10px;color:var(--accent);margin-bottom:5px;">A 배당</div>
               <div style="display:flex;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:6px;overflow:hidden;">
                 <span id="sim-prefix-a" style="padding:8px 8px 8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;color:var(--accent);border-right:1px solid var(--border);">2.</span>
-                <input type="number" id="sim-o-dec-a" placeholder="00" min="0" max="99" step="1" value="0" oninput="simOnInput()"
+                <input type="text" id="sim-o-dec-a" placeholder="00" maxlength="2" inputmode="numeric" oninput="simOnInput()"
                   style="width:100%;background:transparent;border:none;padding:8px;font-size:13px;font-family:'JetBrains Mono',monospace;color:var(--text2);outline:none;">
               </div>
               <div style="display:flex;gap:3px;margin-top:5px;">
@@ -3436,7 +3466,7 @@ if ('serviceWorker' in navigator) {
               <div style="font-size:10px;color:var(--green);margin-bottom:5px;">B 배당</div>
               <div style="display:flex;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:6px;overflow:hidden;">
                 <span id="sim-prefix-b" style="padding:8px 8px 8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;color:var(--green);border-right:1px solid var(--border);">3.</span>
-                <input type="number" id="sim-o-dec-b" placeholder="00" min="0" max="99" step="1" value="0" oninput="simOnInput()"
+                <input type="text" id="sim-o-dec-b" placeholder="00" maxlength="2" inputmode="numeric" oninput="simOnInput()"
                   style="width:100%;background:transparent;border:none;padding:8px;font-size:13px;font-family:'JetBrains Mono',monospace;color:var(--text2);outline:none;">
               </div>
               <div style="display:flex;gap:3px;margin-top:5px;">
@@ -3452,34 +3482,69 @@ if ('serviceWorker' in navigator) {
               </div>
             </div>
           </div>
+          <div id="sim-c-odds-wrap" style="display:none;margin-top:8px;">
+            <div style="font-size:10px;color:var(--accent2);margin-bottom:5px;">C 배당 (직접 입력)</div>
+            <input type="number" id="sim-o-c-direct" placeholder="예: 9.17" min="1.01" step="0.01" oninput="simOnInput()"
+              style="width:100%;background:var(--bg3);border:1px solid rgba(255,107,53,0.3);border-radius:6px;padding:8px 10px;font-size:14px;font-family:'JetBrains Mono',monospace;color:var(--accent2);outline:none;">
+            <div style="font-size:10px;color:var(--text3);margin-top:4px;">폴더 수 × 각 배당을 직접 곱해서 입력 (예: 1.74⁴ = 9.17)</div>
+          </div>
+        </div>
         </div>
 
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">폴더 수 확인 (필수)</div>
-          <div style="display:flex;gap:8px;">
-            <label id="sim-lbl-f1" style="flex:1;display:flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;cursor:pointer;">
-              <input type="radio" name="sim-folder" id="sim-f-1" value="1" onchange="simOnInput()" style="accent-color:var(--gold);width:15px;height:15px;">
-              <div>
-                <div style="font-size:12px;font-weight:600;color:var(--text);">1폴더</div>
-                <div style="font-size:10px;color:var(--text3);">낮은 배당, 세이브 강화</div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:10px;">폴더 수 확인 (필수)</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div>
+              <div style="font-size:10px;color:var(--accent);font-family:'JetBrains Mono',monospace;margin-bottom:5px;">A 베팅</div>
+              <div style="display:flex;gap:6px;">
+                <label id="sim-lbl-af1" style="flex:1;display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;cursor:pointer;">
+                  <input type="radio" name="sim-folder-a" id="sim-f-a1" value="1" onchange="simOnInput()" style="accent-color:var(--gold);width:14px;height:14px;">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);">1폴더</div>
+                </label>
+                <label id="sim-lbl-af2" style="flex:1;display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;cursor:pointer;">
+                  <input type="radio" name="sim-folder-a" id="sim-f-a2" value="2" onchange="simOnInput()" style="accent-color:var(--green);width:14px;height:14px;">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);">2폴더</div>
+                </label>
               </div>
-            </label>
-            <label id="sim-lbl-f2" style="flex:1;display:flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;cursor:pointer;">
-              <input type="radio" name="sim-folder" id="sim-f-2" value="2" onchange="simOnInput()" style="accent-color:var(--green);width:15px;height:15px;">
-              <div>
-                <div style="font-size:12px;font-weight:600;color:var(--text);">2폴더</div>
-                <div style="font-size:10px;color:var(--text3);">메인 전략, 기본값</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--green);font-family:'JetBrains Mono',monospace;margin-bottom:5px;">B 베팅</div>
+              <div style="display:flex;gap:6px;">
+                <label id="sim-lbl-bf1" style="flex:1;display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;cursor:pointer;">
+                  <input type="radio" name="sim-folder-b" id="sim-f-b1" value="1" onchange="simOnInput()" style="accent-color:var(--gold);width:14px;height:14px;">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);">1폴더</div>
+                </label>
+                <label id="sim-lbl-bf2" style="flex:1;display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;cursor:pointer;">
+                  <input type="radio" name="sim-folder-b" id="sim-f-b2" value="2" onchange="simOnInput()" style="accent-color:var(--green);width:14px;height:14px;">
+                  <div style="font-size:12px;font-weight:600;color:var(--text);">2폴더</div>
+                </label>
               </div>
-            </label>
+            </div>
           </div>
-          <div id="sim-folder-warn" style="display:none;margin-top:6px;font-size:11px;color:var(--red);">폴더 수를 선택해야 진행할 수 있어요</div>
+          <div id="sim-c-folder-wrap" style="display:none;">
+            <div style="font-size:10px;color:var(--accent2);font-family:'JetBrains Mono',monospace;margin-bottom:5px;">C 베팅 폴더 수 (모험)</div>
+            <div style="display:flex;gap:6px;">
+              <label id="sim-lbl-cf2" style="flex:1;display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;cursor:pointer;">
+                <input type="radio" name="sim-folder-c" id="sim-f-c2" value="2" onchange="simOnInput()" style="accent-color:var(--accent2);width:14px;height:14px;">
+                <div style="font-size:12px;font-weight:600;color:var(--text);">2폴더</div>
+              </label>
+              <label id="sim-lbl-cf3" style="flex:1;display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;cursor:pointer;">
+                <input type="radio" name="sim-folder-c" id="sim-f-c3" value="3" onchange="simOnInput()" style="accent-color:var(--accent2);width:14px;height:14px;">
+                <div style="font-size:12px;font-weight:600;color:var(--text);">3폴더</div>
+              </label>
+              <label id="sim-lbl-cf4" style="flex:1;display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;cursor:pointer;">
+                <input type="radio" name="sim-folder-c" id="sim-f-c4" value="4" onchange="simOnInput()" style="accent-color:var(--accent2);width:14px;height:14px;">
+                <div style="font-size:12px;font-weight:600;color:var(--text);">4폴더</div>
+              </label>
+            </div>
+          </div>
+          <div id="sim-folder-warn" style="display:none;margin-top:6px;font-size:11px;color:var(--red);">A/B 베팅 폴더 수를 모두 선택해야 진행할 수 있어요</div>
         </div>
 
         <div id="sim-excess-note" style="display:none;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);border-radius:6px;padding:7px 10px;font-size:11px;color:var(--gold);margin-bottom:8px;"></div>
         <div id="sim-isum" style="font-size:12px;color:var(--text3);margin-bottom:12px;">합계: 0원 / 보유: 10,000원</div>
 
         <button id="sim-hold-btn" onclick="simHold()" disabled style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.08);color:var(--gold);font-size:14px;font-weight:700;cursor:pointer;opacity:0.4;">⏸ 홀딩</button>
-      </div>
 
       <div id="sim-warn" style="display:none;background:rgba(255,59,92,0.08);border:1px solid rgba(255,59,92,0.2);border-radius:6px;padding:7px 12px;font-size:12px;color:var(--red);margin-bottom:10px;">합계가 보유 금액을 초과했어요</div>
 
@@ -3492,12 +3557,7 @@ if ('serviceWorker' in navigator) {
           </div>
           <div id="sim-pending-info" style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.8;"></div>
           <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">결과 선택</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <button onclick="simApplyPending('both')"  style="padding:10px;border-radius:8px;border:1px solid rgba(0,230,118,0.3);background:rgba(0,230,118,0.08);color:var(--green);font-size:12px;font-weight:700;cursor:pointer;">✓ 모두 성공</button>
-            <button onclick="simApplyPending('only2')" style="padding:10px;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;">✓ A만 성공</button>
-            <button id="sim-pending-b-btn" onclick="simApplyPending('only3')" style="padding:10px;border-radius:8px;border:1px solid rgba(167,139,250,0.3);background:rgba(167,139,250,0.08);color:#a78bfa;font-size:12px;font-weight:700;cursor:pointer;">✓ B만 성공</button>
-            <button onclick="simApplyPending('lose')"  style="padding:10px;border-radius:8px;border:1px solid rgba(255,59,92,0.3);background:rgba(255,59,92,0.08);color:var(--red);font-size:12px;font-weight:700;cursor:pointer;">✗ 모두 실패</button>
-          </div>
+          <div id="sim-pending-btns" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
           <button onclick="simCancelPending()" style="width:100%;margin-top:8px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);font-size:12px;cursor:pointer;">홀딩 취소</button>
         </div>
       </div>
@@ -3505,36 +3565,19 @@ if ('serviceWorker' in navigator) {
       <!-- 시나리오 미리보기 -->
       <div style="margin-bottom:14px;">
         <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:8px;">시나리오 미리보기</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div id="sim-sc-a" class="sim-sc" style="background:var(--bg2);border:1px solid rgba(0,230,118,0.2);border-radius:10px;padding:12px;opacity:0.4;pointer-events:none;">
-            <div style="font-size:10px;background:rgba(0,230,118,0.12);color:var(--green);padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:6px;">A+B 모두 성공</div>
-            <div id="sim-sc-a-amt" style="font-size:18px;font-weight:900;color:var(--green);font-family:'JetBrains Mono',monospace;">-</div>
-            <div id="sim-sc-a-diff" style="font-size:11px;color:var(--text3);"></div>
-          </div>
-          <div id="sim-sc-2" class="sim-sc" style="background:var(--bg2);border:1px solid rgba(0,229,255,0.2);border-radius:10px;padding:12px;opacity:0.4;pointer-events:none;">
-            <div style="font-size:10px;background:rgba(0,229,255,0.12);color:var(--accent);padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:6px;">A만 성공</div>
-            <div id="sim-sc-2-amt" style="font-size:18px;font-weight:900;color:var(--accent);font-family:'JetBrains Mono',monospace;">-</div>
-            <div id="sim-sc-2-diff" style="font-size:11px;color:var(--text3);"></div>
-          </div>
-          <div id="sim-sc-3" class="sim-sc" style="background:var(--bg2);border:1px solid rgba(167,139,250,0.2);border-radius:10px;padding:12px;opacity:0.4;pointer-events:none;">
-            <div style="font-size:10px;background:rgba(167,139,250,0.12);color:#a78bfa;padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:6px;">B만 성공</div>
-            <div id="sim-sc-3-amt" style="font-size:18px;font-weight:900;color:#a78bfa;font-family:'JetBrains Mono',monospace;">-</div>
-            <div id="sim-sc-3-diff" style="font-size:11px;color:var(--text3);"></div>
-          </div>
-          <div id="sim-sc-l" class="sim-sc" style="background:var(--bg2);border:1px solid rgba(255,59,92,0.2);border-radius:10px;padding:12px;opacity:0.4;pointer-events:none;">
-            <div style="font-size:10px;background:rgba(255,59,92,0.1);color:var(--red);padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:6px;">모두 실패</div>
-            <div id="sim-sc-l-amt" style="font-size:18px;font-weight:900;color:var(--red);font-family:'JetBrains Mono',monospace;">-</div>
-            <div id="sim-sc-l-diff" style="font-size:11px;color:var(--text3);"></div>
-          </div>
-        </div>
+        <div id="sim-sc-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
       </div>
 
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <div style="font-size:11px;color:var(--text3);letter-spacing:1px;">히스토리</div>
-          <div id="sim-hstats" style="font-size:11px;color:var(--text3);"></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="font-size:11px;color:var(--text3);letter-spacing:1px;">히스토리</div>
+            <div id="sim-hstats" style="font-size:11px;color:var(--text3);"></div>
+          </div>
+          <button onclick="simToggleHistory()" id="sim-hist-toggle"
+            style="font-size:11px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:3px 10px;cursor:pointer;">펼치기</button>
         </div>
-        <div id="sim-hlist"><div style="font-size:13px;color:var(--text3);text-align:center;padding:20px 0;">아직 진행한 회차가 없어요</div></div>
+        <div id="sim-hlist" style="display:none;transition:max-height 0.3s;overflow:hidden;"><div style="font-size:13px;color:var(--text3);text-align:center;padding:20px 0;">아직 진행한 회차가 없어요</div></div>
       </div>
 
       <div style="display:flex;gap:8px;margin-top:4px;">
@@ -3554,9 +3597,10 @@ if ('serviceWorker' in navigator) {
             <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3);"><div style="width:8px;height:8px;border-radius:50%;background:var(--gold);"></div>현재</div>
           </div>
         </div>
-        <div style="overflow:auto;-webkit-overflow-scrolling:touch;" id="sim-tree-wrap">
+        <div id="sim-tree-horizontal" style="overflow:auto;-webkit-overflow-scrolling:touch;">
           <canvas id="sim-tree-canvas" style="display:block;"></canvas>
         </div>
+        <div id="sim-tree-vertical" style="display:none;"></div>
       </div>
     </div>
 
@@ -3588,6 +3632,17 @@ if ('serviceWorker' in navigator) {
 
     <!-- 설정 탭 -->
     <div id="sim-tc-config" style="display:none;">
+      <div class="card">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">시작 금액 설정</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:12px;">현재 보유한 금액을 입력하면<br>로드맵에서 적합한 회차로 자동 배정돼요.</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input type="number" id="sim-start-input" placeholder="보유 금액 입력 (원)" min="1000" step="100"
+            style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:9px 12px;font-size:14px;font-family:'JetBrains Mono',monospace;color:var(--text2);outline:none;">
+          <button onclick="simSetStartBalance()" style="background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);border-radius:6px;padding:9px 16px;font-size:13px;color:var(--accent);cursor:pointer;font-weight:700;">시작</button>
+        </div>
+        <div id="sim-start-status" style="font-size:11px;color:var(--text3);min-height:16px;"></div>
+      </div>
+
       <div class="card">
         <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">목표 금액</div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
@@ -6133,11 +6188,8 @@ function lockWeeklySeed() {
   }
 
   // 10만원 단위 올림
-  const rawSeed = Math.round(seed);
-  const roundedSeed = Math.ceil(rawSeed / 100000) * 100000;
-  const wasRounded = roundedSeed !== rawSeed;
-
-  const locked = { seed: roundedSeed, rawSeed: rawSeed, wasRounded: wasRounded, date: dateStr, lockedAt: new Date().toISOString() };
+  const rawSeed = Math.round(seed / 100) * 100;
+  const locked = { seed: rawSeed, rawSeed: rawSeed, wasRounded: false, date: dateStr, lockedAt: new Date().toISOString() };
   localStorage.setItem('edge_round_seed', JSON.stringify(locked));
   sessionStorage.removeItem('round_seed_modal_shown');
 
@@ -6815,8 +6867,13 @@ function simSwitchTab(name) {
 }
 
 function simGetOdds(which) {
-  const dec = parseInt(document.getElementById(`sim-o-dec-${which}`).value) || 0;
+  if(which === 'c') {
+    return parseFloat(document.getElementById('sim-o-c-direct')?.value) || 1.0;
+  }
+  const raw = document.getElementById(`sim-o-dec-${which}`)?.value || '';
   const prefix = which === 'a' ? simPrefixA : simPrefixB;
+  if(raw === '') return prefix + 0;
+  const dec = raw.length <= 1 ? (parseInt(raw)||0) * 10 : parseInt(raw)||0;
   return prefix + dec / 100;
 }
 
@@ -6847,14 +6904,15 @@ function simSetPrefix(which, val) {
 
 function simResetOdds() {
   simPrefixA = 2; simPrefixB = 3;
+  const dc = document.getElementById('sim-o-c-direct'); if(dc) dc.value = '';
   const da = document.getElementById('sim-o-dec-a');
   const db = document.getElementById('sim-o-dec-b');
   if (da) da.value = '0';
   if (db) db.value = '0';
   simSetPrefix('a', 2);
   simSetPrefix('b', 3);
-  const f1 = document.getElementById('sim-f-1');
-  const f2 = document.getElementById('sim-f-2');
+  const f1 = document.getElementById('sim-f-a1');
+  const f2 = document.getElementById('sim-f-a2');
   if (f1) f1.checked = false;
   if (f2) f2.checked = false;
   ['sim-lbl-f1','sim-lbl-f2'].forEach(id => {
@@ -6869,36 +6927,59 @@ function simCalcExcess(bet, odds) {
 }
 
 function simGetPlan(bal) {
-  if (bal >= 810000) return { tag:'8회차 플랜', body:'세이브 41만 + A(x2) 30만 + B(x3) 10만 — 목표까지 마지막 한 스텝!' };
-  if (bal >= 500000) return { tag:'목표 근접', body:'세이브 50% 이상 확보, A베팅 메인, B베팅 소액 보너스로 운용하세요.' };
-  if (bal >= 410000) return { tag:'7회차 플랜', body:'세이브 11만 + A(x2) 20만 + B(x3) 10만' };
-  if (bal >= 210000) return { tag:'6회차 플랜', body:'세이브 6만 + B(x3) 5만 + A(x2) 10만' };
-  if (bal >= 120000) return { tag:'5회차 플랜', body:'세이브 3만 + A(x2) 9만' };
-  if (bal >= 70000)  return { tag:'4회차 플랜', body:'세이브 2만 + A(x2) 5만' };
-  if (bal >= 40000)  return { tag:'3회차 플랜', body:'세이브 1만 + A(x2) 3만' };
+  if (bal >= 2360000) return { tag:'목표 달성 구간', body:'세이브 50% 이상 + A(안전 1.5~2.2배) 메인 + B(도전 2.3~2.8배) + C(모험 3배~) 소액. 세이브 100만원이 찍히는 순간 목표 달성!' };
+  if (bal >= 1310000) return { tag:'10회차 플랜', body:'세이브 136만 + A(안전) 50만 + B(도전) 35만 + C(모험) 15만 — 세이브 100만 달성!' };
+  if (bal >= 810000)  return { tag:'9회차 플랜', body:'세이브 70만 + A(안전×2) 30만 + B(도전×2~3) 20만 + C(모험×3~4) 11만' };
+  if (bal >= 410000)  return { tag:'8회차 플랜', body:'세이브 41만 + A(x2) 30만 + B(x3) 10만 — 131만원 목표!' };
+  if (bal >= 210000)  return { tag:'7회차 플랜', body:'세이브 11만 + A(x2) 20만 + B(x3) 10만' };
+  if (bal >= 120000)  return { tag:'6회차 플랜', body:'세이브 6만 + B(x3) 5만 + A(x2) 10만' };
+  if (bal >= 70000)   return { tag:'5회차 플랜', body:'세이브 3만 + A(x2) 9만' };
+  if (bal >= 40000)   return { tag:'4회차 플랜', body:'세이브 2만 + A(x2) 5만' };
+  if (bal >= 20000)   return { tag:'3회차 플랜', body:'세이브 1만 + A(x2) 3만' };
   return null;
 }
 
 function simGetHint(bal) {
   if (bal < 40000) return null;
-  let sv, b2, b3, zone;
-  if (bal >= 500000) {
-    zone='목표 근접'; sv=Math.round(bal*0.50/10000)*10000; b2=Math.round(bal*0.38/10000)*10000; b3=Math.max(0,bal-sv-b2);
-  } else if (bal >= 210000) {
-    zone='분산 베팅'; sv=Math.round(bal*0.28/10000)*10000; b2=Math.round(bal*0.50/10000)*10000; b3=Math.max(0,bal-sv-b2);
-  } else {
-    zone='초반'; sv=Math.round(bal*0.28/10000)*10000; b2=bal-sv; b3=0;
+  let sv, b2, b3, b4, zone;
+
+  // 세이브 100만원 달성 이후 — 보수적 비율 (세이브 50 / A 30 / B 15 / C 5)
+  if (simState.goalReached) {
+    zone = '달성 후 운용';
+    sv = Math.round(bal * 0.50 / 10000) * 10000;
+    b2 = Math.round(bal * 0.30 / 10000) * 10000;
+    b3 = Math.round(bal * 0.15 / 10000) * 10000;
+    b4 = Math.max(0, bal - sv - b2 - b3);
+    return { zone, sv, b2, b3, b4 };
   }
-  return { zone, sv, b2, b3 };
+
+  if (bal >= 500000) {
+    zone='목표 근접'; sv=Math.round(bal*0.50/10000)*10000; b2=Math.round(bal*0.38/10000)*10000; b3=Math.max(0,bal-sv-b2); b4=0;
+  } else if (bal >= 210000) {
+    zone='분산 베팅'; sv=Math.round(bal*0.28/10000)*10000; b2=Math.round(bal*0.50/10000)*10000; b3=Math.max(0,bal-sv-b2); b4=0;
+  } else {
+    zone='초반'; sv=Math.round(bal*0.28/10000)*10000; b2=bal-sv; b3=0; b4=0;
+  }
+  return { zone, sv, b2, b3, b4 };
 }
 
 function simOnInput() {
   const sv  = parseInt(document.getElementById('sim-i-sv')?.value)  || 0;
   const b2  = parseInt(document.getElementById('sim-i-b2')?.value)  || 0;
   const b3  = parseInt(document.getElementById('sim-i-b3')?.value)  || 0;
+  const b4  = parseInt(document.getElementById('sim-i-b4')?.value)  || 0;
   const o2  = simGetOdds('a');
   const o3  = simGetOdds('b');
-  const tot = sv + b2 + b3;
+  const o4  = simGetOdds('c');
+  const tot = sv + b2 + b3 + b4;
+
+  // C베팅 자동 표시 (보유 금액 130만원 이상)
+  const showC = simState.balance >= 1300000;
+  ['sim-c-memo-wrap','sim-c-bet-wrap','sim-c-odds-wrap','sim-c-folder-wrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = showC ? 'block' : 'none';
+  });
+  if(!showC) { const b4el = document.getElementById('sim-i-b4'); if(b4el) b4el.value = ''; }
   const bal = simState.balance;
   const over = tot > bal, ok = tot === bal && tot > 0;
 
@@ -6921,18 +7002,38 @@ function simOnInput() {
   }
 
   const opEl = document.getElementById('sim-odds-preview');
-  if (opEl) opEl.textContent = `A:${o2.toFixed(2)} / B:${o3.toFixed(2)}`;
+  if (opEl) opEl.textContent = showC ? `A:${o2.toFixed(2)} / B:${o3.toFixed(2)} / C:${o4.toFixed(2)}x` : `A:${o2.toFixed(2)} / B:${o3.toFixed(2)}`;
 
-  const f1 = document.getElementById('sim-f-1');
-  const f2 = document.getElementById('sim-f-2');
-  const folderChecked = f1?.checked || f2?.checked;
+  const aChecked = document.getElementById('sim-f-a1')?.checked || document.getElementById('sim-f-a2')?.checked;
+  const bChecked = document.getElementById('sim-f-b1')?.checked || document.getElementById('sim-f-b2')?.checked;
+  const cChecked = document.getElementById('sim-f-c2')?.checked || document.getElementById('sim-f-c3')?.checked || document.getElementById('sim-f-c4')?.checked;
+  const hasBetB  = b3 > 0;
+  const hasBetC  = b4 > 0;
+  const folderChecked = aChecked && (hasBetB ? bChecked : true) && (hasBetC && showC ? cChecked : true);
   const fwEl = document.getElementById('sim-folder-warn');
   if (fwEl) fwEl.style.display = (!folderChecked && tot>0) ? 'block' : 'none';
-  if (f1 && f2) {
-    const lbl1=document.getElementById('sim-lbl-f1'), lbl2=document.getElementById('sim-lbl-f2');
-    if (lbl1) { lbl1.style.borderColor=f1.checked?'var(--gold)':'var(--border)'; lbl1.style.background=f1.checked?'rgba(255,215,0,0.06)':'var(--bg2)'; }
-    if (lbl2) { lbl2.style.borderColor=f2.checked?'var(--green)':'var(--border)'; lbl2.style.background=f2.checked?'rgba(0,230,118,0.06)':'var(--bg2)'; }
-  }
+
+  // A 폴더 하이라이트
+  [['sim-f-a1','sim-lbl-af1','var(--gold)','rgba(255,215,0,0.08)'],
+   ['sim-f-a2','sim-lbl-af2','var(--green)','rgba(0,230,118,0.08)']].forEach(([fid,lid,col,bg])=>{
+    const checked = document.getElementById(fid)?.checked;
+    const lbl = document.getElementById(lid);
+    if(lbl){ lbl.style.borderColor=checked?col:'var(--border)'; lbl.style.background=checked?bg:'var(--bg2)'; }
+  });
+  // B 폴더 하이라이트
+  [['sim-f-b1','sim-lbl-bf1','var(--gold)','rgba(255,215,0,0.08)'],
+   ['sim-f-b2','sim-lbl-bf2','var(--green)','rgba(0,230,118,0.08)']].forEach(([fid,lid,col,bg])=>{
+    const checked = document.getElementById(fid)?.checked;
+    const lbl = document.getElementById(lid);
+    if(lbl){ lbl.style.borderColor=checked?col:'var(--border)'; lbl.style.background=checked?bg:'var(--bg2)'; }
+  });
+  // C 폴더 하이라이트
+  ['sim-lbl-cf2','sim-lbl-cf3','sim-lbl-cf4'].forEach((lid,i)=>{
+    const fid = ['sim-f-c2','sim-f-c3','sim-f-c4'][i];
+    const checked = document.getElementById(fid)?.checked;
+    const lbl = document.getElementById(lid);
+    if(lbl){ lbl.style.borderColor=checked?'var(--accent2)':'var(--border)'; lbl.style.background=checked?'rgba(255,107,53,0.08)':'var(--bg2)'; }
+  });
 
   // 홀딩 버튼 상태 업데이트
   const holdBtn = document.getElementById('sim-hold-btn');
@@ -6959,38 +7060,53 @@ function simOnInput() {
   if (bal <= 0 && isumEl2) {
     isumEl2.innerHTML = `<span style="color:var(--red);font-weight:700;">💀 잔액 소진 — 초기화 후 다시 시작하세요</span>`;
   }
-  const bothAmt  = sv + Math.round(b2*o2) + Math.round(b3*o3);
-  const only2Amt = sv + Math.round(b2*o2);
-  const only3Amt = sv + Math.round(b3*o3);
-  const loseAmt  = sv;
+  const w2 = Math.round(b2*o2), w3 = Math.round(b3*o3), w4 = Math.round(b4*o4);
 
-  const cfgs = [
-    { id:'sim-sc-a', amt:bothAmt,  need3:true,  key:'both',  color:'var(--green)' },
-    { id:'sim-sc-2', amt:only2Amt, need3:false, key:'only2', color:'var(--accent)' },
-    { id:'sim-sc-3', amt:only3Amt, need3:true,  key:'only3', color:'#a78bfa' },
-    { id:'sim-sc-l', amt:loseAmt,  need3:false, key:'lose',  color:'var(--red)' },
+  const cfgs = showC ? [
+    { tag:'A+B+C 모두',  amt: sv+w2+w3+w4, col:'var(--green)',   key:'both'  },
+    { tag:'A+B만 성공',  amt: sv+w2+w3,     col:'var(--accent)', key:'only2' },
+    { tag:'A+C만 성공',  amt: sv+w2+w4,     col:'#a78bfa',       key:'only3' },
+    { tag:'B+C만 성공',  amt: sv+w3+w4,     col:'#a78bfa',       key:'bc'    },
+    { tag:'A만 성공',    amt: sv+w2,        col:'var(--accent)', key:'onlyA' },
+    { tag:'B만 성공',    amt: sv+w3,        col:'#a78bfa',       key:'onlyB' },
+    { tag:'C만 성공',    amt: sv+w4,        col:'var(--accent2)',key:'onlyC' },
+    { tag:'모두 실패',   amt: sv,           col:'var(--red)',     key:'lose'  },
+  ] : [
+    { tag:'A+B 모두',   amt: sv+w2+w3, col:'var(--green)',   key:'both'  },
+    { tag:'A만 성공',   amt: sv+w2,    col:'var(--accent)', key:'only2' },
+    { tag:'B만 성공',   amt: sv+w3,    col:'#a78bfa',       key:'only3' },
+    { tag:'모두 실패',  amt: sv,       col:'var(--red)',     key:'lose'  },
   ];
-  cfgs.forEach(c => {
-    const card=document.getElementById(c.id);
-    const amtEl=document.getElementById(c.id+'-amt');
-    const diffEl=document.getElementById(c.id+'-diff');
-    if (!card) return;
-    const off = dis || (c.need3 && !has3);
-    card.style.opacity = off ? '0.35' : '1';
-    card.style.pointerEvents = 'none';
-    card.style.cursor = 'default';
-    card.onclick = null;
-    const diff = c.amt - bal;
-    const goalFlag = (!off && c.amt >= SIM_GOAL) ? ' <span style="font-size:10px;background:var(--green);color:#000;padding:1px 6px;border-radius:20px;font-weight:700;">목표!</span>' : '';
-    if (amtEl) amtEl.innerHTML = (c.amt>0 ? simFmt(c.amt)+'원' : '-') + goalFlag;
-    if (diffEl) { diffEl.textContent = c.amt>0?(diff>=0?'+':'')+simFmt(diff)+'원':''; diffEl.style.color=diff>0?'rgba(0,230,118,0.6)':diff<0?'rgba(255,59,92,0.6)':'var(--text3)'; }
-  });
+
+  const grid = document.getElementById('sim-sc-grid');
+  if(grid) {
+    grid.innerHTML = cfgs.map(c => {
+      const diff = c.amt - bal;
+      const off = dis;
+      const goalFlag = (!off && c.amt >= SIM_GOAL) ? `<span style="font-size:10px;background:var(--green);color:#000;padding:1px 6px;border-radius:20px;font-weight:700;margin-left:4px;">목표!</span>` : '';
+      const saveFlag = (!off && c.key !== 'lose' && sv >= 1000000) ? `<span style="font-size:10px;background:#ffd700;color:#000;padding:1px 6px;border-radius:20px;font-weight:700;margin-left:4px;">달성!</span>` : '';
+      return `<div style="background:var(--bg2);border:1px solid ${c.col}33;border-radius:10px;padding:12px;opacity:${off?'0.35':'1'};">
+        <div style="font-size:10px;background:${c.col}22;color:${c.col};padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:6px;">${c.tag}</div>
+        <div style="font-size:17px;font-weight:900;color:${c.col};font-family:'JetBrains Mono',monospace;">${c.amt>0?simFmt(c.amt)+'원':'-'}${goalFlag}${saveFlag}</div>
+        <div style="font-size:11px;color:${diff>0?'rgba(0,230,118,0.6)':diff<0?'rgba(255,59,92,0.6)':'var(--text3)'};">${c.amt>0?(diff>=0?'+':'')+simFmt(diff)+'원':''}</div>
+      </div>`;
+    }).join('');
+  }
+}
+
+let simHistOpen = false;
+function simToggleHistory() {
+  simHistOpen = !simHistOpen;
+  const list = document.getElementById('sim-hlist');
+  const btn  = document.getElementById('sim-hist-toggle');
+  if(list) list.style.display = simHistOpen ? '' : 'none';
+  if(btn)  btn.textContent = simHistOpen ? '접기' : '펼치기';
 }
 
 function simUndoLast() {
   if (!simSnaps.length) return;
   simState = simSnaps.pop();
-  ['sim-i-sv','sim-i-b2','sim-i-b3','sim-i-memo','sim-i-memo-b'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['sim-i-sv','sim-i-b2','sim-i-b3','sim-i-b4','sim-i-memo','sim-i-memo-b','sim-i-memo-c'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   simResetOdds(); simRender(); simOnInput();
 }
 
@@ -7012,9 +7128,9 @@ function simRender() {
   const hint=simGetHint(bal);
   const hb=document.getElementById('sim-hint-box'); if(hb) hb.style.display=hint?'flex':'none';
   const hbd=document.getElementById('sim-hint-body');
-  if(hbd&&hint){let h=`${hint.zone} | 세이브 <span style="color:var(--gold)">${simFmt(hint.sv)}원</span> A베팅 <span style="color:var(--accent)">${simFmt(hint.b2)}원</span>`;if(hint.b3>0)h+=` B베팅 <span style="color:var(--green)">${simFmt(hint.b3)}원</span>`;hbd.innerHTML=h;}
+  if(hbd&&hint){let h=`${hint.zone} | 세이브 <span style="color:var(--gold)">${simFmt(hint.sv)}원</span> A베팅 <span style="color:var(--accent)">${simFmt(hint.b2)}원</span>`;if(hint.b3>0)h+=` B베팅 <span style="color:var(--green)">${simFmt(hint.b3)}원</span>`;if(hint.b4>0)h+=` C베팅 <span style="color:var(--accent2)">${simFmt(hint.b4)}원</span>`;hbd.innerHTML=h;}
   const gb=document.getElementById('sim-goal-banner'); if(gb) gb.style.display=simState.goalReached?'block':'none';
-  const gt=document.getElementById('sim-goal-text'); if(gt&&simState.goalReached) gt.textContent=`${simFmt(bal)}원 달성 — ${simState.round-1}회차 완료`;
+  const gt=document.getElementById('sim-goal-text'); if(gt&&simState.goalReached) gt.textContent=`세이브 100만원 달성! — ${simState.round-1}회차 완료`;
   simRenderHistory();
 }
 
@@ -7103,11 +7219,21 @@ function simHold() {
   const sv  = parseInt(document.getElementById('sim-i-sv')?.value)  || 0;
   const b2  = parseInt(document.getElementById('sim-i-b2')?.value)  || 0;
   const b3  = parseInt(document.getElementById('sim-i-b3')?.value)  || 0;
+  const b4  = parseInt(document.getElementById('sim-i-b4')?.value)  || 0;
   const o2  = simGetOdds('a');
   const o3  = simGetOdds('b');
-  const tot = sv + b2 + b3;
-  const f1  = document.getElementById('sim-f-1');
-  const f2  = document.getElementById('sim-f-2');
+  const o4  = simGetOdds('c');
+  const tot = sv + b2 + b3 + b4;
+
+  // C베팅 자동 표시 (보유 금액 130만원 이상)
+  const showC = simState.balance >= 1300000;
+  ['sim-c-memo-wrap','sim-c-bet-wrap','sim-c-odds-wrap','sim-c-folder-wrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = showC ? 'block' : 'none';
+  });
+  if(!showC) { const b4el = document.getElementById('sim-i-b4'); if(b4el) b4el.value = ''; }
+  const f1  = document.getElementById('sim-f-a1');
+  const f2  = document.getElementById('sim-f-a2');
   if (!tot || tot > simState.balance) return;
   if (!f1?.checked && !f2?.checked) return;
   if (simPending) return; // 이미 홀딩중이면 무시
@@ -7116,19 +7242,29 @@ function simHold() {
   const ex3 = b3 > 0 ? simCalcExcess(b3, o3) : 0;
   const memo  = document.getElementById('sim-i-memo')?.value.trim() || '';
   const memoB = document.getElementById('sim-i-memo-b')?.value.trim() || '';
+  const memoC = document.getElementById('sim-i-memo-c')?.value.trim() || '';
   const folderCount = f1?.checked ? 1 : 2;
 
+  const w2 = Math.round(b2*o2), w3 = Math.round(b3*o3), w4 = Math.round(b4*o4);
   simPending = {
-    sv, b2, b3, o2, o3, ex2, ex3, memo, memoB, folderCount,
+    sv, b2, b3, b4, o2, o3, o4, ex2, ex3, memo, memoB, memoC, folderCount,
     round: simState.round,
-    bothAmt:  sv + Math.round(b2*o2) + Math.round(b3*o3),
-    only2Amt: sv + Math.round(b2*o2),
-    only3Amt: sv + Math.round(b3*o3),
-    loseAmt:  sv
+    amts: {
+      both:  sv+w2+w3+w4,
+      only2: sv+w2+w3,
+      only3: sv+w2+w4,
+      bc:    sv+w3+w4,
+      onlyA: sv+w2,
+      onlyB: sv+w3,
+      onlyC: sv+w4,
+      lose:  sv,
+      // legacy keys
+      bothOld: sv+w2+w3,
+    }
   };
 
   // 입력칸 초기화
-  ['sim-i-sv','sim-i-b2','sim-i-b3','sim-i-memo','sim-i-memo-b'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['sim-i-sv','sim-i-b2','sim-i-b3','sim-i-b4','sim-i-memo','sim-i-memo-b','sim-i-memo-c'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   simResetOdds();
   simRenderPending();
   simOnInput();
@@ -7147,13 +7283,38 @@ function simRenderPending() {
 
   const lines = [];
   if (p.sv > 0)  lines.push(`🛡 세이브 <strong style="color:var(--gold)">${simFmt(p.sv)}원</strong>`);
-  if (p.b2 > 0)  lines.push(`A ${p.memo||'-'} <strong style="color:var(--accent)">${simFmt(p.b2)}원</strong> <span style="color:var(--text3)">(x${p.o2.toFixed(2)})</span>`);
-  if (p.b3 > 0)  lines.push(`B ${p.memoB||'-'} <strong style="color:#a78bfa">${simFmt(p.b3)}원</strong> <span style="color:var(--text3)">(x${p.o3.toFixed(2)})</span>`);
+  if (p.b2 > 0)  lines.push(`A - ${p.memo||'-'} <strong style="color:var(--accent)">${simFmt(p.b2)}원</strong> <span style="color:var(--text3)">(x${p.o2?.toFixed(2)||'-'})</span>`);
+  if (p.b3 > 0)  lines.push(`B - ${p.memoB||'-'} <strong style="color:#a78bfa">${simFmt(p.b3)}원</strong> <span style="color:var(--text3)">(x${p.o3?.toFixed(2)||'-'})</span>`);
+  if (p.b4 > 0)  lines.push(`C - ${p.memoC||'-'} <strong style="color:var(--accent2)">${simFmt(p.b4)}원</strong> <span style="color:var(--text3)">(x${p.o4?.toFixed(2)||'-'})</span>`);
 
   const infoEl = document.getElementById('sim-pending-info');
   if (infoEl) infoEl.innerHTML = lines.join('<br>');
 
-  // B 없으면 B만 성공 버튼 비활성화
+  // 진행중 버튼 동적 생성
+  const hasC = simState.balance >= 1300000 && (simPending?.b4 || 0) > 0;
+  const pendingBtns = document.getElementById('sim-pending-btns');
+  if (pendingBtns) {
+    const btns = hasC ? [
+      { key:'both',  label:'✓ A+B+C 모두', col:'var(--green)',   bg:'rgba(0,230,118,0.08)',   border:'rgba(0,230,118,0.3)' },
+      { key:'only2', label:'✓ A+B만',       col:'var(--accent)', bg:'rgba(0,229,255,0.08)',   border:'rgba(0,229,255,0.3)' },
+      { key:'only3', label:'✓ A+C만',       col:'#a78bfa',       bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)' },
+      { key:'bc',    label:'✓ B+C만',       col:'#a78bfa',       bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)' },
+      { key:'onlyA', label:'✓ A만',         col:'var(--accent)', bg:'rgba(0,229,255,0.08)',   border:'rgba(0,229,255,0.3)' },
+      { key:'onlyB', label:'✓ B만',         col:'#a78bfa',       bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)' },
+      { key:'onlyC', label:'✓ C만',         col:'var(--accent2)',bg:'rgba(255,107,53,0.08)',  border:'rgba(255,107,53,0.3)' },
+      { key:'lose',  label:'✗ 모두 실패',   col:'var(--red)',    bg:'rgba(255,59,92,0.08)',   border:'rgba(255,59,92,0.3)' },
+    ] : [
+      { key:'both',  label:'✓ 모두 성공', col:'var(--green)',   bg:'rgba(0,230,118,0.08)',   border:'rgba(0,230,118,0.3)' },
+      { key:'only2', label:'✓ A만 성공',  col:'var(--accent)', bg:'rgba(0,229,255,0.08)',   border:'rgba(0,229,255,0.3)' },
+      { key:'only3', label:'✓ B만 성공',  col:'#a78bfa',       bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)' },
+      { key:'lose',  label:'✗ 모두 실패', col:'var(--red)',    bg:'rgba(255,59,92,0.08)',   border:'rgba(255,59,92,0.3)' },
+    ];
+    pendingBtns.innerHTML = btns.map(b =>
+      `<button onclick="simApplyPending('${b.key}')" style="padding:10px;border-radius:8px;border:1px solid ${b.border};background:${b.bg};color:${b.col};font-size:12px;font-weight:700;cursor:pointer;">${b.label}</button>`
+    ).join('');
+  }
+
+  // B 없으면 B만 성공 버튼 비활성화 (legacy)
   const bBtn = document.getElementById('sim-pending-b-btn');
   if (bBtn) { bBtn.style.opacity = p.b3 > 0 ? '1' : '0.3'; bBtn.disabled = p.b3 === 0; }
 }
@@ -7162,7 +7323,7 @@ function simApplyPending(key) {
   if (!simPending) return;
   const p = simPending;
   const amts = { both: p.bothAmt, only2: p.only2Amt, only3: p.only3Amt, lose: p.loseAmt };
-  const newBal = amts[key];
+  const newBal = amts[key] !== undefined ? amts[key] : p.loseAmt;
 
   simSnaps.push(JSON.parse(JSON.stringify(simState)));
   const excessSave = key==='both'?p.ex2+p.ex3:key==='only2'?p.ex2:key==='only3'?p.ex3:0;
@@ -7291,8 +7452,68 @@ function simRenderGoalHistory() {
     </div>`).join('');
 }
 
+function simRenderTreeVertical() {
+  const el = document.getElementById('sim-tree-vertical');
+  if (!el) return;
+  const h = simState.history;
+  const C = {
+    both:'#3ecf8e', only2:'#00e5ff', only3:'#a78bfa', lose:'#ff3b5c',
+    bc:'#a78bfa', onlyA:'#00e5ff', onlyB:'#a78bfa', onlyC:'#ff6b35'
+  };
+  const lmap = {
+    both:'AB✓', only2:'A✓', only3:'B✓', lose:'실패',
+    bc:'B+C✓', onlyA:'A✓', onlyB:'B✓', onlyC:'C✓'
+  };
+
+  if (!h.length) {
+    el.innerHTML = '<div style="font-size:12px;color:#4a5168;text-align:center;padding:20px;">아직 진행한 회차가 없어요</div>';
+    return;
+  }
+
+  let html = '<div style="padding:4px 0;">';
+  h.forEach((item, i) => {
+    const col = C[item.key] || '#4a5168';
+    const isLast = i === h.length - 1;
+    const diff = item.after - item.before;
+    html += `
+      <div style="display:flex;align-items:stretch;gap:12px;">
+        <div style="display:flex;flex-direction:column;align-items:center;width:32px;flex-shrink:0;">
+          <div style="width:32px;height:32px;border-radius:50%;background:${col}22;border:1.5px solid ${col};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:${col};font-family:'JetBrains Mono',monospace;flex-shrink:0;">${item.round}</div>
+          ${!isLast ? `<div style="width:1.5px;flex:1;min-height:20px;background:${col};opacity:0.25;margin:3px 0;"></div>` : ''}
+        </div>
+        <div style="flex:1;padding-bottom:${isLast?'0':'16px'};">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+            <span style="font-size:12px;font-weight:700;color:${col};font-family:'JetBrains Mono',monospace;">${(item.after/10000).toFixed(0)}만원</span>
+            <span style="font-size:10px;padding:1px 6px;border-radius:20px;background:${col}22;color:${col};">${item.key==='both'?(item.bet4>0?'ABC✓':'AB✓'):lmap[item.key]}</span>
+            <span style="font-size:10px;color:${diff>=0?'#3ecf8e':'#ff3b5c'};">${diff>=0?'+':''}${(diff/10000).toFixed(0)}만</span>
+          </div>
+          ${item.memo?`<div style="font-size:10px;color:#4a5168;font-style:italic;">${item.memo}</div>`:''}
+          ${item.save>0?`<div style="font-size:10px;color:#ffd700;">세이브 ${(item.save/10000).toFixed(0)}만원</div>`:''}
+        </div>
+      </div>`;
+  });
+
+  // 현재 노드
+  html += `
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="width:32px;height:32px;border-radius:50%;background:rgba(255,215,0,0.15);border:1.5px dashed #ffd700;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#ffd700;font-family:'JetBrains Mono',monospace;flex-shrink:0;">NOW</div>
+      <div style="font-size:12px;color:#ffd700;font-family:'JetBrains Mono',monospace;">${(simState.balance/10000).toFixed(0)}만원</div>
+    </div>`;
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+
 function simRenderTree() {
-  const wrap = document.getElementById('sim-tree-wrap');
+  const isMobile = window.innerWidth < 600;
+  const horiz = document.getElementById('sim-tree-horizontal');
+  const vert  = document.getElementById('sim-tree-vertical');
+  if (horiz) horiz.style.display = isMobile ? 'none' : 'block';
+  if (vert)  vert.style.display  = isMobile ? 'block' : 'none';
+
+  if (isMobile) { simRenderTreeVertical(); return; }
+
+  const wrap = document.getElementById('sim-tree-horizontal');
   const canvas = document.getElementById('sim-tree-canvas');
   if (!canvas || !wrap) return;
   const ctx = canvas.getContext('2d');
@@ -7434,7 +7655,10 @@ function simRenderTree() {
 
     // 결과 텍스트 아래
     if (i > 0 && n.key) {
-      const lmap = { both:'AB✓', only2:'A✓', only3:'B✓', lose:'실패' };
+      const lmap = {
+        both:'AB✓', only2:'A+B✓', only3:'A+C✓', bc:'B+C✓',
+        onlyA:'A✓', onlyB:'B✓', onlyC:'C✓', lose:'실패'
+      };
       ctx.fillStyle = col;
       ctx.font = '8px JetBrains Mono, monospace';
       ctx.fillText(lmap[n.key] || '', x, y + NODE_R + 12);
@@ -7494,21 +7718,53 @@ function simRenderStats() {
   const peakEl=document.getElementById('sim-st-peak'); if(peakEl) peakEl.textContent=simFmt(peak)+'원';
   const fsEl=document.getElementById('sim-folder-stats');
   if(fsEl){
-    const f1r=h.filter(x=>x.folder===1),f2r=h.filter(x=>x.folder===2);
-    const f1w=f1r.filter(x=>x.key==='both'||x.key==='only2').length;
-    const f2w=f2r.filter(x=>x.key==='both'||x.key==='only2').length;
-    fsEl.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <div style="background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);border-radius:8px;padding:10px;">
-        <div style="font-size:10px;color:var(--gold);margin-bottom:4px;">1폴더</div>
-        <div style="font-size:20px;font-weight:900;">${f1r.length?Math.round(f1w/f1r.length*100)+'%':'-'}</div>
-        <div style="font-size:11px;color:var(--text3);">${f1w}승 / ${f1r.length}회</div>
-      </div>
-      <div style="background:rgba(0,230,118,0.06);border:1px solid rgba(0,230,118,0.2);border-radius:8px;padding:10px;">
-        <div style="font-size:10px;color:var(--green);margin-bottom:4px;">2폴더</div>
-        <div style="font-size:20px;font-weight:900;">${f2r.length?Math.round(f2w/f2r.length*100)+'%':'-'}</div>
-        <div style="font-size:11px;color:var(--text3);">${f2w}승 / ${f2r.length}회</div>
-      </div>
+    const isC = simState.balance >= 1300000;
+    const winKeys = ['both','only2','onlyA','only3','bc','onlyB','onlyC'];
+
+    // A/B 폴더별
+    const af1=h.filter(x=>x.folderA===1), af2=h.filter(x=>x.folderA===2);
+    const af1w=af1.filter(x=>winKeys.includes(x.key)).length;
+    const af2w=af2.filter(x=>winKeys.includes(x.key)).length;
+
+    const bf1=h.filter(x=>x.folderB===1), bf2=h.filter(x=>x.folderB===2);
+    const bf1w=bf1.filter(x=>winKeys.includes(x.key)).length;
+    const bf2w=bf2.filter(x=>winKeys.includes(x.key)).length;
+
+    // C 폴더별 (2/3/4폴더)
+    const cf2=h.filter(x=>x.folderC===2), cf3=h.filter(x=>x.folderC===3), cf4=h.filter(x=>x.folderC===4);
+    const cf2w=cf2.filter(x=>['both','only3','bc','onlyC'].includes(x.key)).length;
+    const cf3w=cf3.filter(x=>['both','only3','bc','onlyC'].includes(x.key)).length;
+    const cf4w=cf4.filter(x=>['both','only3','bc','onlyC'].includes(x.key)).length;
+
+    const pct = (w,t) => t>0 ? Math.round(w/t*100)+'%' : '-';
+    const card = (label, col, bg, w, t) =>
+      `<div style="background:${bg};border:1px solid ${col}33;border-radius:8px;padding:10px;">
+        <div style="font-size:10px;color:${col};margin-bottom:4px;">${label}</div>
+        <div style="font-size:18px;font-weight:900;color:var(--text);">${pct(w,t)}</div>
+        <div style="font-size:11px;color:var(--text3);">${w}승 / ${t}회</div>
+      </div>`;
+
+    let html = '<div style="margin-bottom:8px;font-size:10px;color:var(--text3);">A 베팅</div>';
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      ${card('1폴더','#ffd700','rgba(255,215,0,0.06)',af1w,af1.length)}
+      ${card('2폴더','#00e676','rgba(0,230,118,0.06)',af2w,af2.length)}
     </div>`;
+    html += '<div style="margin-bottom:8px;font-size:10px;color:var(--text3);">B 베팅</div>';
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      ${card('1폴더','#ffd700','rgba(255,215,0,0.06)',bf1w,bf1.length)}
+      ${card('2폴더','#00e676','rgba(0,230,118,0.06)',bf2w,bf2.length)}
+    </div>`;
+
+    if(isC && (cf2.length||cf3.length||cf4.length)) {
+      html += '<div style="margin-bottom:8px;font-size:10px;color:var(--accent2);">C 베팅 (모험)</div>';
+      html += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        ${card('2폴더','#ff6b35','rgba(255,107,53,0.06)',cf2w,cf2.length)}
+        ${card('3폴더','#ff6b35','rgba(255,107,53,0.06)',cf3w,cf3.length)}
+        ${card('4폴더','#ff6b35','rgba(255,107,53,0.06)',cf4w,cf4.length)}
+      </div>`;
+    }
+
+    fsEl.innerHTML = html;
   }
   if(simChartInst){simChartInst.destroy();simChartInst=null;}
   const ctx=document.getElementById('sim-chart-cv');
@@ -7525,6 +7781,31 @@ function simRenderStats() {
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
       scales:{x:{ticks:{color:'#4a5168',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#4a5168',font:{size:10},callback:v=>simFmt(v)+'원'},grid:{color:'rgba(255,255,255,0.04)'}}}}
   });
+}
+
+function simSetStartBalance() {
+  const inp = document.getElementById('sim-start-input');
+  const val = parseInt(inp?.value);
+  if(!val || val < 1000) {
+    if(inp) { inp.style.borderColor='var(--red)'; setTimeout(()=>inp.style.borderColor='',1000); }
+    return;
+  }
+  // 가장 가까운 회차 찾기
+  let assignedIdx = 0;
+  SIM_ROADMAP.forEach((r,i) => { if(val >= r.threshold) assignedIdx = i; });
+  const r = SIM_ROADMAP[assignedIdx];
+
+  simSnaps = [];
+  simState = { balance: val, round: r.round, history: [], goalReached: false, goalHistory: [] };
+  simResetOdds();
+  if(inp) inp.value = '';
+
+  const st = document.getElementById('sim-start-status');
+  if(st) { st.textContent = `✅ ${r.round}회차(${r.balance} 구간)로 시작했어요`; st.style.color='var(--green)'; setTimeout(()=>st.textContent='',3000); }
+
+  simRender(); simOnInput(); simRenderRoadmap();
+  simSwitchTab('play');
+  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); } catch(e) {}
 }
 
 function simConfirmGoal() {
@@ -7554,7 +7835,7 @@ function simConfirmReset(){
   simState={balance:SIM_START,round:1,history:[],goalReached:false,goalHistory:[]};SIM_GOAL=1000000;
   // localStorage도 초기화
   try{localStorage.removeItem('edge_sim_state');localStorage.removeItem('edge_sim_goal');}catch(e){}
-  ['sim-i-sv','sim-i-b2','sim-i-b3','sim-i-memo','sim-i-memo-b'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['sim-i-sv','sim-i-b2','sim-i-b3','sim-i-b4','sim-i-memo','sim-i-memo-b','sim-i-memo-c'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   simResetOdds();simSwitchTab('play');simRender();simOnInput();
 }
 
@@ -15679,6 +15960,78 @@ updateDashboardRoundStats();
 setTodayKST();
 updateFundCards();
 showTagCat('전력');
+
+// 로드맵 렌더링
+const SIM_ROADMAP = [
+  { round:1, balance:'1만원',   save:'0',      bet:'1만원',                          win:'2만원',    lose:'0',       threshold:10000   },
+  { round:2, balance:'2만원',   save:'0',      bet:'2만원',                          win:'4만원',    lose:'0',       threshold:20000   },
+  { round:3, balance:'4만원',   save:'1만원',  bet:'3만원',                          win:'7만원',    lose:'1만원',   threshold:40000   },
+  { round:4, balance:'7만원',   save:'2만원',  bet:'5만원',                          win:'12만원',   lose:'2만원',   threshold:70000   },
+  { round:5, balance:'12만원',  save:'3만원',  bet:'9만원',                          win:'21만원',   lose:'3만원',   threshold:120000  },
+  { round:6, balance:'21만원',  save:'6만원',  bet:'5만(×3)+10만(×2)',               win:'41만원',   lose:'6만원',   threshold:210000  },
+  { round:7, balance:'41만원',  save:'11만원', bet:'10만(×3)+20만(×2)',              win:'81만원',   lose:'11만원',  threshold:410000  },
+  { round:8, balance:'81만원',  save:'41만원', bet:'10만(×3)+30만(×2)',              win:'131만원',  lose:'41만원',  threshold:810000  },
+  { round:9, balance:'131만원', save:'70만원', bet:'안전30만+도전20만+모험11만',      win:'~236만원', lose:'70만원',  threshold:1310000 },
+  { round:10,balance:'236만원', save:'136만원',bet:'안전50만+도전35만+모험15만',      win:'~398만원', lose:'136만원', threshold:2360000 },
+];
+
+function simRenderRoadmap() {
+  const tbody = document.getElementById('sim-roadmap-body');
+  if(!tbody) return;
+  const bal = simState ? simState.balance : 10000;
+  let curIdx = 0;
+  SIM_ROADMAP.forEach((r,i) => { if(bal >= r.threshold) curIdx = i; });
+
+  tbody.innerHTML = SIM_ROADMAP.map((r,i) => {
+    const isCurrent = i === curIdx;
+    const isDone    = i < curIdx;
+    const bg        = isCurrent ? 'background:rgba(0,229,255,0.06);' : '';
+    const op        = isDone    ? 'opacity:0.35;' : '';
+    const bl        = isCurrent ? 'border-left:2px solid var(--accent);' : 'border-left:2px solid transparent;';
+    const cursor    = isDone ? '' : 'cursor:pointer;';
+    const hover     = isDone ? '' : `onmouseover="this.style.background='rgba(0,229,255,0.04)'" onmouseout="this.style.background='${isCurrent?'rgba(0,229,255,0.06)':'transparent'}'"`;
+    return `<tr style="${bg}${op}${bl}${cursor}" onclick="simSelectRound(${i})" ${hover}>
+      <td style="padding:5px 6px;text-align:left;color:${isCurrent?'var(--accent)':'var(--text3)'};font-weight:${isCurrent?'700':'400'};">
+        ${r.round}회${isCurrent?' ◀':isDone?' ✓':''}
+      </td>
+      <td style="padding:5px 6px;text-align:right;color:${isCurrent?'var(--text)':'var(--text2)'};">${r.balance}</td>
+      <td style="padding:5px 6px;text-align:right;color:${r.save==='0'?'var(--text3)':'var(--gold)'};">${r.save}</td>
+      <td style="padding:5px 6px;text-align:center;color:var(--text2);font-size:9px;">${r.bet}</td>
+      <td style="padding:5px 6px;text-align:right;color:var(--green);">${r.win}</td>
+      <td style="padding:5px 6px;text-align:right;color:${r.lose==='0'?'var(--text3)':'var(--red)'};">${r.lose}</td>
+    </tr>`;
+  }).join('');
+}
+simRenderRoadmap();
+
+function simSelectRound(idx) {
+  const r = SIM_ROADMAP[idx];
+  if(!r) return;
+  // 이미 지나온 회차는 선택 불가
+  const bal = simState ? simState.balance : 10000;
+  let curIdx = 0;
+  SIM_ROADMAP.forEach((x,i) => { if(bal >= x.threshold) curIdx = i; });
+  if(idx < curIdx) return;
+
+  const confirmMsg = `${r.round}회차(${r.balance})부터 시작할까요?
+현재 기록은 초기화돼요.`;
+  // 커스텀 모달 대신 심플 confirm (EDGE FINDER 환경)
+  if(!window.confirm(confirmMsg)) return;
+
+  simSnaps = [];
+  simState = { balance: r.threshold, round: r.round, history: [], goalReached: false, goalHistory: [] };
+  simResetOdds();
+  simRender();
+  simOnInput();
+  simRenderRoadmap();
+  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); } catch(e) {}
+}
+
+// simRender 후 로드맵 자동 갱신
+const _origSimRender = typeof simRender === 'function' ? simRender : null;
+if(_origSimRender) {
+  simRender = function() { _origSimRender(); simRenderRoadmap(); };
+}
 </script>
 </body>
 </html>
