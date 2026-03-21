@@ -3517,6 +3517,7 @@ if ('serviceWorker' in navigator) {
 
       <div style="display:flex;gap:8px;margin-top:4px;">
         <button onclick="simUndoLast()" style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:13px;cursor:pointer;">↩ 이전으로</button>
+        <button onclick="simRestart()" style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--accent);font-size:13px;cursor:pointer;font-weight:700;">🔄 다시 시작</button>
       </div>
     </div>
 
@@ -6904,8 +6905,14 @@ function simOnInput() {
     if (lbl2) { lbl2.style.borderColor=f2.checked?'var(--green)':'var(--border)'; lbl2.style.background=f2.checked?'rgba(0,230,118,0.06)':'var(--bg2)'; }
   }
 
-  const dis = over || tot===0 || !folderChecked;
+  const dis = over || tot===0 || !folderChecked || bal <= 0;
   const has3 = b3 > 0;
+
+  // 잔액 0 이하 → 게임오버 안내
+  const isumEl2 = document.getElementById('sim-isum');
+  if (bal <= 0 && isumEl2) {
+    isumEl2.innerHTML = `<span style="color:var(--red);font-weight:700;">💀 잔액 소진 — 초기화 후 다시 시작하세요</span>`;
+  }
   const bothAmt  = sv + Math.round(b2*o2) + Math.round(b3*o3);
   const only2Amt = sv + Math.round(b2*o2);
   const only3Amt = sv + Math.round(b3*o3);
@@ -7087,6 +7094,32 @@ function closeSimSuggest(boxId) {
   if (box) box.style.display = 'none';
 }
 
+function simDeleteHistory(idx) {
+  if (!confirm(`${simState.history[idx]?.round}회차 기록을 삭제할까요?`)) return;
+  simSnaps.push(JSON.parse(JSON.stringify(simState)));
+  simState.history.splice(idx, 1);
+  // 삭제 후 잔액 재계산
+  if (simState.history.length > 0) {
+    simState.balance = simState.history[simState.history.length - 1].after;
+    simState.round = simState.history[simState.history.length - 1].round + 1;
+  } else {
+    simState.balance = SIM_START;
+    simState.round = 1;
+  }
+  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); } catch(e) {}
+  simRender(); simOnInput();
+}
+
+function simRestart() {
+  if (!confirm('잔액만 1만원으로 초기화할까요?\n히스토리는 유지됩니다.')) return;
+  simSnaps.push(JSON.parse(JSON.stringify(simState)));
+  simState.balance = SIM_START;
+  simState.round = simState.history.length + 1;
+  simState.goalReached = false;
+  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); } catch(e) {}
+  simRender(); simOnInput();
+}
+
 function simToggleResult(idx, result) {
   const h = simState.history[idx];
   if (!h) return;
@@ -7147,6 +7180,7 @@ function simRenderHistory() {
         <span style="font-size:11px;color:${diff>=0?'rgba(0,230,118,0.6)':'rgba(255,59,92,0.6)'};">${diff>=0?'+':''}${simFmt(diff)}</span>
         <button onclick="simToggleResult(${realIdx},'win')" style="padding:5px 10px;font-size:11px;border-radius:20px;border:1px solid ${isWin?'var(--green)':'var(--border)'};background:${isWin?'rgba(0,230,118,0.15)':'var(--bg3)'};color:${isWin?'var(--green)':'var(--text3)'};cursor:pointer;">✓ 성공</button>
         <button onclick="simToggleResult(${realIdx},'lose')" style="padding:5px 10px;font-size:11px;border-radius:20px;border:1px solid ${isLose?'var(--red)':'var(--border)'};background:${isLose?'rgba(255,59,92,0.12)':'var(--bg3)'};color:${isLose?'var(--red)':'var(--text3)'};cursor:pointer;">✗ 실패</button>
+        <button onclick="simDeleteHistory(${realIdx})" style="padding:5px 10px;font-size:11px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);cursor:pointer;">🗑</button>
       </div>
       ${h.memo?`<div style="font-size:11px;color:var(--text3);padding-left:36px;font-style:italic;margin-top:3px;">"${h.memo}"</div>`:''}
     </div>`;
@@ -7271,6 +7305,8 @@ function simCloseResetModal(){const m=document.getElementById('sim-reset-modal')
 function simConfirmReset(){
   simCloseResetModal();simSnaps=[];
   simState={balance:SIM_START,round:1,history:[],goalReached:false,goalHistory:[]};SIM_GOAL=1000000;
+  // localStorage도 초기화
+  try{localStorage.removeItem('edge_sim_state');localStorage.removeItem('edge_sim_goal');}catch(e){}
   ['sim-i-sv','sim-i-b2','sim-i-b3','sim-i-memo','sim-i-memo-b'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   simResetOdds();simSwitchTab('play');simRender();simOnInput();
 }
