@@ -3472,34 +3472,56 @@ if ('serviceWorker' in navigator) {
               </div>
             </label>
           </div>
-          <div id="sim-folder-warn" style="display:none;margin-top:6px;font-size:11px;color:var(--red);">폴더 수를 선택해야 시나리오를 적용할 수 있어요</div>
+          <div id="sim-folder-warn" style="display:none;margin-top:6px;font-size:11px;color:var(--red);">폴더 수를 선택해야 진행할 수 있어요</div>
         </div>
 
         <div id="sim-excess-note" style="display:none;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);border-radius:6px;padding:7px 10px;font-size:11px;color:var(--gold);margin-bottom:8px;"></div>
-        <div id="sim-isum" style="font-size:12px;color:var(--text3);">합계: 0원 / 보유: 10,000원</div>
+        <div id="sim-isum" style="font-size:12px;color:var(--text3);margin-bottom:12px;">합계: 0원 / 보유: 10,000원</div>
+
+        <button id="sim-hold-btn" onclick="simHold()" disabled style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.08);color:var(--gold);font-size:14px;font-weight:700;cursor:pointer;opacity:0.4;">⏸ 홀딩</button>
       </div>
 
       <div id="sim-warn" style="display:none;background:rgba(255,59,92,0.08);border:1px solid rgba(255,59,92,0.2);border-radius:6px;padding:7px 12px;font-size:12px;color:var(--red);margin-bottom:10px;">합계가 보유 금액을 초과했어요</div>
 
+      <!-- 진행중 섹션 -->
+      <div id="sim-pending-section" style="display:none;margin-bottom:14px;">
+        <div class="card" style="border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.04);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:11px;color:var(--gold);letter-spacing:1px;font-weight:700;">⏸ 진행중</div>
+            <div id="sim-pending-round" style="font-size:11px;color:var(--text3);"></div>
+          </div>
+          <div id="sim-pending-info" style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.8;"></div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">결과 선택</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <button onclick="simApplyPending('both')"  style="padding:10px;border-radius:8px;border:1px solid rgba(0,230,118,0.3);background:rgba(0,230,118,0.08);color:var(--green);font-size:12px;font-weight:700;cursor:pointer;">✓ 모두 성공</button>
+            <button onclick="simApplyPending('only2')" style="padding:10px;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;">✓ A만 성공</button>
+            <button id="sim-pending-b-btn" onclick="simApplyPending('only3')" style="padding:10px;border-radius:8px;border:1px solid rgba(167,139,250,0.3);background:rgba(167,139,250,0.08);color:#a78bfa;font-size:12px;font-weight:700;cursor:pointer;">✓ B만 성공</button>
+            <button onclick="simApplyPending('lose')"  style="padding:10px;border-radius:8px;border:1px solid rgba(255,59,92,0.3);background:rgba(255,59,92,0.08);color:var(--red);font-size:12px;font-weight:700;cursor:pointer;">✗ 모두 실패</button>
+          </div>
+          <button onclick="simCancelPending()" style="width:100%;margin-top:8px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);font-size:12px;cursor:pointer;">홀딩 취소</button>
+        </div>
+      </div>
+
+      <!-- 시나리오 미리보기 -->
       <div style="margin-bottom:14px;">
-        <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:8px;">시나리오 — 결과 클릭 시 적용</div>
+        <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:8px;">시나리오 미리보기</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div id="sim-sc-a" class="sim-sc" style="background:var(--bg2);border:1px solid rgba(0,230,118,0.2);border-radius:10px;padding:12px;cursor:pointer;opacity:0.4;pointer-events:none;">
+          <div id="sim-sc-a" class="sim-sc" style="background:var(--bg2);border:1px solid rgba(0,230,118,0.2);border-radius:10px;padding:12px;opacity:0.4;pointer-events:none;">
             <div style="font-size:10px;background:rgba(0,230,118,0.12);color:var(--green);padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:6px;">A+B 모두 성공</div>
             <div id="sim-sc-a-amt" style="font-size:18px;font-weight:900;color:var(--green);font-family:'JetBrains Mono',monospace;">-</div>
             <div id="sim-sc-a-diff" style="font-size:11px;color:var(--text3);"></div>
           </div>
-          <div id="sim-sc-2" class="sim-sc" style="background:var(--bg2);border:1px solid rgba(0,229,255,0.2);border-radius:10px;padding:12px;cursor:pointer;opacity:0.4;pointer-events:none;">
+          <div id="sim-sc-2" class="sim-sc" style="background:var(--bg2);border:1px solid rgba(0,229,255,0.2);border-radius:10px;padding:12px;opacity:0.4;pointer-events:none;">
             <div style="font-size:10px;background:rgba(0,229,255,0.12);color:var(--accent);padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:6px;">A만 성공</div>
             <div id="sim-sc-2-amt" style="font-size:18px;font-weight:900;color:var(--accent);font-family:'JetBrains Mono',monospace;">-</div>
             <div id="sim-sc-2-diff" style="font-size:11px;color:var(--text3);"></div>
           </div>
-          <div id="sim-sc-3" class="sim-sc" style="background:var(--bg2);border:1px solid rgba(167,139,250,0.2);border-radius:10px;padding:12px;cursor:pointer;opacity:0.4;pointer-events:none;">
+          <div id="sim-sc-3" class="sim-sc" style="background:var(--bg2);border:1px solid rgba(167,139,250,0.2);border-radius:10px;padding:12px;opacity:0.4;pointer-events:none;">
             <div style="font-size:10px;background:rgba(167,139,250,0.12);color:#a78bfa;padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:6px;">B만 성공</div>
             <div id="sim-sc-3-amt" style="font-size:18px;font-weight:900;color:#a78bfa;font-family:'JetBrains Mono',monospace;">-</div>
             <div id="sim-sc-3-diff" style="font-size:11px;color:var(--text3);"></div>
           </div>
-          <div id="sim-sc-l" class="sim-sc" style="background:var(--bg2);border:1px solid rgba(255,59,92,0.2);border-radius:10px;padding:12px;cursor:pointer;opacity:0.4;pointer-events:none;">
+          <div id="sim-sc-l" class="sim-sc" style="background:var(--bg2);border:1px solid rgba(255,59,92,0.2);border-radius:10px;padding:12px;opacity:0.4;pointer-events:none;">
             <div style="font-size:10px;background:rgba(255,59,92,0.1);color:var(--red);padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:6px;">모두 실패</div>
             <div id="sim-sc-l-amt" style="font-size:18px;font-weight:900;color:var(--red);font-family:'JetBrains Mono',monospace;">-</div>
             <div id="sim-sc-l-diff" style="font-size:11px;color:var(--text3);"></div>
@@ -3524,10 +3546,17 @@ if ('serviceWorker' in navigator) {
     <!-- 경로 탭 -->
     <div id="sim-tc-tree" style="display:none;">
       <div class="card">
-        <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:12px;">경로 트리</div>
-        <div style="overflow-x:auto;padding-bottom:8px;"><svg id="sim-tree-svg" width="680" height="80">
-          <text x="340" y="40" text-anchor="middle" font-size="13" fill="#4a5168" font-family="JetBrains Mono,monospace">아직 진행한 회차가 없어요</text>
-        </svg></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:11px;color:var(--text3);letter-spacing:1px;">경로 트리</div>
+          <div style="display:flex;gap:12px;">
+            <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3);"><div style="width:8px;height:8px;border-radius:50%;background:var(--green);"></div>성공</div>
+            <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3);"><div style="width:8px;height:8px;border-radius:50%;background:var(--red);"></div>실패</div>
+            <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3);"><div style="width:8px;height:8px;border-radius:50%;background:var(--gold);"></div>현재</div>
+          </div>
+        </div>
+        <div style="overflow:auto;-webkit-overflow-scrolling:touch;" id="sim-tree-wrap">
+          <canvas id="sim-tree-canvas" style="display:block;"></canvas>
+        </div>
       </div>
     </div>
 
@@ -6905,7 +6934,24 @@ function simOnInput() {
     if (lbl2) { lbl2.style.borderColor=f2.checked?'var(--green)':'var(--border)'; lbl2.style.background=f2.checked?'rgba(0,230,118,0.06)':'var(--bg2)'; }
   }
 
-  const dis = over || tot===0 || !folderChecked || bal <= 0;
+  // 홀딩 버튼 상태 업데이트
+  const holdBtn = document.getElementById('sim-hold-btn');
+  if (holdBtn) {
+    if (simPending) {
+      holdBtn.textContent = '⏸ 홀딩중';
+      holdBtn.disabled = true;
+      holdBtn.style.opacity = '0.5';
+      holdBtn.style.cursor = 'default';
+    } else {
+      const canHold = !over && tot > 0 && folderChecked && bal > 0;
+      holdBtn.textContent = '⏸ 홀딩';
+      holdBtn.disabled = !canHold;
+      holdBtn.style.opacity = canHold ? '1' : '0.4';
+      holdBtn.style.cursor = canHold ? 'pointer' : 'default';
+    }
+  }
+
+  const dis = over || tot===0 || !folderChecked || bal <= 0 || !!simPending;
   const has3 = b3 > 0;
 
   // 잔액 0 이하 → 게임오버 안내
@@ -6931,90 +6977,14 @@ function simOnInput() {
     if (!card) return;
     const off = dis || (c.need3 && !has3);
     card.style.opacity = off ? '0.35' : '1';
-    card.style.pointerEvents = off ? 'none' : 'auto';
+    card.style.pointerEvents = 'none';
+    card.style.cursor = 'default';
+    card.onclick = null;
     const diff = c.amt - bal;
     const goalFlag = (!off && c.amt >= SIM_GOAL) ? ' <span style="font-size:10px;background:var(--green);color:#000;padding:1px 6px;border-radius:20px;font-weight:700;">목표!</span>' : '';
     if (amtEl) amtEl.innerHTML = (c.amt>0 ? simFmt(c.amt)+'원' : '-') + goalFlag;
     if (diffEl) { diffEl.textContent = c.amt>0?(diff>=0?'+':'')+simFmt(diff)+'원':''; diffEl.style.color=diff>0?'rgba(0,230,118,0.6)':diff<0?'rgba(255,59,92,0.6)':'var(--text3)'; }
-    card.onclick = off ? null : () => simApplyResult(c.key, c.amt, sv, b2, b3, o2, o3, ex2, ex3);
   });
-}
-
-function simApplyResult(key, newBal, sv, b2, b3, o2, o3, ex2, ex3) {
-  if (sv+b2+b3 > simState.balance || sv+b2+b3===0) return;
-  simSnaps.push(JSON.parse(JSON.stringify(simState)));
-  const memo  = document.getElementById('sim-i-memo')?.value.trim() || '';
-  const memoB = document.getElementById('sim-i-memo-b')?.value.trim() || '';
-  const excessSave = key==='both'?ex2+ex3:key==='only2'?ex2:key==='only3'?ex3:0;
-  const folderCount = document.getElementById('sim-f-1')?.checked ? 1 : 2;
-  simState.history.push({ round:simState.round, save:sv, bet2:b2, bet3:b3, odds2:o2, odds3:o3, key, before:simState.balance, after:newBal, memo, memoB, excessSave, folder:folderCount });
-  if (newBal >= SIM_GOAL && !simState.goalReached) {
-    simState.goalReached = true;
-    simState.goalHistory.push({ goal:SIM_GOAL, amount:newBal, round:simState.round, timestamp:new Date().toLocaleDateString('ko-KR') });
-  }
-  simState.balance = newBal;
-  simState.round++;
-
-  // 베팅기록 자동 추가
-  if (b2 > 0) {
-    const isMultiA = memo.includes('/');
-    const recA = {
-      id: String(Date.now()) + 'simA',
-      date: new Date().toISOString().split('T')[0],
-      game: memo || '-',
-      sport: '',
-      type: isMultiA ? '승/패' : '승/패',
-      mode: isMultiA ? 'multi' : 'single',
-      amount: b2,
-      betmanOdds: o2,
-      result: key==='both'||key==='only2' ? 'WIN' : 'LOSE',
-      profit: key==='both'||key==='only2' ? Math.round(b2*o2) - b2 : -b2,
-      memo: '[전략베팅 A]',
-      emotion: '보통',
-      myProb: null,
-      folderOdds: [], folderProbs: [], folderSports: [], folderTypes: [], folderResults: []
-    };
-    bets.unshift(recA);
-  }
-  if (b3 > 0) {
-    const isMultiB = memoB.includes('/');
-    const recB = {
-      id: String(Date.now() + 1) + 'simB',
-      date: new Date().toISOString().split('T')[0],
-      game: memoB || '-',
-      sport: '',
-      type: '승/패',
-      mode: isMultiB ? 'multi' : 'single',
-      amount: b3,
-      betmanOdds: o3,
-      result: key==='both'||key==='only3' ? 'WIN' : 'LOSE',
-      profit: key==='both'||key==='only3' ? Math.round(b3*o3) - b3 : -b3,
-      memo: '[전략베팅 B]',
-      emotion: '보통',
-      myProb: null,
-      folderOdds: [], folderProbs: [], folderSports: [], folderTypes: [], folderResults: []
-    };
-    bets.unshift(recB);
-  }
-  if (b2 > 0 || b3 > 0) {
-    localStorage.setItem('edge_bets', JSON.stringify(bets));
-    _gdriveAutoSync && _gdriveAutoSync();
-    if (window.innerWidth <= 600) {
-      mobileNav('betting');
-      setTimeout(() => {
-        mobileSubtab('betting', 'record');
-        renderTable();
-      }, 150);
-    } else {
-      switchTab('record', document.querySelector('.tab.active'));
-      renderTable();
-    }
-  }
-
-  ['sim-i-sv','sim-i-b2','sim-i-b3','sim-i-memo','sim-i-memo-b'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  simResetOdds();
-  simRender(); simOnInput();
-  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); localStorage.setItem('edge_sim_goal', SIM_GOAL); } catch(e) {}
 }
 
 function simUndoLast() {
@@ -7094,6 +7064,12 @@ function closeSimSuggest(boxId) {
   if (box) box.style.display = 'none';
 }
 
+function simSaveNote(idx, val) {
+  if (!simState.history[idx]) return;
+  simState.history[idx].note = val.trim();
+  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); } catch(e) {}
+}
+
 function simDeleteHistory(idx) {
   if (!confirm(`${simState.history[idx]?.round}회차 기록을 삭제할까요?`)) return;
   simSnaps.push(JSON.parse(JSON.stringify(simState)));
@@ -7118,6 +7094,114 @@ function simRestart() {
   simState.goalReached = false;
   try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); } catch(e) {}
   simRender(); simOnInput();
+}
+
+// 홀딩 상태
+let simPending = null; // { sv, b2, b3, o2, o3, ex2, ex3, memo, memoB, folderCount, round, bothAmt, only2Amt, only3Amt, loseAmt }
+
+function simHold() {
+  const sv  = parseInt(document.getElementById('sim-i-sv')?.value)  || 0;
+  const b2  = parseInt(document.getElementById('sim-i-b2')?.value)  || 0;
+  const b3  = parseInt(document.getElementById('sim-i-b3')?.value)  || 0;
+  const o2  = simGetOdds('a');
+  const o3  = simGetOdds('b');
+  const tot = sv + b2 + b3;
+  const f1  = document.getElementById('sim-f-1');
+  const f2  = document.getElementById('sim-f-2');
+  if (!tot || tot > simState.balance) return;
+  if (!f1?.checked && !f2?.checked) return;
+  if (simPending) return; // 이미 홀딩중이면 무시
+
+  const ex2 = b2 > 0 ? simCalcExcess(b2, o2) : 0;
+  const ex3 = b3 > 0 ? simCalcExcess(b3, o3) : 0;
+  const memo  = document.getElementById('sim-i-memo')?.value.trim() || '';
+  const memoB = document.getElementById('sim-i-memo-b')?.value.trim() || '';
+  const folderCount = f1?.checked ? 1 : 2;
+
+  simPending = {
+    sv, b2, b3, o2, o3, ex2, ex3, memo, memoB, folderCount,
+    round: simState.round,
+    bothAmt:  sv + Math.round(b2*o2) + Math.round(b3*o3),
+    only2Amt: sv + Math.round(b2*o2),
+    only3Amt: sv + Math.round(b3*o3),
+    loseAmt:  sv
+  };
+
+  // 입력칸 초기화
+  ['sim-i-sv','sim-i-b2','sim-i-b3','sim-i-memo','sim-i-memo-b'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  simResetOdds();
+  simRenderPending();
+  simOnInput();
+  try { localStorage.setItem('edge_sim_pending', JSON.stringify(simPending)); } catch(e) {}
+}
+
+function simRenderPending() {
+  const sec = document.getElementById('sim-pending-section');
+  if (!sec) return;
+  if (!simPending) { sec.style.display = 'none'; return; }
+
+  sec.style.display = 'block';
+  const p = simPending;
+  const rndEl = document.getElementById('sim-pending-round');
+  if (rndEl) rndEl.textContent = `${p.round}회차`;
+
+  const lines = [];
+  if (p.sv > 0)  lines.push(`🛡 세이브 <strong style="color:var(--gold)">${simFmt(p.sv)}원</strong>`);
+  if (p.b2 > 0)  lines.push(`A ${p.memo||'-'} <strong style="color:var(--accent)">${simFmt(p.b2)}원</strong> <span style="color:var(--text3)">(x${p.o2.toFixed(2)})</span>`);
+  if (p.b3 > 0)  lines.push(`B ${p.memoB||'-'} <strong style="color:#a78bfa">${simFmt(p.b3)}원</strong> <span style="color:var(--text3)">(x${p.o3.toFixed(2)})</span>`);
+
+  const infoEl = document.getElementById('sim-pending-info');
+  if (infoEl) infoEl.innerHTML = lines.join('<br>');
+
+  // B 없으면 B만 성공 버튼 비활성화
+  const bBtn = document.getElementById('sim-pending-b-btn');
+  if (bBtn) { bBtn.style.opacity = p.b3 > 0 ? '1' : '0.3'; bBtn.disabled = p.b3 === 0; }
+}
+
+function simApplyPending(key) {
+  if (!simPending) return;
+  const p = simPending;
+  const amts = { both: p.bothAmt, only2: p.only2Amt, only3: p.only3Amt, lose: p.loseAmt };
+  const newBal = amts[key];
+
+  simSnaps.push(JSON.parse(JSON.stringify(simState)));
+  const excessSave = key==='both'?p.ex2+p.ex3:key==='only2'?p.ex2:key==='only3'?p.ex3:0;
+  simState.history.push({ round:p.round, save:p.sv, bet2:p.b2, bet3:p.b3, odds2:p.o2, odds3:p.o3, key, before:simState.balance, after:newBal, memo:p.memo, memoB:p.memoB, excessSave, folder:p.folderCount });
+
+  if (newBal >= SIM_GOAL && !simState.goalReached) {
+    simState.goalReached = true;
+    simState.goalHistory.push({ goal:SIM_GOAL, amount:newBal, round:p.round, timestamp:new Date().toLocaleDateString('ko-KR') });
+  }
+  simState.balance = newBal;
+  simState.round++;
+  simPending = null;
+
+  // 베팅기록 자동 추가
+  if (p.b2 > 0) {
+    bets.unshift({ id: String(Date.now())+'simA', date:new Date().toISOString().split('T')[0], game:p.memo||'-', sport:'', type:'승/패', mode:p.memo.includes('/')?'multi':'single', amount:p.b2, betmanOdds:p.o2, result:key==='both'||key==='only2'?'WIN':'LOSE', profit:key==='both'||key==='only2'?Math.round(p.b2*p.o2)-p.b2:-p.b2, memo:'[전략베팅 A]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
+  }
+  if (p.b3 > 0) {
+    bets.unshift({ id: String(Date.now()+1)+'simB', date:new Date().toISOString().split('T')[0], game:p.memoB||'-', sport:'', type:'승/패', mode:p.memoB.includes('/')?'multi':'single', amount:p.b3, betmanOdds:p.o3, result:key==='both'||key==='only3'?'WIN':'LOSE', profit:key==='both'||key==='only3'?Math.round(p.b3*p.o3)-p.b3:-p.b3, memo:'[전략베팅 B]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
+  }
+  if (p.b2 > 0 || p.b3 > 0) {
+    localStorage.setItem('edge_bets', JSON.stringify(bets));
+    _gdriveAutoSync && _gdriveAutoSync();
+    const toast = document.createElement('div');
+    toast.textContent = '✅ 베팅기록에 추가됐어요';
+    toast.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(0,230,118,0.9);color:#000;padding:10px 18px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2000);
+  }
+
+  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); localStorage.setItem('edge_sim_goal', SIM_GOAL); localStorage.removeItem('edge_sim_pending'); } catch(e) {}
+  simRenderPending();
+  simRender(); simOnInput();
+}
+
+function simCancelPending() {
+  simPending = null;
+  try { localStorage.removeItem('edge_sim_pending'); } catch(e) {}
+  simRenderPending();
 }
 
 function simToggleResult(idx, result) {
@@ -7182,7 +7266,13 @@ function simRenderHistory() {
         <button onclick="simToggleResult(${realIdx},'lose')" style="padding:5px 10px;font-size:11px;border-radius:20px;border:1px solid ${isLose?'var(--red)':'var(--border)'};background:${isLose?'rgba(255,59,92,0.12)':'var(--bg3)'};color:${isLose?'var(--red)':'var(--text3)'};cursor:pointer;">✗ 실패</button>
         <button onclick="simDeleteHistory(${realIdx})" style="padding:5px 10px;font-size:11px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);cursor:pointer;">🗑</button>
       </div>
-      ${h.memo?`<div style="font-size:11px;color:var(--text3);padding-left:36px;font-style:italic;margin-top:3px;">"${h.memo}"</div>`:''}
+      ${h.memo?`<div style="font-size:11px;color:var(--text3);padding-left:4px;font-style:italic;margin-top:3px;">"${h.memo}"${h.memoB?` / "${h.memoB}"`:''}　</div>`:''}
+      <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+        <input type="text" value="${(h.note||'').replace(/"/g,'&quot;')}" placeholder="📝 이 회차 메모..."
+          onblur="simSaveNote(${realIdx}, this.value)"
+          onkeydown="if(event.key==='Enter'){this.blur();}"
+          style="flex:1;padding:5px 8px;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);min-width:0;">
+      </div>
     </div>`;
   }).join('');
 }
@@ -7202,36 +7292,193 @@ function simRenderGoalHistory() {
 }
 
 function simRenderTree() {
-  const svg=document.getElementById('sim-tree-svg');
-  if(!svg) return;
-  if(!simState.history.length){svg.setAttribute('height',80);svg.innerHTML=`<text x="340" y="40" text-anchor="middle" font-size="13" fill="#4a5168" font-family="JetBrains Mono,monospace">아직 진행한 회차가 없어요</text>`;return;}
-  const R=20,colW=90,padX=48,padY=40;
-  const svgW=Math.max(680,padX*2+(simState.history.length+2)*colW);
-  const svgH=padY*2+R*2+40;
-  svg.setAttribute('width',svgW);svg.setAttribute('height',svgH);
-  const cmap={both:'#3ecf8e',only2:'#00e5ff',only3:'#a78bfa',lose:'#ff3b5c'};
-  const lmap={both:'둘다 ✓',only2:'A ✓',only3:'B ✓',lose:'실패'};
-  const cy=padY+R+10;let els='',px=padX+R;
-  els+=`<circle cx="${px}" cy="${cy}" r="${R}" fill="#1a1e28" stroke="#4a5168" stroke-width="1.2"/>`;
-  els+=`<text x="${px}" y="${cy-4}" text-anchor="middle" font-size="9" fill="#8890a4" font-family="JetBrains Mono,monospace">시작</text>`;
-  els+=`<text x="${px}" y="${cy+7}" text-anchor="middle" font-size="8" fill="#8890a4" font-family="JetBrains Mono,monospace">1만원</text>`;
-  simState.history.forEach((h,i)=>{
-    const cx=padX+R+(i+1)*colW,col=cmap[h.key];
-    els+=`<line x1="${px+R}" y1="${cy}" x2="${cx-R}" y2="${cy}" stroke="${col}" stroke-width="1.5" opacity="0.4"/>`;
-    els+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="${col}22" stroke="${col}" stroke-width="1.5"/>`;
-    els+=`<text x="${cx}" y="${cy-R-4}" text-anchor="middle" font-size="9" fill="#4a5168" font-family="JetBrains Mono,monospace">${h.round}회</text>`;
-    const a=h.after>=10000?(h.after/10000).toFixed(0)+'만':simFmt(h.after);
-    els+=`<text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="9" fill="${col}" font-family="JetBrains Mono,monospace" font-weight="500">${a}</text>`;
-    els+=`<text x="${cx}" y="${cy+7}" text-anchor="middle" font-size="8" fill="${col}" font-family="JetBrains Mono,monospace">${lmap[h.key]}</text>`;
-    px=cx;
+  const wrap = document.getElementById('sim-tree-wrap');
+  const canvas = document.getElementById('sim-tree-canvas');
+  if (!canvas || !wrap) return;
+  const ctx = canvas.getContext('2d');
+
+  const h = simState.history;
+  if (!h.length) {
+    canvas.width = wrap.clientWidth || 320;
+    canvas.height = 80;
+    ctx.fillStyle = '#4a5168';
+    ctx.font = '13px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('아직 진행한 회차가 없어요', canvas.width/2, 44);
+    return;
+  }
+
+  // 각 회차별 분기 노드 계산
+  // 실제 경로 추적 + 각 노드에서 성공/실패 시 예상 잔액
+  const COL_W = 90;
+  const ROW_H = 56;
+  const NODE_R = 18;
+  const PAD_X = 60;
+  const PAD_Y = 40;
+
+  // 각 회차별 실제 경로 노드 y위치 결정
+  // 성공이면 위(y-1), 실패면 아래(y+1), 세이브면 제자리(y+0.5)
+  let nodes = [{ round: 0, y: 0, bal: SIM_START, actual: true }];
+  let curY = 0;
+
+  h.forEach((item, i) => {
+    const isWin = item.key === 'both' || item.key === 'only2';
+    const isLose = item.key === 'lose';
+    const dy = isWin ? -1 : isLose ? 1 : 0.5; // 성공=위, 실패=아래, 세이브=중간
+    curY += dy;
+    nodes.push({ round: item.round, y: curY, bal: item.after, key: item.key, actual: true, save: item.save, memo: item.memo, memoB: item.memoB });
   });
-  const nx=padX+R+(simState.history.length+1)*colW;
-  els+=`<line x1="${px+R}" y1="${cy}" x2="${nx-R}" y2="${cy}" stroke="#ffd700" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.4"/>`;
-  els+=`<circle cx="${nx}" cy="${cy}" r="${R}" fill="rgba(255,215,0,0.1)" stroke="#ffd700" stroke-width="1.5"/>`;
-  const ca=simState.balance>=10000?(simState.balance/10000).toFixed(0)+'만':simFmt(simState.balance);
-  els+=`<text x="${nx}" y="${cy-4}" text-anchor="middle" font-size="9" fill="#ffd700" font-family="JetBrains Mono,monospace">현재</text>`;
-  els+=`<text x="${nx}" y="${cy+7}" text-anchor="middle" font-size="8" fill="#ffd700" font-family="JetBrains Mono,monospace">${ca}</text>`;
-  svg.innerHTML=els;
+
+  // 현재 노드에서 미래 예상 분기 (1단계)
+  const lastBal = simState.balance;
+  const sv = Math.round(lastBal * 0.28 / 10000) * 10000;
+  const b2 = lastBal - sv;
+  const winAmt = sv + Math.round(b2 * 2.0);
+  const loseAmt = sv;
+  const futureWinY = curY - 1;
+  const futureWinBal = winAmt;
+  const futureLoseY = curY + 1;
+  const futureLoseBal = loseAmt;
+
+  // y 범위 계산
+  const allY = nodes.map(n => n.y).concat([futureWinY, futureLoseY]);
+  const minY = Math.min(...allY);
+  const maxY = Math.max(...allY);
+  const yRange = maxY - minY;
+
+  const totalCols = h.length + 2; // 시작 + 회차들 + 미래
+  const W = Math.max(wrap.clientWidth || 320, PAD_X * 2 + totalCols * COL_W);
+  const H = Math.max(200, PAD_Y * 2 + (yRange + 2) * ROW_H);
+
+  canvas.width = W;
+  canvas.height = H;
+  ctx.clearRect(0, 0, W, H);
+
+  const toX = idx => PAD_X + idx * COL_W;
+  const toY = y => PAD_Y + (y - minY + 1) * ROW_H;
+
+  // 색상
+  const C = {
+    both: '#3ecf8e', only2: '#00e5ff', only3: '#a78bfa', lose: '#ff3b5c',
+    future: 'rgba(255,215,0,0.5)', node: '#1a1e28', text: '#8890a4',
+    line: 'rgba(255,255,255,0.12)', gold: '#ffd700'
+  };
+
+  // 실제 경로 라인 먼저 그리기
+  ctx.lineWidth = 2;
+  nodes.forEach((n, i) => {
+    if (i === 0) return;
+    const prev = nodes[i-1];
+    const col = C[n.key] || C.only2;
+    ctx.beginPath();
+    ctx.strokeStyle = col;
+    ctx.globalAlpha = 0.7;
+    ctx.moveTo(toX(i-1), toY(prev.y));
+    // 곡선 연결
+    const mx = (toX(i-1) + toX(i)) / 2;
+    ctx.bezierCurveTo(mx, toY(prev.y), mx, toY(n.y), toX(i), toY(n.y));
+    ctx.stroke();
+  });
+
+  // 미래 분기 라인 (점선)
+  const lastIdx = nodes.length - 1;
+  const lastNode = nodes[lastIdx];
+  ctx.setLineDash([4, 4]);
+  ctx.lineWidth = 1.5;
+
+  // 성공 분기
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(0,230,118,0.35)';
+  ctx.globalAlpha = 1;
+  const mx1 = (toX(lastIdx) + toX(lastIdx+1)) / 2;
+  ctx.moveTo(toX(lastIdx), toY(lastNode.y));
+  ctx.bezierCurveTo(mx1, toY(lastNode.y), mx1, toY(futureWinY), toX(lastIdx+1), toY(futureWinY));
+  ctx.stroke();
+
+  // 실패 분기
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(255,59,92,0.35)';
+  ctx.moveTo(toX(lastIdx), toY(lastNode.y));
+  ctx.bezierCurveTo(mx1, toY(lastNode.y), mx1, toY(futureLoseY), toX(lastIdx+1), toY(futureLoseY));
+  ctx.stroke();
+
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+
+  // 노드 그리기
+  nodes.forEach((n, i) => {
+    const x = toX(i), y = toY(n.y);
+    const col = i === 0 ? '#4a5168' : (C[n.key] || C.only2);
+    const isLast = i === lastIdx;
+
+    // 원
+    ctx.beginPath();
+    ctx.arc(x, y, NODE_R, 0, Math.PI * 2);
+    ctx.fillStyle = col + (isLast ? '33' : '1a');
+    ctx.fill();
+    ctx.strokeStyle = isLast ? C.gold : col;
+    ctx.lineWidth = isLast ? 2.5 : 1.5;
+    ctx.stroke();
+
+    // 회차 텍스트 위
+    ctx.fillStyle = '#4a5168';
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    if (i > 0) ctx.fillText(`${n.round}회`, x, y - NODE_R - 5);
+
+    // 잔액 텍스트
+    const balStr = n.bal >= 10000 ? (n.bal/10000).toFixed(0)+'만' : simFmt(n.bal);
+    ctx.fillStyle = isLast ? C.gold : col;
+    ctx.font = `${isLast ? 'bold ' : ''}9px JetBrains Mono, monospace`;
+    ctx.fillText(balStr, x, y + 4);
+
+    // 결과 텍스트 아래
+    if (i > 0 && n.key) {
+      const lmap = { both:'AB✓', only2:'A✓', only3:'B✓', lose:'실패' };
+      ctx.fillStyle = col;
+      ctx.font = '8px JetBrains Mono, monospace';
+      ctx.fillText(lmap[n.key] || '', x, y + NODE_R + 12);
+    }
+  });
+
+  // 미래 예상 노드 (성공)
+  const fwx = toX(lastIdx+1), fwy = toY(futureWinY);
+  ctx.beginPath();
+  ctx.arc(fwx, fwy, NODE_R - 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,230,118,0.08)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,230,118,0.3)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3,3]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(0,230,118,0.5)';
+  ctx.font = '9px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  const fwStr = winAmt >= 10000 ? (winAmt/10000).toFixed(0)+'만' : simFmt(winAmt);
+  ctx.fillText(fwStr, fwx, fwy + 4);
+
+  // 미래 예상 노드 (실패)
+  const flx = toX(lastIdx+1), fly = toY(futureLoseY);
+  ctx.beginPath();
+  ctx.arc(flx, fly, NODE_R - 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,59,92,0.08)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,59,92,0.3)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3,3]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(255,59,92,0.5)';
+  ctx.font = '9px JetBrains Mono, monospace';
+  const flStr = loseAmt >= 10000 ? (loseAmt/10000).toFixed(0)+'만' : loseAmt > 0 ? simFmt(loseAmt) : '0';
+  ctx.fillText(flStr, flx, fly + 4);
+
+  // 시작 라벨
+  ctx.fillStyle = '#4a5168';
+  ctx.font = '9px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('시작', toX(0), toY(nodes[0].y) + 4);
 }
 
 function simRenderStats() {
@@ -7312,10 +7559,13 @@ function simConfirmReset(){
 }
 
 function initSimulator() {
-  try{const saved=localStorage.getItem('edge_sim_state'),savedGoal=localStorage.getItem('edge_sim_goal');
-  if(saved){simState=JSON.parse(saved);simSnaps=[];}if(savedGoal)SIM_GOAL=parseInt(savedGoal);}catch(e){}
-  simRender();simOnInput();
-  // 마우스 휠로 숫자 변경 방지
+  try {
+    const saved=localStorage.getItem('edge_sim_state'), savedGoal=localStorage.getItem('edge_sim_goal');
+    if(saved){simState=JSON.parse(saved);simSnaps=[];}if(savedGoal)SIM_GOAL=parseInt(savedGoal);
+    const savedPending=localStorage.getItem('edge_sim_pending');
+    if(savedPending){simPending=JSON.parse(savedPending);}
+  } catch(e) {}
+  simRender(); simRenderPending(); simOnInput();
   document.querySelectorAll('#page-strategy input[type=number]').forEach(el => {
     el.addEventListener('wheel', e => e.preventDefault(), { passive: false });
   });
@@ -15008,6 +15258,10 @@ async function gdriveSync() {
         localStorage.setItem('edge_sim_goal', cloudData.simGoal);
         SIM_GOAL = parseInt(cloudData.simGoal);
       }
+      if (cloudData.simPending) {
+        localStorage.setItem('edge_sim_pending', JSON.stringify(cloudData.simPending));
+        simPending = cloudData.simPending;
+      }
 
       // 드라이브에 최신 데이터 업로드
       await gdriveUpload();
@@ -15037,6 +15291,7 @@ async function gdriveUpload() {
     plans: JSON.parse(localStorage.getItem('edge_plans') || '[]'),
     simState: JSON.parse(localStorage.getItem('edge_sim_state') || 'null'),
     simGoal: localStorage.getItem('edge_sim_goal') || null,
+    simPending: JSON.parse(localStorage.getItem('edge_sim_pending') || 'null'),
     syncedAt: new Date().toISOString()
   };
   const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
