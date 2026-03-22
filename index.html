@@ -6911,14 +6911,15 @@ function simResetOdds() {
   if (db) db.value = '0';
   simSetPrefix('a', 2);
   simSetPrefix('b', 3);
-  const f1 = document.getElementById('sim-f-a1');
-  const f2 = document.getElementById('sim-f-a2');
-  if (f1) f1.checked = false;
-  if (f2) f2.checked = false;
-  ['sim-lbl-f1','sim-lbl-f2'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el.style.borderColor = 'var(--border)'; el.style.background = 'var(--bg2)'; }
-  });
+  // A폴더 초기화
+  ['sim-f-a1','sim-f-a2'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=false; });
+  ['sim-lbl-af1','sim-lbl-af2'].forEach(id => { const el=document.getElementById(id); if(el){el.style.borderColor='var(--border)';el.style.background='var(--bg2)';} });
+  // B폴더 초기화
+  ['sim-f-b1','sim-f-b2'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=false; });
+  ['sim-lbl-bf1','sim-lbl-bf2'].forEach(id => { const el=document.getElementById(id); if(el){el.style.borderColor='var(--border)';el.style.background='var(--bg2)';} });
+  // C폴더 초기화
+  ['sim-f-c2','sim-f-c3','sim-f-c4'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=false; });
+  ['sim-lbl-cf2','sim-lbl-cf3','sim-lbl-cf4'].forEach(id => { const el=document.getElementById(id); if(el){el.style.borderColor='var(--border)';el.style.background='var(--bg2)';} });
 }
 
 function simCalcExcess(bet, odds) {
@@ -7250,16 +7251,16 @@ function simHold() {
     sv, b2, b3, b4, o2, o3, o4, ex2, ex3, memo, memoB, memoC, folderCount,
     round: simState.round,
     amts: {
-      both:  sv+w2+w3+w4,
-      only2: sv+w2+w3,
-      only3: sv+w2+w4,
-      bc:    sv+w3+w4,
-      onlyA: sv+w2,
-      onlyB: sv+w3,
-      onlyC: sv+w4,
-      lose:  sv,
-      // legacy keys
-      bothOld: sv+w2+w3,
+      both:  sv+w2+w3+w4,  // A+B+C 모두 성공
+      ab:    sv+w2+w3,      // A+B만 성공 (C 실패)
+      ac:    sv+w2+w4,      // A+C만 성공 (B 실패)
+      bc:    sv+w3+w4,      // B+C만 성공 (A 실패)
+      onlyA: sv+w2,         // A만 성공
+      onlyB: sv+w3,         // B만 성공
+      onlyC: sv+w4,         // C만 성공
+      only2: sv+w2,         // 2폴더 호환: A만
+      only3: sv+w3,         // 2폴더 호환: B만
+      lose:  sv,            // 모두 실패
     }
   };
 
@@ -7295,19 +7296,19 @@ function simRenderPending() {
   const pendingBtns = document.getElementById('sim-pending-btns');
   if (pendingBtns) {
     const btns = hasC ? [
-      { key:'both',  label:'✓ A+B+C 모두', col:'var(--green)',   bg:'rgba(0,230,118,0.08)',   border:'rgba(0,230,118,0.3)' },
-      { key:'only2', label:'✓ A+B만',       col:'var(--accent)', bg:'rgba(0,229,255,0.08)',   border:'rgba(0,229,255,0.3)' },
-      { key:'only3', label:'✓ A+C만',       col:'#a78bfa',       bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)' },
-      { key:'bc',    label:'✓ B+C만',       col:'#a78bfa',       bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)' },
-      { key:'onlyA', label:'✓ A만',         col:'var(--accent)', bg:'rgba(0,229,255,0.08)',   border:'rgba(0,229,255,0.3)' },
-      { key:'onlyB', label:'✓ B만',         col:'#a78bfa',       bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)' },
-      { key:'onlyC', label:'✓ C만',         col:'var(--accent2)',bg:'rgba(255,107,53,0.08)',  border:'rgba(255,107,53,0.3)' },
-      { key:'lose',  label:'✗ 모두 실패',   col:'var(--red)',    bg:'rgba(255,59,92,0.08)',   border:'rgba(255,59,92,0.3)' },
+      { key:'both',  label:'✓ A+B+C 모두', col:'var(--green)',    bg:'rgba(0,230,118,0.08)',   border:'rgba(0,230,118,0.3)' },
+      { key:'ab',    label:'✓ A+B만',       col:'var(--accent)',  bg:'rgba(0,229,255,0.08)',   border:'rgba(0,229,255,0.3)' },
+      { key:'ac',    label:'✓ A+C만',       col:'var(--accent)',  bg:'rgba(0,229,255,0.08)',   border:'rgba(0,229,255,0.3)' },
+      { key:'bc',    label:'✓ B+C만',       col:'#a78bfa',        bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)' },
+      { key:'onlyA', label:'✓ A만',         col:'var(--accent)',  bg:'rgba(0,229,255,0.08)',   border:'rgba(0,229,255,0.3)' },
+      { key:'onlyB', label:'✓ B만',         col:'#a78bfa',        bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)' },
+      { key:'onlyC', label:'✓ C만',         col:'var(--accent2)', bg:'rgba(255,107,53,0.08)',  border:'rgba(255,107,53,0.3)' },
+      { key:'lose',  label:'✗ 모두 실패',   col:'var(--red)',     bg:'rgba(255,59,92,0.08)',   border:'rgba(255,59,92,0.3)' },
     ] : [
-      { key:'both',  label:'✓ 모두 성공', col:'var(--green)',   bg:'rgba(0,230,118,0.08)',   border:'rgba(0,230,118,0.3)' },
-      { key:'only2', label:'✓ A만 성공',  col:'var(--accent)', bg:'rgba(0,229,255,0.08)',   border:'rgba(0,229,255,0.3)' },
-      { key:'only3', label:'✓ B만 성공',  col:'#a78bfa',       bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)' },
-      { key:'lose',  label:'✗ 모두 실패', col:'var(--red)',    bg:'rgba(255,59,92,0.08)',   border:'rgba(255,59,92,0.3)' },
+      { key:'both',  label:'✓ 모두 성공',  col:'var(--green)',   bg:'rgba(0,230,118,0.08)',   border:'rgba(0,230,118,0.3)' },
+      { key:'only2', label:'✓ A만 성공',   col:'var(--accent)',  bg:'rgba(0,229,255,0.08)',   border:'rgba(0,229,255,0.3)' },
+      { key:'only3', label:'✓ B만 성공',   col:'#a78bfa',        bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)' },
+      { key:'lose',  label:'✗ 모두 실패',  col:'var(--red)',     bg:'rgba(255,59,92,0.08)',   border:'rgba(255,59,92,0.3)' },
     ];
     pendingBtns.innerHTML = btns.map(b =>
       `<button onclick="simApplyPending('${b.key}')" style="padding:10px;border-radius:8px;border:1px solid ${b.border};background:${b.bg};color:${b.col};font-size:12px;font-weight:700;cursor:pointer;">${b.label}</button>`
@@ -7322,12 +7323,13 @@ function simRenderPending() {
 function simApplyPending(key) {
   if (!simPending) return;
   const p = simPending;
-  const amts = { both: p.bothAmt, only2: p.only2Amt, only3: p.only3Amt, lose: p.loseAmt };
-  const newBal = amts[key] !== undefined ? amts[key] : p.loseAmt;
+  // simHold는 p.amts 객체에 담음, 구버전은 flat 키 사용 - 둘 다 지원
+  const amts = p.amts || { both: p.bothAmt, only2: p.only2Amt, only3: p.only3Amt, lose: p.loseAmt };
+  const newBal = (amts[key] !== undefined && !isNaN(amts[key])) ? amts[key] : (amts.lose || p.loseAmt || p.sv || 0);
 
   simSnaps.push(JSON.parse(JSON.stringify(simState)));
   const excessSave = key==='both'?p.ex2+p.ex3:key==='only2'?p.ex2:key==='only3'?p.ex3:0;
-  simState.history.push({ round:p.round, save:p.sv, bet2:p.b2, bet3:p.b3, odds2:p.o2, odds3:p.o3, key, before:simState.balance, after:newBal, memo:p.memo, memoB:p.memoB, excessSave, folder:p.folderCount });
+  simState.history.push({ round:p.round, save:p.sv, bet2:p.b2, bet3:p.b3, bet4:p.b4||0, odds2:p.o2, odds3:p.o3, odds4:p.o4||1, key, before:simState.balance, after:newBal, memo:p.memo, memoB:p.memoB, memoC:p.memoC||'', excessSave, folder:p.folderCount });
 
   if (newBal >= SIM_GOAL && !simState.goalReached) {
     simState.goalReached = true;
@@ -7369,12 +7371,12 @@ function simToggleResult(idx, result) {
   const h = simState.history[idx];
   if (!h) return;
 
-  const sv = h.save, b2 = h.bet2, b3 = h.bet3, o2 = h.odds2, o3 = h.odds3;
+  const sv = h.save, b2 = h.bet2, b3 = h.bet3, b4 = h.bet4||0, o2 = h.odds2, o3 = h.odds3, o4 = h.odds4||1;
   let newKey, newAfter;
 
   if (result === 'win') {
     newKey = 'both';
-    newAfter = sv + Math.round(b2 * o2) + (b3 > 0 ? Math.round(b3 * o3) : 0);
+    newAfter = sv + Math.round(b2*o2) + (b3>0?Math.round(b3*o3):0) + (b4>0?Math.round(b4*o4):0);
   } else {
     newKey = 'lose';
     newAfter = sv;
