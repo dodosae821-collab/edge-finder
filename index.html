@@ -7251,16 +7251,16 @@ function simHold() {
     sv, b2, b3, b4, o2, o3, o4, ex2, ex3, memo, memoB, memoC, folderCount,
     round: simState.round,
     amts: {
-      both:  sv+w2+w3+w4,  // A+B+C 모두 성공
-      ab:    sv+w2+w3,      // A+B만 성공 (C 실패)
-      ac:    sv+w2+w4,      // A+C만 성공 (B 실패)
-      bc:    sv+w3+w4,      // B+C만 성공 (A 실패)
-      onlyA: sv+w2,         // A만 성공
-      onlyB: sv+w3,         // B만 성공
-      onlyC: sv+w4,         // C만 성공
-      only2: sv+w2,         // 2폴더 호환: A만
-      only3: sv+w3,         // 2폴더 호환: B만
-      lose:  sv,            // 모두 실패
+      both:  sv+w2+w3+w4,     // A+B+C 모두 성공
+      ab:    sv+w2+w3-b4,     // A+B만 성공 (C 실패 → C 베팅금 차감)
+      ac:    sv+w2+w4-b3,     // A+C만 성공 (B 실패 → B 베팅금 차감)
+      bc:    sv+w3+w4-b2,     // B+C만 성공 (A 실패 → A 베팅금 차감)
+      onlyA: sv+w2-b3-b4,     // A만 성공 (B,C 베팅금 차감)
+      onlyB: sv+w3-b2-b4,     // B만 성공 (A,C 베팅금 차감)
+      onlyC: sv+w4-b2-b3,     // C만 성공 (A,B 베팅금 차감)
+      only2: sv+w2-b3,        // 2폴더 호환: A만 성공 (B 베팅금 차감)
+      only3: sv+w3-b2,        // 2폴더 호환: B만 성공 (A 베팅금 차감)
+      lose:  sv,              // 모두 실패 (세이브만 남음)
     }
   };
 
@@ -7325,7 +7325,19 @@ function simApplyPending(key) {
   const p = simPending;
   // simHold는 p.amts 객체에 담음, 구버전은 flat 키 사용 - 둘 다 지원
   const amts = p.amts || { both: p.bothAmt, only2: p.only2Amt, only3: p.only3Amt, lose: p.loseAmt };
-  const newBal = (amts[key] !== undefined && !isNaN(amts[key])) ? amts[key] : (amts.lose || p.loseAmt || p.sv || 0);
+
+  // lose 키일 때: 세이브 금액 보장 (세이브 0이어도 최소 잔액 유지)
+  let newBal;
+  if (key === 'lose') {
+    // 모두 실패 시 세이브만 남음. 세이브가 0이면 베팅 총액을 잃은 것
+    newBal = (amts.lose !== undefined && !isNaN(amts.lose)) ? amts.lose
+           : (p.loseAmt !== undefined && !isNaN(p.loseAmt)) ? p.loseAmt
+           : (p.sv || 0);
+    // 안전장치: newBal이 음수가 되지 않도록
+    if (isNaN(newBal) || newBal < 0) newBal = p.sv || 0;
+  } else {
+    newBal = (amts[key] !== undefined && !isNaN(amts[key])) ? amts[key] : (amts.lose || p.loseAmt || p.sv || 0);
+  }
 
   simSnaps.push(JSON.parse(JSON.stringify(simState)));
   const excessSave = key==='both'?p.ex2+p.ex3:key==='only2'?p.ex2:key==='only3'?p.ex3:0;
@@ -7357,9 +7369,10 @@ function simApplyPending(key) {
     localStorage.setItem('edge_bets', JSON.stringify(bets));
     _gdriveAutoSync && _gdriveAutoSync();
     updateAll();
+    const isLoseKey = key === 'lose';
     const toast = document.createElement('div');
-    toast.textContent = '✅ 베팅기록에 추가됐어요';
-    toast.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(0,230,118,0.9);color:#000;padding:10px 18px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;';
+    toast.textContent = isLoseKey ? '📋 실패 기록이 히스토리에 저장됐어요' : '✅ 베팅기록에 추가됐어요';
+    toast.style.cssText = `position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:${isLoseKey?'rgba(255,59,92,0.9)':'rgba(0,230,118,0.9)'};color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;`;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 2000);
   }
@@ -7411,20 +7424,22 @@ function simRenderHistory() {
   const list=document.getElementById('sim-hlist'), hstats=document.getElementById('sim-hstats');
   if(!list) return;
   if(!simState.history.length){list.innerHTML='<div style="font-size:13px;color:var(--text3);text-align:center;padding:20px 0;">아직 진행한 회차가 없어요</div>';if(hstats)hstats.textContent='';return;}
-  const wins=simState.history.filter(h=>h.key==='both'||h.key==='only2').length;
-  const parts=simState.history.filter(h=>h.key==='only3').length;
-  const loses=simState.history.filter(h=>h.key==='lose').length;
+  const WIN_KEYS  = ['both','only2','onlyA','onlyB','onlyC','ab','ac','bc'];
+  const PART_KEYS = ['only3'];
+  const wins  = simState.history.filter(h => WIN_KEYS.includes(h.key)).length;
+  const parts = simState.history.filter(h => PART_KEYS.includes(h.key)).length;
+  const loses = simState.history.filter(h => h.key==='lose').length;
   if(hstats) hstats.textContent=`성공 ${wins} / 부분 ${parts} / 실패 ${loses}`;
   list.innerHTML=[...simState.history].reverse().map((h,revIdx)=>{
     const realIdx = simState.history.length - 1 - revIdx;
-    const cls=h.key==='both'||h.key==='only2'?'var(--green)':h.key==='only3'?'#a78bfa':'var(--red)';
+    const cls = ['both','only2','onlyA','onlyB','onlyC','ab','ac','bc'].includes(h.key) ? 'var(--green)' : h.key==='lose' ? 'var(--red)' : '#a78bfa';
     const diff=h.after-h.before;
     const chips=[];
     if(h.folder) chips.push(`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:${h.folder===1?'rgba(255,215,0,0.12)':'rgba(0,230,118,0.12)'};color:${h.folder===1?'var(--gold)':'var(--green)'};">${h.folder}폴더</span>`);
     if(h.save>0) chips.push(`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(255,215,0,0.1);color:var(--gold);">세이브 ${simFmt(h.save)}</span>`);
     if(h.bet2>0) chips.push(`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(0,229,255,0.1);color:var(--accent);">A(x${h.odds2}) ${simFmt(h.bet2)}</span>`);
     if(h.bet3>0) chips.push(`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(167,139,250,0.1);color:#a78bfa;">B(x${h.odds3}) ${simFmt(h.bet3)}</span>`);
-    const isWin = h.key==='both'||h.key==='only2';
+    const isWin  = ['both','only2','onlyA','onlyB','onlyC','ab','ac','bc'].includes(h.key);
     const isLose = h.key==='lose';
     return `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -7555,7 +7570,7 @@ function simRenderTree() {
   let curY = 0;
 
   h.forEach((item, i) => {
-    const isWin = item.key === 'both' || item.key === 'only2';
+    const isWin = ['both','only2','onlyA','onlyB','onlyC','ab','ac','bc'].includes(item.key);
     const isLose = item.key === 'lose';
     const dy = isWin ? -1 : isLose ? 1 : 0.5; // 성공=위, 실패=아래, 세이브=중간
     curY += dy;
@@ -7668,8 +7683,9 @@ function simRenderTree() {
     // 결과 텍스트 아래
     if (i > 0 && n.key) {
       const lmap = {
-        both:'AB✓', only2:'A+B✓', only3:'A+C✓', bc:'B+C✓',
-        onlyA:'A✓', onlyB:'B✓', onlyC:'C✓', lose:'실패'
+        both:'ABC✓', ab:'A+B✓', ac:'A+C✓', bc:'B+C✓',
+        onlyA:'A✓', onlyB:'B✓', onlyC:'C✓',
+        only2:'A✓', only3:'B✓', lose:'실패'
       };
       ctx.fillStyle = col;
       ctx.font = '8px JetBrains Mono, monospace';
