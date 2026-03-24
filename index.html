@@ -8447,8 +8447,16 @@ function addBet() {
     game: (document.getElementById('r-game') || {}).value || '-',
     mode,
     folderCount: mode === 'multi' ? ((document.getElementById('r-folder-count') || {}).value || '') : '',
-    sport: sports.join(', '),
-    type:  types.join(', '),
+    sport: mode === 'multi'
+      ? Array.from(document.querySelectorAll('#folder-rows .folder-sport'))
+          .map(el => el.value || '').filter(Boolean)
+          .filter((v,i,a) => a.indexOf(v) === i).join(', ')
+      : sports.join(', '),
+    type: mode === 'multi'
+      ? Array.from(document.querySelectorAll('#folder-rows .folder-type'))
+          .map(el => el.value || '승/패').filter(Boolean)
+          .filter((v,i,a) => a.indexOf(v) === i).join(', ')
+      : types.join(', '),
     betmanOdds: odds,
     amount,
     result,
