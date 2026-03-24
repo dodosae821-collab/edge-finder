@@ -7064,19 +7064,19 @@ function simOnInput() {
   const w2 = Math.round(b2*o2), w3 = Math.round(b3*o3), w4 = Math.round(b4*o4);
 
   const cfgs = showC ? [
-    { tag:'A+B+C 모두',  amt: sv+w2+w3+w4, col:'var(--green)',   key:'both'  },
-    { tag:'A+B만 성공',  amt: sv+w2+w3,     col:'var(--accent)', key:'only2' },
-    { tag:'A+C만 성공',  amt: sv+w2+w4,     col:'#a78bfa',       key:'only3' },
-    { tag:'B+C만 성공',  amt: sv+w3+w4,     col:'#a78bfa',       key:'bc'    },
-    { tag:'A만 성공',    amt: sv+w2,        col:'var(--accent)', key:'onlyA' },
-    { tag:'B만 성공',    amt: sv+w3,        col:'#a78bfa',       key:'onlyB' },
-    { tag:'C만 성공',    amt: sv+w4,        col:'var(--accent2)',key:'onlyC' },
-    { tag:'모두 실패',   amt: sv,           col:'var(--red)',     key:'lose'  },
+    { tag:'A+B+C 모두',  amt: sv+w2+w3+w4, col:'var(--green)',    key:'both'  },
+    { tag:'A+B만 성공',  amt: sv+w2+w3,    col:'var(--accent)',   key:'ab'    },
+    { tag:'A+C만 성공',  amt: sv+w2+w4,    col:'var(--accent)',   key:'ac'    },
+    { tag:'B+C만 성공',  amt: sv+w3+w4,    col:'#a78bfa',         key:'bc'    },
+    { tag:'A만 성공',    amt: sv+w2,       col:'var(--accent)',   key:'onlyA' },
+    { tag:'B만 성공',    amt: sv+w3,       col:'#a78bfa',         key:'onlyB' },
+    { tag:'C만 성공',    amt: sv+w4,       col:'var(--accent2)',  key:'onlyC' },
+    { tag:'모두 실패',   amt: sv,          col:'var(--red)',       key:'lose'  },
   ] : [
-    { tag:'A+B 모두',   amt: sv+w2+w3, col:'var(--green)',   key:'both'  },
-    { tag:'A만 성공',   amt: sv+w2,    col:'var(--accent)', key:'only2' },
-    { tag:'B만 성공',   amt: sv+w3,    col:'#a78bfa',       key:'only3' },
-    { tag:'모두 실패',  amt: sv,       col:'var(--red)',     key:'lose'  },
+    { tag:'A+B 모두',   amt: sv+w2+w3,    col:'var(--green)',    key:'both'  },
+    { tag:'A만 성공',   amt: sv+w2,       col:'var(--accent)',   key:'only2' },
+    { tag:'B만 성공',   amt: sv+w3,       col:'#a78bfa',         key:'only3' },
+    { tag:'모두 실패',  amt: sv,          col:'var(--red)',       key:'lose'  },
   ];
 
   const grid = document.getElementById('sim-sc-grid');
@@ -7340,13 +7340,20 @@ function simApplyPending(key) {
   simPending = null;
 
   // 베팅기록 자동 추가
+  const aWin = ['both','only2','onlyA','ab','ac'].includes(key);
+  const bWin = ['both','only3','onlyB','ab','bc'].includes(key);
+  const cWin = ['both','onlyC','ac','bc'].includes(key);
+
   if (p.b2 > 0) {
-    bets.unshift({ id: String(Date.now())+'simA', date:new Date().toISOString().split('T')[0], game:p.memo||'-', sport:'', type:'승/패', mode:p.memo.includes('/')?'multi':'single', amount:p.b2, betmanOdds:p.o2, result:key==='both'||key==='only2'?'WIN':'LOSE', profit:key==='both'||key==='only2'?Math.round(p.b2*p.o2)-p.b2:-p.b2, memo:'[전략베팅 A]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
+    bets.unshift({ id: String(Date.now())+'simA', date:new Date().toISOString().split('T')[0], game:p.memo||'-', sport:'', type:'승/패', mode:p.memo.includes('/')?'multi':'single', amount:p.b2, betmanOdds:p.o2, result:aWin?'WIN':'LOSE', profit:aWin?Math.round(p.b2*p.o2)-p.b2:-p.b2, memo:'[전략베팅 A]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
   }
   if (p.b3 > 0) {
-    bets.unshift({ id: String(Date.now()+1)+'simB', date:new Date().toISOString().split('T')[0], game:p.memoB||'-', sport:'', type:'승/패', mode:p.memoB.includes('/')?'multi':'single', amount:p.b3, betmanOdds:p.o3, result:key==='both'||key==='only3'?'WIN':'LOSE', profit:key==='both'||key==='only3'?Math.round(p.b3*p.o3)-p.b3:-p.b3, memo:'[전략베팅 B]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
+    bets.unshift({ id: String(Date.now()+1)+'simB', date:new Date().toISOString().split('T')[0], game:p.memoB||'-', sport:'', type:'승/패', mode:p.memoB.includes('/')?'multi':'single', amount:p.b3, betmanOdds:p.o3, result:bWin?'WIN':'LOSE', profit:bWin?Math.round(p.b3*p.o3)-p.b3:-p.b3, memo:'[전략베팅 B]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
   }
-  if (p.b2 > 0 || p.b3 > 0) {
+  if ((p.b4||0) > 0) {
+    bets.unshift({ id: String(Date.now()+2)+'simC', date:new Date().toISOString().split('T')[0], game:p.memoC||'-', sport:'', type:'승/패', mode:(p.memoC||'').includes('/')?'multi':'single', amount:p.b4, betmanOdds:p.o4, result:cWin?'WIN':'LOSE', profit:cWin?Math.round(p.b4*p.o4)-p.b4:-p.b4, memo:'[전략베팅 C]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
+  }
+  if (p.b2 > 0 || p.b3 > 0 || (p.b4||0) > 0) {
     localStorage.setItem('edge_bets', JSON.stringify(bets));
     _gdriveAutoSync && _gdriveAutoSync();
     const toast = document.createElement('div');
@@ -7709,11 +7716,20 @@ function simRenderTree() {
 
 function simRenderStats() {
   const h=simState.history;
-  const wins=h.filter(x=>x.key==='both'||x.key==='only2').length;
-  const parts=h.filter(x=>x.key==='only3').length;
-  let inv=SIM_START; h.forEach(x=>{if(x.after<x.before)inv+=(x.before-x.after);});
-  const roi=(simState.balance-inv)/inv*100;
-  const peak=Math.max(SIM_START,...h.map(x=>x.after));
+  const startBal = h.length > 0 ? h[0].before : simState.balance;
+
+  // 성공/부분성공/실패 집계 - 모든 key 포함
+  const winKeys  = ['both','ab','ac','onlyA','only2'];
+  const partKeys = ['bc','onlyB','onlyC','only3'];
+  const wins  = h.filter(x=>winKeys.includes(x.key)).length;
+  const parts = h.filter(x=>partKeys.includes(x.key)).length;
+
+  // 수익률: 실제 투자금 대비 현재 잔액
+  let inv = startBal;
+  h.forEach(x=>{ if(x.after < x.before) inv += (x.before - x.after); });
+  const roi = (simState.balance - inv) / inv * 100;
+  const peak = Math.max(startBal, ...h.map(x=>x.after));
+
   const rndEl=document.getElementById('sim-st-rnd'); if(rndEl) rndEl.textContent=h.length+'회';
   const wrEl=document.getElementById('sim-st-wr'); if(wrEl) wrEl.textContent=h.length?Math.round((wins+parts)/h.length*100)+'%':'-';
   const roiEl=document.getElementById('sim-st-roi'); if(roiEl){roiEl.textContent=(roi>=0?'+':'')+roi.toFixed(1)+'%';roiEl.style.color=roi>=0?'var(--green)':'var(--red)';}
@@ -7772,8 +7788,8 @@ function simRenderStats() {
   const ctx=document.getElementById('sim-chart-cv');
   if(!ctx||!h.length) return;
   const labels=['시작',...h.map(x=>x.round+'회')];
-  const balD=[SIM_START,...h.map(x=>x.after)];
-  const invD=[SIM_START];let ii=SIM_START;
+  const balD=[startBal,...h.map(x=>x.after)];
+  const invD=[startBal]; let ii=startBal;
   h.forEach(x=>{if(x.after<x.before)ii+=(x.before-x.after);invD.push(ii);});
   simChartInst=safeCreateChart('sim-chart-cv',{
     type:'line',data:{labels,datasets:[
@@ -7836,7 +7852,8 @@ function simConfirmReset(){
   simCloseResetModal();simSnaps=[];
   simState={balance:SIM_START,round:1,history:[],goalReached:false,goalHistory:[]};SIM_GOAL=1000000;
   // localStorage도 초기화
-  try{localStorage.removeItem('edge_sim_state');localStorage.removeItem('edge_sim_goal');}catch(e){}
+  try{localStorage.removeItem('edge_sim_state');localStorage.removeItem('edge_sim_goal');localStorage.removeItem('edge_sim_pending');}catch(e){}
+  simPending=null;
   ['sim-i-sv','sim-i-b2','sim-i-b3','sim-i-b4','sim-i-memo','sim-i-memo-b','sim-i-memo-c'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   simResetOdds();simSwitchTab('play');simRender();simOnInput();
 }
