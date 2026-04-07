@@ -1291,6 +1291,7 @@ if ('serviceWorker' in navigator) {
   <div class="tab" onclick="switchTab('strategy', this)" style="color:#00e5ff;font-weight:700;">⚡ 전략베팅</div>
   <div id="nav-ev-tab" style="display:none;"><div class="tab" onclick="switchTab('value', this)">🧮 EV 계산기</div></div>
   <div class="tab" onclick="switchTab('record', this)">📝 베팅 기록</div>
+  <div class="tab" onclick="switchTab('diary-list', this)">📒 일지 목록</div>
   <div class="tab" onclick="switchTab('vault', this)">🗄️ 기록 보관함</div>
   <div id="nav-journal-tab" style="display:none;"><div class="tab" onclick="switchTab('journal', this)">📓 베팅일지</div></div>
   <div class="tab-dropdown" id="stats-dropdown-wrap">
@@ -2035,6 +2036,35 @@ if ('serviceWorker' in navigator) {
       </div>
     </div>
   </div>
+  <!-- ===== 일지 목록 페이지 ===== -->
+  <div class="page" id="page-diary-list">
+    <div class="section-title">📒 일지 목록</div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;">
+      <input type="date" id="dl-date" style="padding:8px 10px;font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);">
+      <button onclick="setDiaryTemplate('반성');switchTab('journal',document.querySelector('.tab.active'))||switchJournalTab('diary')" style="padding:8px 12px;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text3);cursor:pointer;">반성</button>
+      <button onclick="setDiaryTemplate('다짐');switchTab('journal',document.querySelector('.tab.active'))||switchJournalTab('diary')" style="padding:8px 12px;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text3);cursor:pointer;">다짐</button>
+      <button onclick="setDiaryTemplate('분석');switchTab('journal',document.querySelector('.tab.active'))||switchJournalTab('diary')" style="padding:8px 12px;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text3);cursor:pointer;">분석</button>
+      <button onclick="diaryListGoWrite()" style="padding:8px 14px;font-size:12px;font-weight:700;background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;">✏️ 새 일지 작성</button>
+    </div>
+    <div class="card">
+      <div id="dl-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+    <!-- 일지 상세 보기 -->
+    <div id="dl-detail" style="display:none;margin-top:16px;">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div id="dl-detail-date" style="font-size:14px;font-weight:700;color:var(--accent);"></div>
+          <div style="display:flex;gap:6px;">
+            <button onclick="diaryListEdit()" style="padding:6px 12px;font-size:12px;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;">✏️ 수정</button>
+            <button onclick="diaryListDelete()" style="padding:6px 12px;font-size:12px;background:rgba(255,59,92,0.08);border:1px solid rgba(255,59,92,0.3);border-radius:6px;color:var(--red);cursor:pointer;">🗑 삭제</button>
+            <button onclick="document.getElementById('dl-detail').style.display='none'" style="padding:6px 12px;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text3);cursor:pointer;">✕ 닫기</button>
+          </div>
+        </div>
+        <div id="dl-detail-text" style="font-size:13px;color:var(--text2);line-height:2;white-space:pre-wrap;"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="page" id="page-vault">
     <div class="section-title">🗄️ 기록 보관함 <span style="font-size:11px;color:var(--text3);font-weight:400;">— 읽기 전용</span></div>
     <div class="card">
@@ -7834,15 +7864,21 @@ function simSetStartBalance() {
 
   simSnaps = [];
   simState = { balance: val, round: r.round, history: [], goalReached: false, goalHistory: [] };
+  simPending = null;
+  // localStorage에 먼저 저장 (initSimulator가 다시 불려도 이 값을 복원함)
+  try {
+    localStorage.setItem('edge_sim_state', JSON.stringify(simState));
+    localStorage.removeItem('edge_sim_pending');
+  } catch(e) {}
   simResetOdds();
   if(inp) inp.value = '';
 
   const st = document.getElementById('sim-start-status');
   if(st) { st.textContent = `✅ ${r.round}회차(${r.balance} 구간)로 시작했어요`; st.style.color='var(--green)'; setTimeout(()=>st.textContent='',3000); }
 
-  simRender(); simOnInput(); simRenderRoadmap();
+  simRender(); simOnInput();
+  if(typeof simRenderRoadmap === 'function') simRenderRoadmap();
   simSwitchTab('play');
-  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); } catch(e) {}
 }
 
 function simConfirmGoal() {
@@ -7885,6 +7921,8 @@ function initSimulator() {
     if(savedPending){simPending=JSON.parse(savedPending);}
   } catch(e) {}
   simRender(); simRenderPending(); simOnInput();
+  // 로드맵 명시적 갱신 (monkey-patch 여부와 무관하게)
+  if(typeof simRenderRoadmap === 'function') simRenderRoadmap();
   document.querySelectorAll('#page-strategy input[type=number]').forEach(el => {
     el.addEventListener('wheel', e => e.preventDefault(), { passive: false });
   });
@@ -8153,6 +8191,7 @@ function switchTab(name, el) {
   if (name === 'vault')     renderVault();
   if (name === 'strategy')  initSimulator();
   if (name === 'journal')   { loadJournal(); switchJournalTab(_journalTab || 'plan'); }
+  if (name === 'diary-list') renderDiaryListPage();
 }
 
 // ========== VALUE ANALYSIS ==========
@@ -15283,8 +15322,9 @@ const MOBILE_NAV_CONFIG = {
   betting: {
     subtabs: [
       { id: 'strategy', label: '⚡ 전략베팅',  page: 'strategy' },
-      { id: 'record',   label: '📝 기록 입력', page: 'record' },
-      { id: 'vault',    label: '🗄️ 보관함',   page: 'vault' },
+      { id: 'record',     label: '📝 기록 입력', page: 'record' },
+      { id: 'diary-list', label: '📒 일지 목록', page: 'diary-list' },
+      { id: 'vault',      label: '🗄️ 보관함',   page: 'vault' },
       { id: 'value',    label: '🧮 EV 계산기', page: 'value', hidden: true },
       { id: 'journal',  label: '📓 베팅일지',  page: null, sub2: true, hidden: true },
     ],
@@ -15479,6 +15519,7 @@ function switchTabMobile(name) {
   if (name === 'decision')  initDecisionTab();
   if (name === 'journal')   loadJournal();
   if (name === 'strategy')  initSimulator();
+  if (name === 'diary-list') renderDiaryListPage();
 
   // 맨 위로 스크롤
   window.scrollTo(0, 0);
@@ -15986,6 +16027,82 @@ function decReset(){
   const cp=document.getElementById('dec-calc-panel');if(cp)cp.style.display='none';
   const ep=document.getElementById('dec-ev-panel');if(ep)ep.style.display='none';
   decShowVerdictPanel(false);
+}
+
+// ========== 일지 목록 페이지 ==========
+let _dlSelectedDate = null;
+
+function renderDiaryListPage() {
+  const listEl = document.getElementById('dl-list');
+  if (!listEl) return;
+  const diaries = JSON.parse(localStorage.getItem('edge_diaries') || '{}');
+  const entries = Object.entries(diaries).sort((a,b) => b[0].localeCompare(a[0]));
+
+  const dlDate = document.getElementById('dl-date');
+  if (dlDate && !dlDate.value) {
+    const now = new Date(); const kst = new Date(now.getTime() + 9*60*60*1000);
+    dlDate.value = kst.toISOString().split('T')[0];
+  }
+
+  if (entries.length === 0) {
+    listEl.innerHTML = '<div style="font-size:13px;color:var(--text3);text-align:center;padding:32px 0;">아직 작성된 일지가 없어요</div>';
+    return;
+  }
+
+  listEl.innerHTML = entries.map(([date, text]) => {
+    const preview = text.replace(/\n/g,' ').slice(0, 80) + (text.length > 80 ? '...' : '');
+    const isSel = date === _dlSelectedDate;
+    return `<div onclick="diaryListSelect('${date}')"
+      style="padding:12px 14px;background:${isSel?'rgba(0,229,255,0.06)':'var(--bg3)'};border:1px solid ${isSel?'rgba(0,229,255,0.3)':'var(--border)'};border-radius:8px;cursor:pointer;transition:all 0.15s;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <span style="font-size:13px;font-weight:700;color:var(--accent);">${date}</span>
+        <span style="font-size:10px;color:var(--text3);">${text.length}자</span>
+      </div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6;">${preview}</div>
+    </div>`;
+  }).join('');
+}
+
+function diaryListSelect(date) {
+  _dlSelectedDate = date;
+  const diaries = JSON.parse(localStorage.getItem('edge_diaries') || '{}');
+  const detail = document.getElementById('dl-detail');
+  const dateEl = document.getElementById('dl-detail-date');
+  const textEl = document.getElementById('dl-detail-text');
+  if (detail) detail.style.display = 'block';
+  if (dateEl) dateEl.textContent = date;
+  if (textEl) textEl.textContent = diaries[date] || '';
+  renderDiaryListPage();
+  setTimeout(() => detail?.scrollIntoView({ behavior:'smooth', block:'start' }), 50);
+}
+
+function diaryListGoWrite() {
+  if (window.innerWidth <= 600) {
+    switchTabMobile('journal');
+    setTimeout(() => switchJournalTab('diary'), 100);
+  } else {
+    switchTab('journal', document.querySelector('.tab.active'));
+    setTimeout(() => switchJournalTab('diary'), 100);
+  }
+}
+
+function diaryListEdit() {
+  if (!_dlSelectedDate) return;
+  loadDiaryEntry(_dlSelectedDate);
+  diaryListGoWrite();
+}
+
+function diaryListDelete() {
+  if (!_dlSelectedDate) return;
+  if (!confirm(`${_dlSelectedDate} 일지를 삭제할까요?`)) return;
+  const diaries = JSON.parse(localStorage.getItem('edge_diaries') || '{}');
+  delete diaries[_dlSelectedDate];
+  localStorage.setItem('edge_diaries', JSON.stringify(diaries));
+  _dlSelectedDate = null;
+  const detail = document.getElementById('dl-detail');
+  if (detail) detail.style.display = 'none';
+  renderDiaryListPage();
+  renderDiaryList();
 }
 
 // ========== INIT ==========
