@@ -860,7 +860,12 @@ function simRenderRoadmap() {
     </tr>`;
   }).join('');
 }
-simRenderRoadmap();
+// DOM 준비 후 실행 (즉시 실행 시 simState 미복원 버그 방지)
+if(document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', simRenderRoadmap);
+} else {
+  simRenderRoadmap();
+}
 
 function simSelectRound(idx) {
   const r = SIM_ROADMAP[idx];
@@ -885,9 +890,17 @@ function simSelectRound(idx) {
   try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); } catch(e) {}
 }
 
-// simRender 후 로드맵 자동 갱신
-const _origSimRender = typeof simRender === 'function' ? simRender : null;
-if(_origSimRender) {
-  simRender = function() { _origSimRender(); simRenderRoadmap(); };
+// simRender 후 로드맵 자동 갱신 (DOMContentLoaded 이후에 패치 적용)
+function _patchSimRender() {
+  const _origSimRender = typeof simRender === 'function' ? simRender : null;
+  if(_origSimRender && !_origSimRender._roadmapPatched) {
+    simRender = function() { _origSimRender(); simRenderRoadmap(); };
+    simRender._roadmapPatched = true;
+  }
+}
+if(document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _patchSimRender);
+} else {
+  _patchSimRender();
 }
 </script>

@@ -999,10 +999,6 @@ function simSetStartBalance() {
     if(inp) { inp.style.borderColor='var(--red)'; setTimeout(()=>inp.style.borderColor='',1000); }
     return;
   }
-  // 가장 가까운 회차 찾기
-  let assignedIdx = 0;
-  SIM_ROADMAP.forEach((r,i) => { if(val >= r.threshold) assignedIdx = i; });
-  const r = SIM_ROADMAP[assignedIdx];
 
   simSnaps = [];
   simState = { balance: val, round: 1, history: [], goalReached: false, goalHistory: [] };
@@ -1015,8 +1011,16 @@ function simSetStartBalance() {
   simResetOdds();
   if(inp) inp.value = '';
 
+  // SIM_ROADMAP은 mobile_gdrive.js에 정의 — 로드된 경우에만 참조
   const st = document.getElementById('sim-start-status');
-  if(st) { st.textContent = `✅ ${r.round}회차(${r.balance} 구간)로 시작했어요`; st.style.color='var(--green)'; setTimeout(()=>st.textContent='',3000); }
+  if(typeof SIM_ROADMAP !== 'undefined') {
+    let assignedIdx = 0;
+    SIM_ROADMAP.forEach((r,i) => { if(val >= r.threshold) assignedIdx = i; });
+    const r = SIM_ROADMAP[assignedIdx];
+    if(st && r) { st.textContent = `✅ ${r.round}회차(${r.balance} 구간)로 시작했어요`; st.style.color='var(--green)'; setTimeout(()=>st.textContent='',3000); }
+  } else {
+    if(st) { st.textContent = `✅ ${val.toLocaleString('ko-KR')}원으로 시작했어요`; st.style.color='var(--green)'; setTimeout(()=>st.textContent='',3000); }
+  }
 
   simRender(); simOnInput();
   if(typeof simRenderRoadmap === 'function') simRenderRoadmap();
