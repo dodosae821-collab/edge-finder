@@ -3060,6 +3060,114 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
     <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px;"></div>
+
+    <!-- ===== 피보나치 손실 만회 시스템 ===== -->
+    <div class="section-title" style="margin-top:0;margin-bottom:12px;font-size:14px;border-bottom:none;padding-bottom:0;">🌀 피보나치 손실 만회 시스템</div>
+    <div class="card mb-16" style="border-color:rgba(167,139,250,0.4);">
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#a78bfa,transparent);"></div>
+      <div class="card-title" style="margin-bottom:16px;">
+        <span style="color:#a78bfa;font-size:13px;">🌀 피보나치 배팅 추적기</span>
+        <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">배팅 기록 기반 자동 계산</span>
+      </div>
+
+      <!-- 현재 상태 요약 -->
+      <div class="grid-4" style="margin-bottom:20px;">
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;">
+          <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:6px;">현재 연패</div>
+          <div class="mono" id="fib-streak" style="font-size:28px;font-weight:700;color:#a78bfa;">0</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">연속 미적중</div>
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;">
+          <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:6px;">누적 손실</div>
+          <div class="mono" id="fib-loss" style="font-size:22px;font-weight:700;color:var(--red);">—</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">현재 시리즈</div>
+        </div>
+        <div style="background:var(--bg3);border:2px solid #a78bfa;border-radius:8px;padding:14px;text-align:center;">
+          <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:6px;">다음 권장 배팅액</div>
+          <div class="mono" id="fib-next-bet" style="font-size:22px;font-weight:700;color:#a78bfa;">—</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">피보나치 기준</div>
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;">
+          <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:6px;">최고 연패</div>
+          <div class="mono" id="fib-max-streak" style="font-size:28px;font-weight:700;color:var(--gold);">0</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">전체 기록</div>
+        </div>
+      </div>
+
+      <!-- 만회 포인트 -->
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">💡 만회 포인트</div>
+        <div class="grid-2" style="gap:12px;">
+          <div style="padding:14px;background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.3);border-radius:8px;">
+            <div style="font-size:10px;color:var(--gold);font-weight:700;margin-bottom:6px;">POINT 1 — 손익분기</div>
+            <div style="display:flex;align-items:baseline;gap:8px;">
+              <div class="mono" id="fib-break-even" style="font-size:24px;font-weight:700;color:var(--gold);">—</div>
+              <div style="font-size:11px;color:var(--text3);">배당 이상</div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:6px;">이 배당 맞추면 원금 회복</div>
+          </div>
+          <div style="padding:14px;background:rgba(0,230,118,0.05);border:1px solid rgba(0,230,118,0.3);border-radius:8px;">
+            <div style="font-size:10px;color:var(--green);font-weight:700;margin-bottom:6px;">POINT 2 — 순수익 전환</div>
+            <div style="display:flex;align-items:baseline;gap:8px;">
+              <div class="mono" id="fib-profit" style="font-size:24px;font-weight:700;color:var(--green);">—</div>
+              <div style="font-size:11px;color:var(--text3);">배당 이상</div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:6px;">이 배당부터 실수익 발생</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 피보나치 수열 진행 시각화 -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:11px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">수열 진행도</div>
+        <div id="fib-sequence-bar" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+      </div>
+
+      <!-- 현재 시리즈 기록 테이블 -->
+      <div>
+        <div style="font-size:11px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">현재 시리즈 기록</div>
+        <div class="table-wrap">
+          <table style="font-size:12px;">
+            <thead>
+              <tr>
+                <th>회차</th>
+                <th>날짜</th>
+                <th>경기</th>
+                <th>배팅액</th>
+                <th>배당</th>
+                <th>결과</th>
+                <th>누적 손실</th>
+              </tr>
+            </thead>
+            <tbody id="fib-history-table">
+              <tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">베팅 기록 없음</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+          <div style="font-size:11px;color:var(--text3);" id="fib-page-info">—</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button id="fib-prev-btn" class="btn btn-outline btn-sm" onclick="fibGoPage(-1)" style="padding:4px 10px;font-size:13px;">‹</button>
+            <span class="mono" id="fib-page-num" style="font-size:12px;min-width:50px;text-align:center;color:var(--text2);">1 / 1</span>
+            <button id="fib-next-btn" class="btn btn-outline btn-sm" onclick="fibGoPage(1)" style="padding:4px 10px;font-size:13px;">›</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 초기 배팅액 설정 -->
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="font-size:11px;color:var(--text3);">피보나치 시작 단위금액</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="number" id="fib-base-input" placeholder="예: 1000" step="100"
+            style="width:120px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace;"
+            oninput="fibUpdateBase()">
+          <span style="font-size:12px;color:var(--text3);">원</span>
+        </div>
+        <div style="font-size:11px;color:var(--text3);">현재: <span id="fib-base-display" class="mono" style="color:#a78bfa;">—</span></div>
+      </div>
+    </div>
+
+    <div style="height:1px;background:var(--border);margin:20px 0;"></div>
     <!-- ===== 켈리 베팅 사이즈 히스토리 ===== -->
     <div style="height:1px;background:var(--border);margin:20px 0;"></div>
     <div class="section-title" style="margin-top:0;margin-bottom:12px;font-size:14px;border-bottom:none;padding-bottom:0;">📐 켈리 베팅 사이즈 분석</div>
@@ -5075,7 +5183,7 @@ function switchTabFromDropdown(name, el) {
   if (name === 'analyze')   updateAnalyzeTab();
   if (name === 'predict')   { updateGoalStats(); updatePredictTab(); }
   if (name === 'predpower') updatePredPowerPanel();
-  if (name === 'simulator') { calcKelly(); renderKellySlots(bets.filter(b=>b.result!=='PENDING').length % 12, bets.filter(b=>b.result!=='PENDING')); updateSimRoundSeedBanner(); updateKellyHistory(); updateKellyGradeBanner(); }
+  if (name === 'simulator') { calcKelly(); renderKellySlots(bets.filter(b=>b.result!=='PENDING').length % 12, bets.filter(b=>b.result!=='PENDING')); updateSimRoundSeedBanner(); updateKellyHistory(); updateKellyGradeBanner(); try{updateFibonacci();}catch(e){} }
   if (name === 'goal')      { updateRoundHistory();
   renderPrincipleList();
   renderPrincipleChecklist();
@@ -7102,11 +7210,14 @@ function simOnInput() {
     { tag:'B만 성공',    amt: sv+w3,       col:'#a78bfa',         key:'onlyB' },
     { tag:'C만 성공',    amt: sv+w4,       col:'var(--accent2)',  key:'onlyC' },
     { tag:'모두 실패',   amt: sv,          col:'var(--red)',       key:'lose'  },
-  ] : [
+  ] : has3 ? [
     { tag:'A+B 모두',   amt: sv+w2+w3,    col:'var(--green)',    key:'both'  },
     { tag:'A만 성공',   amt: sv+w2,       col:'var(--accent)',   key:'only2' },
     { tag:'B만 성공',   amt: sv+w3,       col:'#a78bfa',         key:'only3' },
     { tag:'모두 실패',  amt: sv,          col:'var(--red)',       key:'lose'  },
+  ] : [
+    { tag:'A 성공',     amt: sv+w2,       col:'var(--green)',    key:'only2' },
+    { tag:'A 실패',     amt: sv,          col:'var(--red)',       key:'lose'  },
   ];
 
   const grid = document.getElementById('sim-sc-grid');
@@ -7322,7 +7433,8 @@ function simRenderPending() {
   if (infoEl) infoEl.innerHTML = lines.join('<br>');
 
   // 진행중 버튼 동적 생성
-  const hasC = simState.balance >= 1300000 && (simPending?.b4 || 0) > 0;
+  const hasC  = simState.balance >= 1300000 && (simPending?.b4 || 0) > 0;
+  const hasB  = (simPending?.b3 || 0) > 0;
   const pendingBtns = document.getElementById('sim-pending-btns');
   if (pendingBtns) {
     const btns = hasC ? [
@@ -7334,11 +7446,14 @@ function simRenderPending() {
       { key:'onlyB', label:'✓ B만',         col:'#a78bfa',        bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)' },
       { key:'onlyC', label:'✓ C만',         col:'var(--accent2)', bg:'rgba(255,107,53,0.08)',  border:'rgba(255,107,53,0.3)' },
       { key:'lose',  label:'✗ 모두 실패',   col:'var(--red)',     bg:'rgba(255,59,92,0.08)',   border:'rgba(255,59,92,0.3)' },
-    ] : [
-      { key:'both',  label:'✓ 모두 성공',  col:'var(--green)',   bg:'rgba(0,230,118,0.08)',   border:'rgba(0,230,118,0.3)' },
+    ] : hasB ? [
+      { key:'both',  label:'✓ A+B 모두',   col:'var(--green)',   bg:'rgba(0,230,118,0.08)',   border:'rgba(0,230,118,0.3)' },
       { key:'only2', label:'✓ A만 성공',   col:'var(--accent)',  bg:'rgba(0,229,255,0.08)',   border:'rgba(0,229,255,0.3)' },
       { key:'only3', label:'✓ B만 성공',   col:'#a78bfa',        bg:'rgba(167,139,250,0.08)', border:'rgba(167,139,250,0.3)' },
       { key:'lose',  label:'✗ 모두 실패',  col:'var(--red)',     bg:'rgba(255,59,92,0.08)',   border:'rgba(255,59,92,0.3)' },
+    ] : [
+      { key:'only2', label:'✓ A 성공',     col:'var(--green)',   bg:'rgba(0,230,118,0.08)',   border:'rgba(0,230,118,0.3)' },
+      { key:'lose',  label:'✗ A 실패',     col:'var(--red)',     bg:'rgba(255,59,92,0.08)',   border:'rgba(255,59,92,0.3)' },
     ];
     pendingBtns.innerHTML = btns.map(b =>
       `<button onclick="simApplyPending('${b.key}')" style="padding:10px;border-radius:8px;border:1px solid ${b.border};background:${b.bg};color:${b.col};font-size:12px;font-weight:700;cursor:pointer;">${b.label}</button>`
@@ -7573,6 +7688,14 @@ function simRenderTree() {
   const wrap = document.getElementById('sim-tree-horizontal');
   const canvas = document.getElementById('sim-tree-canvas');
   if (!canvas || !wrap) return;
+
+  // 숨겨진 탭에서 호출 시 clientWidth가 0이 되는 타이밍 버그 수정:
+  // requestAnimationFrame으로 레이아웃 계산 후 실행
+  if (wrap.clientWidth === 0) {
+    requestAnimationFrame(() => simRenderTree());
+    return;
+  }
+
   const ctx = canvas.getContext('2d');
 
   const h = simState.history;
@@ -7863,7 +7986,7 @@ function simSetStartBalance() {
   const r = SIM_ROADMAP[assignedIdx];
 
   simSnaps = [];
-  simState = { balance: val, round: r.round, history: [], goalReached: false, goalHistory: [] };
+  simState = { balance: val, round: 1, history: [], goalReached: false, goalHistory: [] };
   simPending = null;
   // localStorage에 먼저 저장 (initSimulator가 다시 불려도 이 값을 복원함)
   try {
@@ -7898,6 +8021,9 @@ function simManualLoad() {
   try{const saved=localStorage.getItem('edge_sim_state'),savedGoal=localStorage.getItem('edge_sim_goal');
   if(!saved){const el=document.getElementById('sim-save-status');if(el){el.textContent='저장된 데이터가 없어요';el.style.color='var(--gold)';setTimeout(()=>el.textContent='',3000);}return;}
   simState=JSON.parse(saved);if(savedGoal)SIM_GOAL=parseInt(savedGoal);simSnaps=[];simResetOdds();simRender();simOnInput();
+  // 경로 탭이 열려있으면 트리 갱신
+  const treeTab = document.getElementById('sim-tc-tree');
+  if(treeTab && treeTab.style.display !== 'none') simRenderTree();
   const el=document.getElementById('sim-save-status');if(el){el.textContent='불러오기 완료';el.style.color='var(--green)';setTimeout(()=>el.textContent='',3000);}}catch(e){}
 }
 
@@ -7910,7 +8036,12 @@ function simConfirmReset(){
   try{localStorage.removeItem('edge_sim_state');localStorage.removeItem('edge_sim_goal');localStorage.removeItem('edge_sim_pending');}catch(e){}
   simPending=null;
   ['sim-i-sv','sim-i-b2','sim-i-b3','sim-i-b4','sim-i-memo','sim-i-memo-b','sim-i-memo-c'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  simResetOdds();simSwitchTab('play');simRender();simOnInput();
+  simResetOdds();simRender();simOnInput();
+  // tree 탭이 열려있어도 play로 전환 + 캔버스 초기화
+  simSwitchTab('play');
+  // 혹시 경로 탭 캔버스에 잔상이 남지 않도록 명시적 클리어
+  const _cv = document.getElementById('sim-tree-canvas');
+  if(_cv){const _cx=_cv.getContext('2d');_cv.width=_cv.width;if(_cx){_cx.fillStyle='#4a5168';_cx.font='13px JetBrains Mono,monospace';_cx.textAlign='center';_cv.height=80;_cx.fillText('아직 진행한 회차가 없어요',(_cv.width||320)/2,44);}}
 }
 
 function initSimulator() {
@@ -7923,6 +8054,9 @@ function initSimulator() {
   simRender(); simRenderPending(); simOnInput();
   // 로드맵 명시적 갱신 (monkey-patch 여부와 무관하게)
   if(typeof simRenderRoadmap === 'function') simRenderRoadmap();
+  // 경로 탭이 열려있을 경우 트리 갱신 (불러오기 후 빈 화면 버그 수정)
+  const treeTab = document.getElementById('sim-tc-tree');
+  if(treeTab && treeTab.style.display !== 'none') simRenderTree();
   document.querySelectorAll('#page-strategy input[type=number]').forEach(el => {
     el.addEventListener('wheel', e => e.preventDefault(), { passive: false });
   });
@@ -8184,7 +8318,7 @@ function switchTab(name, el) {
   if (name === 'analyze')   updateAnalyzeTab();
   if (name === 'goal')      { updateRoundHistory(); updateGoalStats(); calcGoal(); }
   if (name === 'predict')   { updateGoalStats(); updatePredictTab(); }
-  if (name === 'simulator') { calcKelly(); renderKellySlots(bets.filter(b=>b.result!=='PENDING').length % 12, bets.filter(b=>b.result!=='PENDING')); updateSimRoundSeedBanner(); updateKellyHistory(); updateKellyGradeBanner(); }
+  if (name === 'simulator') { calcKelly(); renderKellySlots(bets.filter(b=>b.result!=='PENDING').length % 12, bets.filter(b=>b.result!=='PENDING')); updateSimRoundSeedBanner(); updateKellyHistory(); updateKellyGradeBanner(); try{updateFibonacci();}catch(e){} }
   if (name === 'judgeall')  updateJudgeAll();
   if (name === 'decision')  initDecisionTab();
   if (name === 'settings')  { loadSettingsDisplay(); updateWeeklySeedStatus(); setTodayKST(); renderPrincipleList(); }
@@ -10028,6 +10162,161 @@ function renderPredPage() {
   }).join('');
 }
 
+// ========== 피보나치 손실 만회 시스템 ==========
+const FIB_SEQ = [1,2,3,5,8,13,21,34,55,89,144,233,377];
+const FIB_PAGE_SIZE = 5;
+let _fibPage = 1;
+
+function fibGoPage(dir) {
+  _fibPage += dir;
+  updateFibonacci();
+}
+
+function fibGetBase() {
+  const saved = localStorage.getItem('edge_fib_base');
+  return saved ? parseInt(saved) : 1000;
+}
+
+function fibUpdateBase() {
+  const input = document.getElementById('fib-base-input');
+  const val = parseInt(input?.value);
+  if (val && val >= 100) {
+    localStorage.setItem('edge_fib_base', val);
+    updateFibonacci();
+  } else if (input && !input.value) {
+    // 입력 지워지면 저장값 기준으로 재표시
+    updateFibonacci();
+  }
+}
+
+function updateFibonacci() {
+  const base = fibGetBase();
+  const baseEl = document.getElementById('fib-base-display');
+  if (baseEl) baseEl.textContent = base.toLocaleString('ko-KR') + '원';
+  const baseInput = document.getElementById('fib-base-input');
+  if (baseInput && !baseInput.value) baseInput.placeholder = base.toLocaleString('ko-KR');
+
+  // 베팅 기록에서 최근 연패 시리즈 추출
+  const resolved = bets.filter(b => b.result !== 'PENDING').sort((a,b) => new Date(a.savedAt) - new Date(b.savedAt));
+
+  // 현재 연패 계산 (뒤에서부터)
+  let streak = 0;
+  for (let i = resolved.length - 1; i >= 0; i--) {
+    if (resolved[i].result === 'LOSE') streak++;
+    else break;
+  }
+
+  // 전체 최고 연패
+  let maxStreak = 0, curStreak = 0;
+  resolved.forEach(b => {
+    if (b.result === 'LOSE') { curStreak++; maxStreak = Math.max(maxStreak, curStreak); }
+    else curStreak = 0;
+  });
+
+  // 현재 시리즈 (마지막 WIN 이후 ~ 현재)
+  let seriesStart = resolved.length;
+  for (let i = resolved.length - 1; i >= 0; i--) {
+    if (resolved[i].result === 'WIN') { seriesStart = i + 1; break; }
+    if (i === 0) seriesStart = 0;
+  }
+  const series = resolved.slice(seriesStart);
+
+  // 누적 손실 계산
+  const totalLoss = series.filter(b => b.result === 'LOSE').reduce((s, b) => s + (b.amount || 0), 0);
+
+  // 다음 권장 배팅액 (피보나치 기준)
+  const fibIdx = Math.min(streak, FIB_SEQ.length - 1);
+  const nextBet = FIB_SEQ[fibIdx] * base;
+
+  // 만회 포인트 계산
+  // POINT 1: 손익분기 — (누적손실 + 다음배팅액) / 다음배팅액
+  // 연패도 없고 손실도 없으면 의미없으므로 null 처리
+  const breakEven = (nextBet > 0 && (totalLoss > 0 || streak > 0)) ? ((totalLoss + nextBet) / nextBet) : null;
+  // POINT 2: 순수익 전환 — 손익분기 + 초기단위 1개분 마진
+  const profitPoint = breakEven ? (breakEven + (base / nextBet)) : null;
+
+  // UI 업데이트
+  const streakEl = document.getElementById('fib-streak');
+  if (streakEl) { streakEl.textContent = streak; streakEl.style.color = streak >= 5 ? 'var(--red)' : streak >= 3 ? 'var(--gold)' : '#a78bfa'; }
+  const maxEl = document.getElementById('fib-max-streak');
+  if (maxEl) maxEl.textContent = maxStreak;
+  const lossEl = document.getElementById('fib-loss');
+  if (lossEl) lossEl.textContent = totalLoss > 0 ? '-' + totalLoss.toLocaleString('ko-KR') + '원' : '0원';
+  const nextEl = document.getElementById('fib-next-bet');
+  if (nextEl) nextEl.textContent = nextBet.toLocaleString('ko-KR') + '원';
+  const beEl = document.getElementById('fib-break-even');
+  if (beEl) beEl.textContent = breakEven ? breakEven.toFixed(2) : '—';
+  const ppEl = document.getElementById('fib-profit');
+  if (ppEl) ppEl.textContent = profitPoint ? profitPoint.toFixed(2) : '—';
+
+  // 수열 진행 바
+  const barEl = document.getElementById('fib-sequence-bar');
+  if (barEl) {
+    const show = Math.max(7, streak + 2);
+    barEl.innerHTML = FIB_SEQ.slice(0, Math.min(show, FIB_SEQ.length)).map((v, i) => {
+      const amt = v * base;
+      const isPast = i < streak;
+      const isCurrent = i === streak;
+      const bg = isPast ? 'rgba(255,59,92,0.15)' : isCurrent ? 'rgba(167,139,250,0.2)' : 'var(--bg3)';
+      const border = isPast ? '1px solid rgba(255,59,92,0.4)' : isCurrent ? '2px solid #a78bfa' : '1px solid var(--border)';
+      const color = isPast ? 'var(--red)' : isCurrent ? '#a78bfa' : 'var(--text3)';
+      const label = isPast ? '✗' : isCurrent ? '▶' : '';
+      const amtStr = amt >= 10000 ? (amt/10000).toFixed(amt%10000===0?0:1)+'만' : amt.toLocaleString('ko-KR')+'원';
+      return `<div style="background:${bg};border:${border};border-radius:6px;padding:8px 10px;text-align:center;min-width:56px;">
+        <div style="font-size:9px;color:${color};font-weight:700;margin-bottom:2px;">${label || (i+1)+'회'}</div>
+        <div class="mono" style="font-size:11px;color:${color};font-weight:${isCurrent?'700':'400'};">${amtStr}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // 현재 시리즈 테이블 (페이지네이션)
+  const tbody = document.getElementById('fib-history-table');
+  if (tbody) {
+    if (!series.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">현재 시리즈 기록 없음</td></tr>';
+      const pi = document.getElementById('fib-page-info'); if(pi) pi.textContent = '—';
+      const pn = document.getElementById('fib-page-num'); if(pn) pn.textContent = '1 / 1';
+    } else {
+      const totalPages = Math.max(1, Math.ceil(series.length / FIB_PAGE_SIZE));
+      _fibPage = Math.min(Math.max(1, _fibPage), totalPages);
+      const pageItems = series.slice((_fibPage-1)*FIB_PAGE_SIZE, _fibPage*FIB_PAGE_SIZE);
+      const startIdx = (_fibPage-1)*FIB_PAGE_SIZE;
+
+      let cumLoss = 0;
+      // 누적 손실은 전체 시리즈 기준으로 미리 계산
+      const cumLossArr = [];
+      let cl = 0;
+      series.forEach(b => { if(b.result==='LOSE') cl += (b.amount||0); cumLossArr.push(cl); });
+
+      tbody.innerHTML = pageItems.map((b, pi) => {
+        const i = startIdx + pi;
+        const isLose = b.result === 'LOSE';
+        const fibAmt = FIB_SEQ[Math.min(i, FIB_SEQ.length-1)] * base;
+        const resultColor = isLose ? 'var(--red)' : 'var(--green)';
+        const resultLabel = isLose ? '✗ 미적중' : '✓ 적중';
+        return `<tr>
+          <td style="color:var(--text3);">${i+1}회</td>
+          <td style="color:var(--text3);font-size:11px;">${(b.savedAt||'').slice(0,10)}</td>
+          <td style="color:var(--text2);font-size:11px;">${b.match||'—'}</td>
+          <td class="mono" style="color:#a78bfa;">${fibAmt.toLocaleString('ko-KR')}</td>
+          <td class="mono" style="color:var(--text2);">${(b.betmanOdds||0).toFixed(2)}</td>
+          <td style="color:${resultColor};font-weight:700;">${resultLabel}</td>
+          <td class="mono" style="color:${isLose?'var(--red)':'var(--text3)'};">${isLose?'-'+cumLossArr[i].toLocaleString('ko-KR')+'원':'—'}</td>
+        </tr>`;
+      }).join('');
+
+      const pi = document.getElementById('fib-page-info');
+      if(pi) pi.textContent = `${(_fibPage-1)*FIB_PAGE_SIZE+1}–${Math.min(_fibPage*FIB_PAGE_SIZE, series.length)} / 총 ${series.length}건`;
+      const pn = document.getElementById('fib-page-num');
+      if(pn) pn.textContent = `${_fibPage} / ${totalPages}`;
+      const prevBtn = document.getElementById('fib-prev-btn');
+      if(prevBtn) prevBtn.disabled = _fibPage <= 1;
+      const nextBtn = document.getElementById('fib-next-btn');
+      if(nextBtn) nextBtn.disabled = _fibPage >= totalPages;
+    }
+  }
+}
+
 function updateAll() {
   // ── 중앙 엔진 먼저 실행 ──
   try { calcSystemState(); } catch(e) { console.warn('calcSystemState error:', e); }
@@ -10040,7 +10329,7 @@ function updateAll() {
   if (activePage === 'analyze')   updateAnalyzeTab();
   if (activePage === 'goal')      { updateRoundHistory(); updateGoalStats(); }
   if (activePage === 'predict')   { updateGoalStats(); updatePredictTab(); }
-  if (activePage === 'simulator') updateKellyHistory();
+  if (activePage === 'simulator') { updateKellyHistory(); try { updateFibonacci(); } catch(e) { console.warn('updateFibonacci error:', e); } }
   if (activePage === 'vault')     renderVault();
   // 뱅크롤/베팅시드 자동 갱신 — 에러나도 renderTable까지 도달하도록 try-catch
   try { updateGoalBankrollDisplay(); } catch(e) { console.warn('updateGoalBankrollDisplay', e); }
@@ -15512,7 +15801,7 @@ function switchTabMobile(name) {
   if (name === 'analyze')   updateAnalyzeTab();
   if (name === 'goal')      { updateRoundHistory(); updateGoalStats(); calcGoal(); }
   if (name === 'predict')   { updateGoalStats(); updatePredictTab(); }
-  if (name === 'simulator') { calcKelly(); updateKellyHistory(); updateKellyGradeBanner(); }
+  if (name === 'simulator') { calcKelly(); updateKellyHistory(); updateKellyGradeBanner(); try{updateFibonacci();}catch(e){} }
   if (name === 'judgeall')  updateJudgeAll();
   if (name === 'settings')  { loadSettingsDisplay(); updateWeeklySeedStatus(); setTodayKST(); renderPrincipleList(); }
   if (name === 'vault')     renderVault();
@@ -15629,6 +15918,15 @@ async function gdriveSync() {
       if (cloudData.simPending) {
         localStorage.setItem('edge_sim_pending', JSON.stringify(cloudData.simPending));
         simPending = cloudData.simPending;
+      }
+      // 전략베팅 시뮬레이터 UI 갱신 (경로 탭 포함)
+      if (cloudData.simState) {
+        simSnaps = [];
+        simResetOdds();
+        simRender();
+        simOnInput();
+        const treeTab = document.getElementById('sim-tc-tree');
+        if(treeTab && treeTab.style.display !== 'none') simRenderTree();
       }
 
       // 드라이브에 최신 데이터 업로드
