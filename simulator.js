@@ -537,9 +537,7 @@ function simApplyPending(key) {
     const toast = document.createElement('div');
     toast.textContent = isLoseKey ? '📋 실패 기록이 히스토리에 저장됐어요' : '✅ 베팅기록에 추가됐어요';
     toast.style.cssText = `position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:${isLoseKey?'rgba(255,59,92,0.9)':'rgba(0,230,118,0.9)'};color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;`;
-toast.style.pointerEvents = 'none';
     document.body.appendChild(toast);
-updateAll();  
     setTimeout(() => toast.remove(), 2000);
   }
 

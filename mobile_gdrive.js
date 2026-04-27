@@ -903,4 +903,3 @@ if(document.readyState === 'loading') {
 } else {
   _patchSimRender();
 }
-</script>
