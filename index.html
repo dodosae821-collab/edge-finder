@@ -239,6 +239,7 @@ if ('serviceWorker' in navigator) {
       <div onclick="switchTabFromDropdown('analyze', this)">📊 분석</div>
       <div onclick="switchTabFromDropdown('predict', this)">🔮 예측</div>
       <div onclick="switchTabFromDropdown('predpower', this)">🧠 예측력</div>
+      <div onclick="switchTabFromDropdown('verify', this)">🔬 검증</div>
     </div>
   </div>
   <div class="tab-dropdown" id="fund-dropdown-wrap">
@@ -751,6 +752,8 @@ if ('serviceWorker' in navigator) {
                 oninput="syncMyProb()">
               <span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text3);">%</span>
             </div>
+            <!-- 보정 힌트 -->
+            <div id="calib-hint" style="display:none;margin-top:6px;padding:8px 10px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:6px;font-size:11px;"></div>
           </div>
         </div>
 
@@ -796,6 +799,7 @@ if ('serviceWorker' in navigator) {
             </div>
           </div>
           <div id="multi-ev-note" style="font-size:10px;color:var(--text3);line-height:1.5;"></div>
+          <div id="multi-ev-breakdown" style="display:none;margin-top:8px;padding:8px 10px;background:var(--bg2);border:1px solid rgba(255,255,255,0.06);border-radius:6px;font-size:11px;font-family:'JetBrains Mono',monospace;line-height:1.9;"></div>
         </div>
 
         <!-- ⑦ 금액 + 배당 나란히 -->
@@ -877,6 +881,7 @@ if ('serviceWorker' in navigator) {
         <input type="hidden" id="r-sport" value="">
         <input type="hidden" id="r-type" value="">
         <input type="hidden" id="r-myprob" value="">
+        <input type="hidden" id="r-adjusted-prob" value="">
       </div>
 
       <div class="card">
@@ -1888,6 +1893,8 @@ if ('serviceWorker' in navigator) {
         <div class="mono" id="kelly-next-amount" style="font-size:32px;font-weight:700;color:var(--gold);">—</div>
         <div id="kelly-next-note" style="font-size:11px;color:var(--text3);margin-top:4px;"></div>
       </div>
+      <!-- calibProb 기반 순수 Kelly (예상 승률 입력 시 표시) -->
+      <div id="kelly-calib-row" style="display:none;margin-bottom:16px;"></div>
 
       <!-- 12칸 사이클 진행 바 -->
       <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">이번 사이클 진행도 (베팅 기록 기반 자동 계산)</div>
@@ -3789,6 +3796,7 @@ if ('serviceWorker' in navigator) {
 <script src="./settings.js"></script>
 <script src="./core.js"></script>
 <script src="./simulator.js"></script>
+<script src="./verify.js"></script>
 <script src="./bet_record.js"></script>
 <script src="./tags_ui.js"></script>
 <script src="./journal.js"></script>
@@ -3798,3 +3806,43 @@ if ('serviceWorker' in navigator) {
 <script src="./mobile_gdrive.js"></script>
 </body>
 </html>
+  <div class="page" id="page-verify">
+    <div class="section-title">🔬 모델 검증</div>
+    <div id="verify-status"></div>
+
+    <!-- 요약 카드 -->
+    <div id="verify-summary"></div>
+
+    <!-- 차트 1: EV vs ROI -->
+    <div class="card" style="padding:16px;margin-bottom:12px;">
+      <div class="card-title" style="margin-bottom:4px;">📊 EV 구간별 실제 ROI</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">EV+ 베팅이 실제로 수익을 내는지 확인</div>
+      <div style="position:relative;height:220px;">
+        <canvas id="verify-chart1"></canvas>
+      </div>
+    </div>
+
+    <!-- 차트 2: 폴더 수 vs ROI -->
+    <div class="card" style="padding:16px;margin-bottom:12px;">
+      <div class="card-title" style="margin-bottom:4px;">🗂 폴더 수별 ROI</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">다폴더가 성능에 영향을 주는지 확인</div>
+      <div style="position:relative;height:220px;">
+        <canvas id="verify-chart2"></canvas>
+      </div>
+    </div>
+
+    <!-- 차트 3: 보정 효과 -->
+    <div class="card" style="padding:16px;margin-bottom:12px;">
+      <div class="card-title" style="margin-bottom:4px;">🎯 보정 효과 — 예측 vs 실제 적중률</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">보정(calibration)이 의미 있는지 확인</div>
+      <div style="position:relative;height:260px;">
+        <canvas id="verify-chart3"></canvas>
+      </div>
+      <div style="margin-top:10px;padding:10px;background:var(--bg3);border-radius:6px;font-size:11px;color:var(--text3);line-height:1.6;">
+        💡 <strong style="color:var(--text2);">읽는 법:</strong>
+        실제 적중률(초록)이 내 예측 승률(파랑)에 가까울수록 보정이 잘 됨.
+        보정 승률(노랑)이 실제 적중률에 더 가까우면 보정 모델이 효과적.
+      </div>
+    </div>
+  </div>
+

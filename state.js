@@ -14,6 +14,19 @@ let bets = JSON.parse(localStorage.getItem('edge_bets') || '[]');
 let charts = { profit: null, sport: null, odds: null, monthly: null, seed: null, goal: null, ev: null, evAmount: null, predAccuracy: null, dow: null, weeklyProfit: null, trend: null, oddsDist: null, condition: null, kellyDist: null, evMonthly: null, evCum: null, analyzeChart: null, judgeFolder: null, judgePred: null, judgeTrend: null, judgeOdds: null, judgeBias: null };
 
 // ============================================================
+// ============================================================
+// ▶ getCalibCorrFactor() — 보정계수 반환 (Calibration Layer)
+//   30건 미만: 비활성 (1.0)
+//   30~49건:   50% 강도 (과신만 보정, 과소추정은 cap)
+//   50건+:     100% 적용
+// ============================================================
+function getCalibCorrFactor(corrFactor, resolvedCount) {
+  if (resolvedCount < 30 || corrFactor == null) return 1.0;
+  const cf = Math.min(corrFactor, 1.0); // 과소추정(>1)은 보정 안 함
+  if (resolvedCount < 50) return 1.0 + (cf - 1.0) * 0.5;
+  return cf;
+}
+
 // ▶ calcSystemState() — 중앙 계산 엔진
 //   모든 파생 지표를 단 한 번 bets 배열에서 계산하고
 //   window._SS 에 저장. 각 탭은 이 객체를 읽기만 한다.
@@ -237,7 +250,10 @@ function calcSystemState() {
     streak, streakType, plRatio, avgBias,
     // 보정도
     predBets, calibRows, ece, corrFactor,
+    activeCorrFactor: getCalibCorrFactor(corrFactor, n),
     rawEdge, corrEdge,
+    // 구간별 보정 버킷 (adjustedProb 강제 적용용)
+    calibBuckets: calibRows,
     // 등급
     grade,
     // 켈리
@@ -301,7 +317,7 @@ function switchTabFromDropdown(name, el) {
   // 해당 드롭다운 트리거 active
   const triggerMap = {
     analysis: 'stats', analysis2: 'stats', analysis3: 'stats',
-    analyze: 'insight', predict: 'insight', predpower: 'insight',
+    analyze: 'insight', predict: 'insight', predpower: 'insight', verify: 'insight',
     simulator: 'fund', goal: 'fund'
   };
   const triggerKey = triggerMap[name];
@@ -327,6 +343,7 @@ function switchTabFromDropdown(name, el) {
   if (name === 'analyze')   updateAnalyzeTab();
   if (name === 'predict')   { updateGoalStats(); updatePredictTab(); }
   if (name === 'predpower') updatePredPowerPanel();
+  if (name === 'verify')    { if (typeof renderVerifyPage === 'function') renderVerifyPage(); }
   if (name === 'simulator') { calcKelly(); renderKellySlots(bets.filter(b=>b.result!=='PENDING').length % 12, bets.filter(b=>b.result!=='PENDING')); updateSimRoundSeedBanner(); updateKellyHistory(); updateKellyGradeBanner(); try{updateFibonacci();}catch(e){} }
   if (name === 'goal')      { updateRoundHistory();
   renderPrincipleList();
@@ -1262,3 +1279,119 @@ function clearRoundHistory() {
   updateRoundHistory();
 }
 
+
+// ========== 보정 확률 계산 (calibrateProb) ==========
+// ratio 클리핑 → weight 완화 → 최종 클램프 3중 안전장치
+
+function getWeight(n, sample) {
+  if (n < 30 || sample < 10) return 0;
+  if (n < 50) return (n - 30) / 20 * 0.5;
+  return Math.min(0.5 + (n - 50) / 50 * 0.5, 0.9); // 최대 0.9 (항상 10% 내 판단 유지)
+}
+
+function calibrateProb(myProb, bucket, totalBets) {
+  // { bin, actual } 또는 { min, max, actWr, count } 둘 다 지원
+  const expected = bucket.bin != null ? bucket.bin : (bucket.min + bucket.max) / 2;
+  const actual   = bucket.actual != null ? bucket.actual : bucket.actWr / 100;
+  const sample   = bucket.count != null ? bucket.count : 10; // count 없으면 최소치로 간주
+
+  if (!bucket || expected == null || actual == null) return myProb;
+
+  // 1. ratio 계산 (같은 단위로 비교)
+  let ratio = actual / expected;
+
+  // 2. ratio 클리핑 [0.5 ~ 1.5]
+  ratio = Math.min(Math.max(ratio, 0.5), 1.5);
+
+  // 3. 데이터 수 기반 weight
+  const weight = getWeight(totalBets, sample);
+
+  // 4. 완화된 ratio
+  const adjustedRatio = 1 + (ratio - 1) * weight;
+
+  // 5. 적용
+  let finalProb = myProb * adjustedRatio;
+
+  // 6. 최종 클램프 [0.05 ~ 0.95]
+  finalProb = Math.min(Math.max(finalProb, 0.05), 0.95);
+
+  return finalProb;
+}
+
+function getCalibrated(p) {
+  if (!window._calibData || window._calibData.length === 0) return p;
+
+  let closest = null;
+  let minDiff = Infinity;
+
+  for (const d of window._calibData) {
+    const diff = Math.abs(p - d.bin);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = d;
+    }
+  }
+
+  return closest ? closest.actual : p;
+}
+
+// ============================================================
+// ▶ getAdjustedProb(myProbPct) — 보정 확률 강제 적용 (핵심 필터)
+//   myProb → calibration → adjustedProb
+//   이 함수가 edge/kelly/ev 모든 계산의 입력 필터
+//   30건 미만: raw 그대로 (데이터 불충분)
+//   30~49건:   50% 강도
+//   50건+:     구간별 ratio * weight 완전 적용
+// ============================================================
+function getAdjustedProb(myProbPct) {
+  const p = myProbPct / 100;
+  const ss = window._SS;
+  if (!ss || !ss.calibBuckets || ss.calibBuckets.length === 0 || ss.n < 30) {
+    return myProbPct; // 데이터 부족 → raw 그대로
+  }
+
+  const totalBets = ss.n;
+
+  // 해당 구간 찾기
+  const bucket = ss.calibBuckets.find(r =>
+    myProbPct >= r.min && myProbPct < r.max
+  );
+
+  if (!bucket || bucket.count < 3) {
+    // 구간 데이터 부족 → activeCorrFactor로 전체 보정
+    const acf = ss.activeCorrFactor || 1.0;
+    const adj = Math.min(Math.max(myProbPct * acf, 5), 95);
+    return adj;
+  }
+
+  // calibrateProb 호출 (state.js 내 함수)
+  const adjP = calibrateProb(p, {
+    min: bucket.min,
+    max: bucket.max,
+    actWr: bucket.actWr,
+    count: bucket.count
+  }, totalBets);
+
+  return Math.min(Math.max(adjP * 100, 5), 95);
+}
+
+// CLV 기반 추가 보정 (avgCLV < 0 → downscale)
+function getCLVAdjustedProb(myProbPct) {
+  let adj = getAdjustedProb(myProbPct);
+  const ss = window._SS;
+  if (!ss || !ss.predBets || ss.predBets.length < 10) return adj;
+
+  // avgCLV 계산: myProb - impliedProb 평균
+  const clvArr = ss.predBets
+    .filter(b => b.betmanOdds && b.betmanOdds >= 1)
+    .map(b => b.myProb - (100 / b.betmanOdds));
+  if (clvArr.length < 10) return adj;
+
+  const avgCLV = clvArr.reduce((s,v) => s+v, 0) / clvArr.length;
+  // avgCLV < -3%p → 추가 5% downscale
+  // avgCLV > +3%p → 유지
+  if (avgCLV < -3) {
+    adj = adj * 0.95;
+  }
+  return Math.min(Math.max(adj, 5), 95);
+}

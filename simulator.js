@@ -1022,9 +1022,9 @@ function simSetStartBalance() {
     if(st) { st.textContent = `✅ ${val.toLocaleString('ko-KR')}원으로 시작했어요`; st.style.color='var(--green)'; setTimeout(()=>st.textContent='',3000); }
   }
 
+  simSwitchTab('play');
   simRender(); simOnInput();
   if(typeof simRenderRoadmap === 'function') simRenderRoadmap();
-  simSwitchTab('play');
 }
 
 function simConfirmGoal() {

@@ -634,8 +634,11 @@ function updatePredPowerPanel() {
     if (g.length < 2) return null;
     const midProb = g.reduce((s,x)=>s+x.myProb,0)/g.length;
     const actWr   = g.filter(x=>x.result==='WIN').length/g.length*100;
-    return { label:b.label, midProb, actWr, count:g.length, diff: actWr - midProb };
+    return { label:b.label, min:b.min, max:b.max, midProb, actWr, count:g.length, diff: actWr - midProb };
   }).filter(Boolean);
+
+  // 전역 노출 — calibrateProb() 호출용
+  window._calibData = calibData;
 
   // 캘리브레이션 오차 — 과소추정 절반 페널티
   const calibMAE = calibData.length > 0

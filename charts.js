@@ -201,6 +201,85 @@ function calcKelly() {
   const unitRaw = Math.floor(seed / 12 * _totalMult);
   const unit = Math.min(unitRaw, maxUnit);  // 상한선 적용
 
+  // ── 하이브리드 Kelly 계산 ─────────────────────────────────
+  // finalBet = baseBet × (1 + kellyClamped × k)
+  // k = 데이터 수 + ECE 기반 자동 조정
+  // kelly clamp: -0.2 ~ 0.2
+  // finalBet cap: baseBet × 0.5 ~ 1.5
+  // EV-: Kelly 미적용 + 경고
+  let hybridKelly = null;
+  const _adjProbEl = document.getElementById('r-adjusted-prob');
+  const _adjProbPct = _adjProbEl ? parseFloat(_adjProbEl.value) : 0;
+  const _adjOddsEl = document.getElementById('r-betman-odds');
+  const _adjOdds = _adjOddsEl ? parseFloat(_adjOddsEl.value) : 0;
+  // raw myProb도 읽기 (EV 비교용)
+  const _rawProbEl = document.getElementById('r-myprob');
+  const _rawProbPct = _rawProbEl ? parseFloat(_rawProbEl.value) : _adjProbPct;
+
+  if (_adjProbPct > 0 && _adjOdds >= 1 && unit > 0) {
+    const ss = window._SS;
+    const baseBet = unit;
+    const bankroll = getCurrentBankroll() || appSettings.startFund || seed;
+
+    // calibProb 기반 Kelly
+    const p = _adjProbPct / 100;
+    const q = 1 - p;
+    const b = _adjOdds - 1;
+    const kellyRaw = (p * b - q) / b;
+
+    // raw Kelly (비교용)
+    const pRaw = _rawProbPct / 100;
+    const kellyRawProb = ((pRaw * b - (1 - pRaw)) / b);
+
+    // Kelly clamp [-0.2 ~ 0.2]
+    const kellyClamped = Math.min(Math.max(kellyRaw, -0.2), 0.2);
+
+    // k 계산: 데이터 수 + ECE 기반
+    const n = ss ? ss.n : 0;
+    const ece = ss ? ss.ece : null;
+    const baseK = n < 50 ? 0.2 : n < 100 ? 0.3 : 0.4;
+    const accAdj = ece != null ? Math.max(0.5, 1 - ece / 100) : 0.7;
+    const k = baseK * accAdj;
+
+    // EV 판단
+    const evCalibPositive = kellyRaw > 0;
+    const evRawPositive   = kellyRawProb > 0;
+    const isCritical      = evRawPositive && !evCalibPositive; // raw+ / calib- 패턴
+
+    // finalBet 계산
+    let finalBet, kellyApplied;
+    if (!evCalibPositive) {
+      // EV-: Kelly 미적용, baseBet 유지
+      finalBet = baseBet;
+      kellyApplied = false;
+    } else {
+      finalBet = Math.round(baseBet * (1 + kellyClamped * k));
+      // 상/하단 cap
+      finalBet = Math.min(finalBet, Math.round(baseBet * 1.5));
+      finalBet = Math.max(finalBet, Math.round(baseBet * 0.5));
+      kellyApplied = true;
+    }
+
+    // 내재확률
+    const impliedProb = (1 / _adjOdds * 100);
+    // EV 수치
+    const evCalib = (p * b) - q;
+    const evRaw   = (pRaw * b) - (1 - pRaw);
+
+    hybridKelly = {
+      baseBet, finalBet, kellyApplied,
+      kellyRaw, kellyClamped, k, baseK, accAdj,
+      evCalib, evRaw, evCalibPositive, evRawPositive, isCritical,
+      calibProb: _adjProbPct, rawProb: _rawProbPct,
+      impliedProb, odds: _adjOdds,
+      n, ece,
+      bankroll,
+      diffProbPct: (_adjProbPct - _rawProbPct).toFixed(1),
+      diffEv: (evCalib - evRaw).toFixed(3)
+    };
+  }
+  if (_SS) { _SS.hybridKelly = hybridKelly; }
+
   // _SS에 kellyUnit 동기화
   if (_SS) { _SS.kellyUnit = unit; }
 
@@ -234,6 +313,65 @@ function calcKelly() {
   nextAmountEl.textContent = '₩' + unit.toLocaleString();
   const eceNote2 = (_SS && _SS.ece !== null && appSettings.kellyGradeAdj) ? ` · ECE ${_SS.ece.toFixed(1)}% x${_eceMult.toFixed(2)}` : '';
   nextNoteEl.textContent = cycleNum + '사이클 ' + roundNum + '번째 베팅 · ' + remain + '회 남음' + (_totalMult < 1 && _grade ? ' · ' + _grade.letter + '등급 x' + _totalMult.toFixed(2) + eceNote2 : '') + (unit < unitRaw ? ' · 상한선 ₩' + maxUnit.toLocaleString() + ' 적용' : '');
+
+  // ── calibProb 기반 순수 Kelly 표시 ──────────────────────────
+  // ── 하이브리드 Kelly UI 표시 ─────────────────────────────
+  const calibKellyEl = document.getElementById('kelly-calib-row');
+  if (calibKellyEl) {
+    if (hybridKelly) {
+      const hk = hybridKelly;
+      const betDiff = hk.finalBet - hk.baseBet;
+      const betDiffStr = betDiff >= 0 ? `+₩${betDiff.toLocaleString()}` : `-₩${Math.abs(betDiff).toLocaleString()}`;
+
+      let warningHtml = '';
+      if (hk.isCritical) {
+        warningHtml = `
+          <div style="margin-top:6px;padding:8px 10px;background:rgba(255,59,92,0.12);border:1px solid rgba(255,59,92,0.5);border-radius:6px;">
+            <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:4px;">🔴 과신 편향 감지 — 가장 위험한 패턴</div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.6;">
+              내 판단(raw)은 EV+이지만 <strong>보정 기준으로는 EV-</strong><br>
+              ΔProb: raw ${hk.rawProb.toFixed(1)}% → calib ${hk.calibProb.toFixed(1)}% (${hk.diffProbPct}%p)
+              &nbsp;|&nbsp; ΔEV: ${hk.evRaw>=0?'+':''}${(hk.evRaw*100).toFixed(2)}% → ${hk.evCalib>=0?'+':''}${(hk.evCalib*100).toFixed(2)}%
+            </div>
+          </div>`;
+      } else if (!hk.evCalibPositive) {
+        warningHtml = `
+          <div style="margin-top:6px;padding:8px 10px;background:rgba(255,152,0,0.1);border:1px solid rgba(255,152,0,0.4);border-radius:6px;">
+            <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:3px;">⚠️ EV- (보정 기준) → Kelly 미적용</div>
+            <div style="font-size:11px;color:var(--text2);">
+              보정확률 ${hk.calibProb.toFixed(1)}% · 내재확률 ${hk.impliedProb.toFixed(1)}% · EV ${(hk.evCalib*100).toFixed(2)}%<br>
+              보정 기준 엣지 없음 — 베팅 근거 재검토 권장
+            </div>
+          </div>`;
+      }
+
+      calibKellyEl.style.display = 'block';
+      calibKellyEl.innerHTML = `
+        <div style="padding:10px 12px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:6px;font-size:11px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:12px;font-weight:700;color:var(--accent);">📐 하이브리드 Kelly 권장금</span>
+            <span style="font-size:10px;color:var(--text3);">k=${hk.k.toFixed(2)} (${hk.n}건 · ECE ${hk.ece!=null?hk.ece.toFixed(1)+'%':'없음'})</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px;">
+            <span style="color:var(--text3);">기본 <span class="mono" style="color:var(--text2);">₩${hk.baseBet.toLocaleString()}</span></span>
+            <span style="color:var(--text3);">→</span>
+            <span style="font-size:18px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${hk.kellyApplied?(betDiff>=0?'var(--green)':'var(--accent2)'):'var(--text2)'};">
+              ₩${hk.finalBet.toLocaleString()}
+            </span>
+            ${hk.kellyApplied
+              ? `<span style="font-size:11px;color:${betDiff>=0?'var(--green)':'var(--accent2)'};">(${betDiffStr})</span>`
+              : `<span style="font-size:10px;color:var(--text3);">Kelly 미적용</span>`}
+          </div>
+          <div style="font-size:10px;color:var(--text3);">
+            calibProb ${hk.calibProb.toFixed(1)}% · 내재확률 ${hk.impliedProb.toFixed(1)}% · EV ${hk.evCalib>=0?'+':''}${(hk.evCalib*100).toFixed(2)}%
+            ${hk.kellyApplied ? `· Kelly ${(hk.kellyClamped*100).toFixed(1)}% × k${hk.k.toFixed(2)} · cap 50~150%` : ''}
+          </div>
+          ${warningHtml}
+        </div>`;
+    } else {
+      calibKellyEl.style.display = 'none';
+    }
+  }
 
   renderKellySlots(cyclePos, resolved);
 
