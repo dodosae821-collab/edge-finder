@@ -1,0 +1,84 @@
+<!--
+================================================================
+index.html 통합 가이드 — OCR 반자동 입력 시스템
+================================================================
+아래 3곳에 각 코드를 삽입하세요.
+================================================================
+-->
+
+<!-- ① <head> 또는 기존 <script> 로드 직후에 추가 -->
+<!-- Tesseract.js는 사용 시점에 동적 로드되므로 별도 추가 불필요 -->
+<!-- ocr_import.js 먼저, 그 다음 verify_ocr_patch.js 로드 -->
+<script src="ocr_import.js"></script>
+<script src="verify_ocr_patch.js"></script>
+
+
+<!-- ② 베팅 기록 탭 / 대시보드 탭 상단 "결과 입력" 버튼 영역에 추가 -->
+<!--
+   기존에 수동 결과 입력 버튼이 있다면 그 근처에 배치하세요.
+   예: id="record-actions" 또는 id="vault-header" 근처
+-->
+<button
+  onclick="openOcrImport()"
+  style="
+    display:inline-flex;align-items:center;gap:7px;
+    padding:9px 16px;
+    background:rgba(0,229,255,0.10);
+    border:1px solid rgba(0,229,255,0.35);
+    border-radius:10px;
+    color:var(--accent);
+    font-size:12px;font-weight:700;
+    cursor:pointer;
+    transition:background 0.15s;
+  "
+  onmouseover="this.style.background='rgba(0,229,255,0.18)'"
+  onmouseout="this.style.background='rgba(0,229,255,0.10)'"
+>
+  📸 사진으로 결과 입력
+</button>
+
+
+<!-- ③ (선택) 헤더 stats 영역에 아이콘 버튼으로도 추가 가능 -->
+<!--
+   hstat 목록 중 원하는 위치에 삽입
+-->
+<div class="divider"></div>
+<div class="hstat" style="cursor:pointer;" onclick="openOcrImport()" title="사진으로 결과 입력">
+  <div class="hstat-val" style="font-size:18px;">📸</div>
+  <div class="hstat-label">OCR 입력</div>
+</div>
+
+
+<!--
+================================================================
+베팅 목록 테이블 — OCR 뱃지 표시 (bet_record.js 수정 가이드)
+================================================================
+bet_record.js 에서 베팅 목록을 렌더링하는 부분 (game 컬럼 근처) 에
+아래 코드를 추가하면 OCR로 반영된 베팅에 뱃지가 표시됩니다.
+
+변경 전:
+  <td ...>${b.game && b.game !== '-' ? b.game : '—'}</td>
+
+변경 후:
+  <td ...>
+    ${b.game && b.game !== '-' ? b.game : '—'}
+    ${typeof getOcrBadgeHtml === 'function' ? getOcrBadgeHtml(b) : ''}
+  </td>
+================================================================
+-->
+
+
+<!--
+================================================================
+통합 확인 체크리스트
+================================================================
+□ ocr_import.js 로드됨
+□ verify_ocr_patch.js 로드됨 (ocr_import.js 이후)
+□ "사진으로 결과 입력" 버튼 추가됨
+□ (선택) 헤더 OCR 아이콘 추가됨
+□ (선택) 베팅 목록 OCR 뱃지 추가됨
+□ localStorage 키 확인:
+    - 'edge_bets'       : 기존 베팅 배열
+    - 'ocr_alias_map'   : OCR 팀명 alias 저장 (자동 생성)
+================================================================
+-->
