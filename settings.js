@@ -230,6 +230,60 @@ function unlockWeeklySeed() {
   updateWeeklySeedStatus();
 }
 
+// ============================================================
+// ▶ 회차(시드) 사이클 — UI 브리지
+//   state.js의 lockNewRound / applyRoundBet / closeActiveRound를
+//   UI 레이어에서 호출하는 래퍼.
+// ============================================================
+
+/** 설정 탭 [회차 시드 고정] 버튼 핸들러 */
+function handleLockNewRound() {
+  const input = document.getElementById('round-new-seed-input');
+  const rawVal = input ? input.value.replace(/,/g, '') : '';
+  const seed = parseInt(rawVal, 10);
+
+  // lockNewRound는 state.js에 정의됨
+  const ok = (typeof lockNewRound === 'function') && lockNewRound(seed);
+  if (!ok) return;
+
+  // 기존 edge_round_seed도 동기화 (하위 호환)
+  const rawSeed = Math.round(seed / 100) * 100;
+  const dateStr = getKSTDateStr();
+  localStorage.setItem('edge_round_seed', JSON.stringify({
+    seed: rawSeed, rawSeed, wasRounded: false,
+    date: dateStr, lockedAt: new Date().toISOString()
+  }));
+
+  if (input) input.value = '';
+  const msg = document.getElementById('round-lock-saved-msg');
+  if (msg) {
+    msg.style.display = 'block';
+    msg.textContent   = '✅ 회차가 시작되었습니다 — ₩' + rawSeed.toLocaleString();
+    setTimeout(() => { msg.style.display = 'none'; }, 3000);
+  }
+  updateWeeklySeedStatus();
+  if (typeof updateDashboardRoundStats === 'function') updateDashboardRoundStats();
+}
+
+/** 베팅 저장 시 호출 — roundId 주입 + remaining 차감
+ *  bet_record.js 또는 addBet에서 newBet 생성 직후 호출. */
+function attachRoundToBet(betObj) {
+  const round = (typeof getActiveRound === 'function') ? getActiveRound() : null;
+  if (!round) return betObj;                    // 회차 없으면 그대로
+  betObj.roundId = round.id;
+  return betObj;
+}
+
+/** 베팅 결과 확정(WIN/LOSE) 시 remaining 차감 진입점 */
+function onBetAmountCommitted(amount) {
+  if (typeof applyRoundBet === 'function') applyRoundBet(amount);
+}
+
+/** 베팅 취소/삭제 시 remaining 환원 */
+function onBetAmountRefunded(amount) {
+  if (typeof refundRoundBet === 'function') refundRoundBet(amount);
+}
+
 function getLockedSeed() {
   const raw = localStorage.getItem('edge_round_seed');
   if (!raw) return null;
@@ -585,17 +639,147 @@ function updateFundCards() {
 
   if (startEl)   startEl.textContent   = startFund  > 0 ? '₩' + startFund.toLocaleString()  : '미설정';
   if (targetEl)  targetEl.textContent  = targetFund > 0 ? '₩' + targetFund.toLocaleString() : '미설정';
+  // ── [수정 2] 뱅크롤 카드 — scope 분기 (핵심) ──
+  // scope=round → activeRound.remaining / scope=all → 기존 bankroll
+  const _scope       = typeof getCurrentScope  === 'function' ? getCurrentScope()  : 'all';
+  const _activeRound = typeof getActiveRound   === 'function' ? getActiveRound()   : null;
+
   if (currentEl) {
-    currentEl.textContent  = startFund > 0 ? '₩' + Math.round(currentFund).toLocaleString() : '—';
-    currentEl.style.color  = currentFund >= startFund ? 'var(--green)' : 'var(--red)';
+    if (_scope === 'round' && _activeRound) {
+      // 회차 잔액
+      const remColor = _activeRound.remaining > _activeRound.seed * 0.3 ? 'var(--green)' : 'var(--red)';
+      currentEl.textContent = '₩' + Math.round(_activeRound.remaining).toLocaleString();
+      currentEl.style.color = remColor;
+    } else {
+      // 총 자산 (기존 로직 유지)
+      currentEl.textContent = startFund > 0 ? '₩' + Math.round(currentFund).toLocaleString() : '—';
+      currentEl.style.color = currentFund >= startFund ? 'var(--green)' : 'var(--red)';
+    }
   }
-  if (pctEl)    pctEl.textContent  = targetProfit > 0 ? progressPct.toFixed(1) + '%' : '—';
-  if (fillEl)   fillEl.style.width = progressPct + '%';
-  if (labelEl)  labelEl.textContent = targetFund > 0
-    ? `목표까지 ₩${Math.round(targetFund - currentFund).toLocaleString()} 남음`
-    : '설정 탭에서 변경';
+  if (pctEl)  pctEl.textContent  = targetProfit > 0 ? progressPct.toFixed(1) + '%' : '—';
+  if (fillEl) fillEl.style.width = progressPct + '%';
+  // ── [수정 2] d-target-label — scope에 맞게 변경 ──
+  if (labelEl) {
+    if (_scope === 'round' && _activeRound) {
+      labelEl.textContent = '회차 잔액';
+    } else {
+      labelEl.textContent = '총 자산';
+    }
+  }
   const progressTargetEl = document.getElementById('d-progress-target');
   if (progressTargetEl) progressTargetEl.textContent = targetFund > 0 ? `목표 ₩${targetFund.toLocaleString()}` : '목표 미설정';
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── 금액 초기화 시스템 (3단계) ──────────────────────────────────────────────
+//
+//  레이어 1: _loadBets()          — 안전 파싱 공통 유틸
+//  레이어 2: _resetBets(filter)   — 필터 함수 기반 핵심 리셋 엔진
+//  레이어 3: resetAmounts*()      — 범위별 리셋 (전체 / 프로젝트 / 기간)
+//  레이어 4: _confirmReset()      — 공통 confirm/prompt 안전장치
+//  레이어 5: confirmReset*()      — 각 버튼에서 호출하는 퍼블릭 함수
+//
+//  정책: amount · profit → 0. 나머지(result, odds, myProb 등) 전부 유지.
+//  용도: 프로젝트/전략/기간 단위 금액 재시작 → 적중률·예측력 데이터 보존.
+// ═══════════════════════════════════════════════════════════════════════════════
 
+// ── 레이어 1: 안전 파싱 ──────────────────────────────────────────────────────
+function _loadBets() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+    if (!Array.isArray(raw)) return [];
+    // projectId 누락 보정 (기존 데이터 호환)
+    return raw.map(b => ({ projectId: b.projectId || 'default', ...b }));
+  } catch (e) {
+    console.error('[reset] edge_bets 파싱 실패:', e);
+    return [];
+  }
+}
+
+// ── 레이어 2: 핵심 리셋 엔진 ─────────────────────────────────────────────────
+// shouldReset(bet) → true 인 항목만 amount/profit = 0 처리
+function _resetBets(shouldReset) {
+  const bets = _loadBets();
+  const newBets = bets.map(b => {
+    if (!shouldReset(b)) return b;
+    return { ...b, amount: 0, profit: 0 };
+  });
+  localStorage.setItem('edge_bets', JSON.stringify(newBets));
+  window.dispatchEvent(new Event('storage'));
+  return newBets.filter(shouldReset).length; // 실제 초기화된 건수 반환
+}
+
+// ── 레이어 3: 범위별 리셋 ────────────────────────────────────────────────────
+
+/** 전체 금액 초기화 */
+function resetAmountsAll() {
+  return _resetBets(() => true);
+}
+
+/** 특정 프로젝트의 금액만 초기화 */
+function resetAmountsByProject(projectId) {
+  return _resetBets(b => (b.projectId || 'default') === projectId);
+}
+
+/** 최근 N일 이내 bet의 금액 초기화 (date 없는 항목은 제외) */
+function resetAmountsByDays(days) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  return _resetBets(b => {
+    if (!b.date) return false;
+    return new Date(b.date) >= cutoff;
+  });
+}
+
+// ── 레이어 4: 공통 안전장치 ──────────────────────────────────────────────────
+// scopeLabel: 사용자에게 보여줄 초기화 범위 문구
+// execFn: 실제 실행할 리셋 함수 (호출 시 건수 반환)
+function _confirmReset(scopeLabel, execFn) {
+  const bets = _loadBets();
+  if (!bets.length) {
+    alert('초기화할 데이터가 없습니다.');
+    return;
+  }
+
+  const ok = confirm(
+    '⚠️ 금액(amount, profit)만 0으로 초기화됩니다.\n' +
+    '적중률, 배당, 예측 데이터는 유지됩니다.\n\n' +
+    '대상 범위: ' + scopeLabel + '\n\n' +
+    '계속 진행하시겠습니까?'
+  );
+  if (!ok) return;
+
+  const input = prompt('확인을 위해 RESET 입력');
+  if (input === null) { alert('취소되었습니다.'); return; }
+  if (input !== 'RESET') { alert('입력이 일치하지 않습니다.'); return; }
+
+  const count = execFn();
+  alert('금액이 초기화되었습니다. (대상: ' + count + '건)');
+  location.reload();
+}
+
+// ── 레이어 5: 퍼블릭 confirm 함수 (버튼에서 직접 호출) ───────────────────────
+
+/** 전체 금액 초기화 */
+function confirmResetAll() {
+  _confirmReset('전체 베팅 기록', resetAmountsAll);
+}
+
+/** 현재 프로젝트 금액 초기화 */
+function confirmResetProject() {
+  const project = getCurrentProject();
+  _confirmReset('프로젝트 [' + project + ']', function () {
+    return resetAmountsByProject(project);
+  });
+}
+
+/** 최근 N일 금액 초기화 */
+function confirmResetDays(days) {
+  _confirmReset('최근 ' + days + '일 이내', function () {
+    return resetAmountsByDays(days);
+  });
+}
+
+// 하위 호환: 이전 버전 confirmResetAmounts() 호출 대응
+function confirmResetAmounts() { confirmResetAll(); }
+function resetAmountsOnly()    { resetAmountsAll(); }

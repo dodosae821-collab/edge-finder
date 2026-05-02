@@ -247,6 +247,7 @@ if ('serviceWorker' in navigator) {
     <div class="tab-dropdown-menu" id="fund-dropdown-menu" style="display:none;">
       <div onclick="switchTabFromDropdown('simulator', this)">💰 자금관리</div>
       <div onclick="switchTabFromDropdown('goal', this)">🎯 목표 추적</div>
+      <div onclick="switchTabFromDropdown('round-report', this)">📋 회차 리포트</div>
     </div>
   </div>
   <div class="tab-dropdown" id="judge-dropdown-wrap">
@@ -295,6 +296,29 @@ if ('serviceWorker' in navigator) {
 
   <!-- ===== DASHBOARD ===== -->
   <div class="page active" id="page-dashboard">
+
+    <!-- ── Scope 토글 (전체 / 현재 프로젝트) ── -->
+    <div id="scope-toggle-bar" style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:8px 12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border);">
+      <span style="font-size:11px;color:var(--text3);flex-shrink:0;">📊 통계 범위</span>
+      <div style="display:flex;gap:4px;margin-left:auto;">
+        <button id="scope-btn-all"
+          onclick="switchScope('all')"
+          style="padding:4px 12px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1px solid transparent;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;">
+          전체
+        </button>
+        <button id="scope-btn-round"
+          onclick="switchScope('round')"
+          style="padding:4px 12px;font-size:11px;font-weight:600;border-radius:5px;cursor:pointer;border:1px solid transparent;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;">
+          🔒 현재 회차
+        </button>
+      </div>
+      <span id="scope-label" style="font-size:10px;color:var(--text3);margin-left:4px;white-space:nowrap;"></span>
+    </div>
+    <script>
+    (function () {
+      /* scope 버튼 active 상태는 state.js의 _syncScopeUI()가 DOMContentLoaded 후 처리 */
+    }());
+    </script>
 
     <!-- 슬럼프 감지 배너 -->
     <div id="slump-banner" style="display:none;margin-bottom:14px;padding:12px 16px;border-radius:8px;background:rgba(255,59,92,0.1);border:1px solid rgba(255,59,92,0.4);align-items:center;gap:10px;">
@@ -1887,14 +1911,49 @@ if ('serviceWorker' in navigator) {
         </div>
       </div>
 
-      <!-- 이번 베팅 금액 강조 -->
-      <div id="kelly-next-bet" style="display:none;margin-bottom:16px;padding:14px;background:rgba(255,215,0,0.08);border:2px solid rgba(255,215,0,0.4);border-radius:8px;text-align:center;">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">💰 이번 베팅 금액</div>
-        <div class="mono" id="kelly-next-amount" style="font-size:32px;font-weight:700;color:var(--gold);">—</div>
-        <div id="kelly-next-note" style="font-size:11px;color:var(--text3);margin-top:4px;"></div>
+      <!-- 하이브리드 켈리 베팅 카드 (1/12 + Kelly 보정, 통합) -->
+      <div id="kelly-next-bet" style="display:none;margin-bottom:16px;border-radius:8px;overflow:hidden;border:1px solid var(--border);">
+        <!-- 헤더 -->
+        <div id="kelly-next-header" style="padding:10px 14px;background:rgba(255,215,0,0.08);border-bottom:1px solid rgba(255,215,0,0.2);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+            <span style="font-size:12px;font-weight:700;color:var(--text2);">💡 1/12 기반 하이브리드 Kelly 베팅 시스템</span>
+            <span id="kelly-next-cycle-badge" style="font-size:10px;color:var(--text3);"></span>
+          </div>
+          <div style="font-size:10px;color:var(--text3);line-height:1.4;">시드 ÷ 12 = 기본 베팅 · Kelly 분수(k)로 ×1.0 ~ ×1.3 구간 자동 결정</div>
+        </div>
+        <!-- 3줄 구조 -->
+        <div style="padding:12px 14px;background:rgba(255,215,0,0.04);">
+          <!-- 기본 베팅 -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:11px;color:var(--text3);">기본 베팅 <span style="font-size:10px;">(시드 ÷ 12)</span></span>
+            <span class="mono" id="kelly-base-amount" style="font-size:14px;font-weight:700;color:var(--text2);">—</span>
+          </div>
+          <!-- 켈리 보정 (확률·배당 기반 자동 계산) -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span style="font-size:11px;color:var(--text3);">켈리 보정 <span style="font-size:10px;">(확률·배당 기반 자동 계산)</span></span>
+            <span id="kelly-adj-badge" style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--bg3);color:var(--text3);">—</span>
+          </div>
+          <!-- 구분선 -->
+          <div style="border-top:1px solid var(--border);margin-bottom:10px;"></div>
+          <!-- 최종 베팅 -->
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:12px;font-weight:700;color:var(--text2);">최종 베팅</span>
+            <span class="mono" id="kelly-next-amount" style="font-size:28px;font-weight:900;color:var(--gold);">—</span>
+          </div>
+        </div>
+        <!-- 보조 정보 행 (확률 입력 시) -->
+        <div id="kelly-aux-row" style="display:none;padding:8px 14px;background:rgba(0,0,0,0.15);border-top:1px solid var(--border);font-size:10px;color:var(--text3);display:flex;gap:12px;flex-wrap:wrap;">
+          <span>예측확률 <span id="kelly-aux-prob" style="color:var(--text2);font-weight:700;">—</span></span>
+          <span>시장배당 <span id="kelly-aux-odds" style="color:var(--text2);font-weight:700;">—</span></span>
+          <span>엣지 <span id="kelly-aux-edge" style="color:var(--text2);font-weight:700;">—</span></span>
+        </div>
+        <!-- 경고 행 -->
+        <div id="kelly-warn-row" style="display:none;padding:8px 14px;border-top:1px solid var(--border);"></div>
+        <!-- 안정성 안내 -->
+        <div style="padding:5px 14px;background:var(--bg2);border-top:1px solid var(--border);font-size:10px;color:var(--text3);">※ k&lt;-0.05 → 차단 / k≤0 → ×0.5 / k&lt;0.03 → ×0.9 약EV+ / k&lt;0.07 → ×1.0 / k&lt;0.12 → ×1.1(+8%대) / k&lt;0.20 → ×1.2(+15%대) / k≥0.20 → ×1.3</div>
+        <!-- 사이클 노트 -->
+        <div id="kelly-next-note" style="padding:6px 14px;background:var(--bg2);border-top:1px solid var(--border);font-size:10px;color:var(--text3);"></div>
       </div>
-      <!-- calibProb 기반 순수 Kelly (예상 승률 입력 시 표시) -->
-      <div id="kelly-calib-row" style="display:none;margin-bottom:16px;"></div>
 
       <!-- 12칸 사이클 진행 바 -->
       <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">이번 사이클 진행도 (베팅 기록 기반 자동 계산)</div>
@@ -2350,6 +2409,139 @@ if ('serviceWorker' in navigator) {
         <button class="btn btn-outline" style="font-size:10px;color:var(--red);border-color:rgba(255,59,92,0.3);" onclick="clearRoundHistory()">🗑 이력 초기화</button>
       </div>
     </div>
+  </div>
+
+  <!-- ===== 회차 리포트 ===== -->
+  <div class="page" id="page-round-report">
+    <div class="section-title">📋 회차 리포트</div>
+
+    <!-- ── [E3] KPI 3개 ── -->
+    <div id="rr-kpi-section" style="display:none;"></div>
+
+    <!-- ── 상단: 최근 종료 회차 요약 ── -->
+    <div id="rr-latest-wrap" class="card" style="margin-bottom:16px;">
+      <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:10px;">최근 종료 회차</div>
+      <div id="rr-no-history" style="display:none;color:var(--text3);font-size:13px;padding:12px 0;">종료된 회차가 없습니다.</div>
+      <div id="rr-latest-body">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-size:16px;font-weight:800;color:var(--accent);" id="rr-latest-label">—</div>
+          <div style="font-size:11px;color:var(--text3);" id="rr-latest-dates">—</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">
+          <div>
+            <div style="font-size:18px;font-weight:800;" id="rr-latest-pnl">—</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">손익</div>
+          </div>
+          <div>
+            <div style="font-size:18px;font-weight:800;" id="rr-latest-roi">—</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">ROI</div>
+          </div>
+          <div>
+            <div style="font-size:18px;font-weight:800;color:var(--text);" id="rr-latest-bets">—</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">베팅</div>
+          </div>
+          <div>
+            <div style="font-size:18px;font-weight:800;color:var(--text);" id="rr-latest-wr">—</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">승률</div>
+          </div>
+        </div>
+        <!-- 소진률 바 -->
+        <div style="margin-top:10px;">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:4px;">
+            <span>시드 소진률</span>
+            <span id="rr-latest-burn-pct">—</span>
+          </div>
+          <div style="height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;">
+            <div id="rr-latest-burn-bar" style="height:100%;width:0%;background:var(--green);border-radius:2px;transition:width .3s;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 중간: 회차 리스트 (페이징) ── -->
+    <div class="card" style="margin-bottom:16px;">
+      <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:12px;">회차 목록 <span id="rr-total-count" style="color:var(--text2);">—</span></div>
+      <div id="rr-list-empty" style="display:none;color:var(--text3);font-size:13px;padding:20px 0;text-align:center;">
+        <div style="margin-bottom:12px;">종료된 회차가 없습니다.</div>
+        <button onclick="switchTabFromDropdown('simulator', document.querySelector('#fund-dropdown-menu div'))"
+          style="padding:8px 18px;font-size:12px;font-weight:700;border-radius:8px;border:1px solid var(--accent);background:rgba(0,229,255,0.08);color:var(--accent);cursor:pointer;">
+          회차 시작하러 가기
+        </button>
+      </div>
+      <div id="rr-list-body" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <!-- 페이지 네비 -->
+      <div id="rr-pagination" style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;display:none;">
+        <button id="rr-btn-prev" onclick="rrChangePage(-1)"
+          style="padding:6px 14px;font-size:12px;font-weight:700;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;">
+          ‹ 이전
+        </button>
+        <span id="rr-page-label" style="font-size:12px;color:var(--text3);min-width:80px;text-align:center;">Page 1 / 1</span>
+        <button id="rr-btn-next" onclick="rrChangePage(1)"
+          style="padding:6px 14px;font-size:12px;font-weight:700;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;">
+          다음 ›
+        </button>
+      </div>
+    </div>
+
+    <!-- ── 하단: 선택 회차 상세 ── -->
+    <div id="rr-detail-wrap" class="card" style="display:none;">
+      <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:10px;">선택 회차 상세</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-size:15px;font-weight:800;color:var(--accent);" id="rr-detail-label">—</div>
+        <div style="font-size:11px;color:var(--text3);" id="rr-detail-dates">—</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;margin-bottom:14px;">
+        <div>
+          <div style="font-size:16px;font-weight:800;" id="rr-detail-pnl">—</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">손익</div>
+        </div>
+        <div>
+          <div style="font-size:16px;font-weight:800;" id="rr-detail-roi">—</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">ROI</div>
+        </div>
+        <div>
+          <div style="font-size:16px;font-weight:800;color:var(--text);" id="rr-detail-bets">—</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">베팅</div>
+        </div>
+        <div>
+          <div style="font-size:16px;font-weight:800;color:var(--text);" id="rr-detail-wr">—</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">승률</div>
+        </div>
+      </div>
+      <!-- 시드 상세 -->
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text3);margin-bottom:6px;">
+        <span>시작 시드</span>
+        <span id="rr-detail-seed" style="color:var(--text2);font-weight:700;">—</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text3);margin-bottom:10px;">
+        <span>잔여 시드</span>
+        <span id="rr-detail-remaining" style="font-weight:700;">—</span>
+      </div>
+      <div style="margin-bottom:4px;">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:4px;">
+          <span>소진률</span><span id="rr-detail-burn-pct">—</span>
+        </div>
+        <div style="height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;">
+          <div id="rr-detail-burn-bar" style="height:100%;width:0%;background:var(--green);border-radius:2px;transition:width .3s;"></div>
+        </div>
+      </div>
+    </div>
+    <!-- ── [E1][E2] 그래프 섹션 ── -->
+    <div id="rr-graph-section" style="display:none;">
+      <div class="card" style="margin-bottom:12px;">
+        <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:10px;">회차별 ROI</div>
+        <div style="height:160px;position:relative;">
+          <canvas id="rr-chart-roi"></canvas>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:10px;">누적 수익 곡선</div>
+        <div style="height:160px;position:relative;">
+          <canvas id="rr-chart-cum"></canvas>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- ===== AI의 한마디 ===== -->
@@ -3116,11 +3308,103 @@ if ('serviceWorker' in navigator) {
             </div>
             <div style="border-top:1px solid var(--border);padding-top:12px;">
               <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">⚠️ 위험 구역</div>
+
+              <!-- 금액 초기화 (기록 유지) -->
+              <div style="margin-bottom:10px;padding:12px;background:rgba(255,152,0,0.07);border:1px solid rgba(255,152,0,0.28);border-radius:8px;">
+                <div style="font-size:11px;color:#ff9800;font-weight:600;margin-bottom:4px;">💰 금액 초기화 (기록 유지)</div>
+                <div style="font-size:10px;color:var(--text3);line-height:1.7;margin-bottom:10px;">
+                  amount · profit 필드만 0으로 초기화합니다.<br>
+                  적중률 · 배당 · 예측력 등 분석 데이터는 <strong style="color:var(--text2);">그대로 유지</strong>됩니다.
+                </div>
+                <button onclick="confirmResetAmounts()"
+                  style="width:100%;padding:10px;background:rgba(255,152,0,0.12);border:1px solid rgba(255,152,0,0.4);border-radius:7px;color:#ff9800;font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:background 0.15s;"
+                  onmouseover="this.style.background='rgba(255,152,0,0.22)'"
+                  onmouseout="this.style.background='rgba(255,152,0,0.12)'">
+                  💰 금액 초기화 (기록 유지)
+                </button>
+              </div>
+
               <button class="btn btn-danger btn-full" onclick="clearAll()">🗑 전체 베팅 기록 삭제</button>
             </div>
           </div>
         </div>
 
+
+        <!-- ▶ 회차(시드) 사이클 관리 -->
+        <div class="card mt-16" id="round-mgmt-card">
+          <div class="card-title">🔒 <span>회차 시드 관리</span>
+            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">LOCKED = 진행 중 · UNLOCKED = 종료</span>
+          </div>
+
+          <!-- 현재 상태 배너 -->
+          <div style="display:flex;align-items:center;gap:16px;padding:14px;background:var(--bg3);border-radius:8px;margin-bottom:14px;">
+            <div style="flex:1;">
+              <div id="round-status-text" style="font-size:13px;font-weight:700;margin-bottom:6px;">—</div>
+              <div style="display:flex;gap:16px;font-size:11px;color:var(--text3);">
+                <span>시드 <strong id="round-status-seed" style="color:var(--text2);">—</strong></span>
+                <span>남은 금액 <strong id="round-status-remaining" style="color:var(--text2);">—</strong></span>
+              </div>
+              <!-- 잔액 바 -->
+              <div style="margin-top:8px;height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
+                <div id="round-status-bar" style="height:100%;width:0%;background:var(--green);border-radius:3px;transition:width 0.3s;"></div>
+              </div>
+            </div>
+            <button id="round-close-btn"
+              onclick="closeActiveRound()"
+              style="padding:8px 14px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid rgba(255,59,92,0.4);background:rgba(255,59,92,0.1);color:var(--red);font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;">
+              종료
+            </button>
+          </div>
+
+          <!-- 새 회차 시작 -->
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+            <input id="round-new-seed-input" type="number" min="10000" step="10000"
+              placeholder="시드 금액 (예: 800000)"
+              style="flex:1;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:12px;font-family:'Noto Sans KR',sans-serif;">
+            <button id="round-lock-btn"
+              onclick="handleLockNewRound()"
+              style="padding:10px 18px;font-size:12px;font-weight:700;border-radius:7px;cursor:pointer;border:1px solid rgba(0,229,255,0.4);background:rgba(0,229,255,0.12);color:var(--accent);font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;white-space:nowrap;">
+              🔒 회차 시작
+            </button>
+          </div>
+          <div id="round-lock-saved-msg" style="display:none;font-size:11px;color:var(--green);margin-bottom:10px;"></div>
+
+          <!-- 통계 scope 전환 -->
+          <div style="display:flex;gap:6px;margin-bottom:14px;">
+            <button onclick="switchScope('all')" id="settings-scope-btn-all"
+              style="flex:1;padding:8px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;">
+              📦 전체 통계
+            </button>
+            <button onclick="switchScope('round')" id="settings-scope-btn-round"
+              style="flex:1;padding:8px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;">
+              🔒 회차 통계
+            </button>
+          </div>
+          <div id="settings-scope-current" style="font-size:10px;color:var(--text3);text-align:center;margin-bottom:14px;"></div>
+
+          <!-- 회차 이력 테이블 -->
+          <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;">📋 회차 이력</div>
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:11px;">
+              <thead>
+                <tr style="color:var(--text3);border-bottom:1px solid var(--border);">
+                  <th style="padding:6px 6px;text-align:left;font-weight:600;">회차</th>
+                  <th style="padding:6px 6px;text-align:right;font-weight:600;">시드</th>
+                  <th style="padding:6px 6px;text-align:right;font-weight:600;">잔액</th>
+                  <th style="padding:6px 6px;text-align:right;font-weight:600;">사용</th>
+                  <th style="padding:6px 6px;text-align:center;font-weight:600;">상태</th>
+                  <th style="padding:6px 6px;text-align:center;font-weight:600;">기간</th>
+                </tr>
+              </thead>
+              <tbody id="round-history-list"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 통계 범위 설정 (하위 호환 유지 — 숨김) -->
+        <div style="display:none;">
+          <div id="settings-scope-btn-project"></div>
+        </div>
 
         <!-- 나만의 베팅 원칙 -->
         <div class="card mt-16">
@@ -3806,6 +4090,18 @@ if ('serviceWorker' in navigator) {
 <script src="./mobile_gdrive.js"></script>
 <script src="./ocr_import.js"></script>
 <script src="./ocr_form_bridge.js"></script>
+<script>
+// ── 앱 초기화 ── 모든 스크립트 로드 완료 후 실행
+document.addEventListener('DOMContentLoaded', function () {
+  // 1. 중앙 엔진 최초 실행
+  if (typeof calcSystemState === 'function') calcSystemState();
+  // 2. 대시보드 차트 초기 렌더
+  if (typeof initCharts === 'function') initCharts();
+  if (typeof updateCharts === 'function') updateCharts();
+  // 3. scope 버튼 active 상태 초기화 (두 위치 모두)
+  if (typeof _syncScopeUI === 'function') _syncScopeUI();
+});
+</script>
 </body>
 </html>
   <div class="page" id="page-verify">

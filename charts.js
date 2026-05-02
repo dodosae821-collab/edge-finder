@@ -54,7 +54,9 @@ function initCharts() {
 function updateCharts() {
   if (!charts.profit) return;
 
-  const allResolved = bets.filter(b => b.result !== 'PENDING');
+  // scope 필터 적용 — 'all': 전체 / 'project': 현재 프로젝트만
+  const _scopedBets = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
+  const allResolved = _scopedBets.filter(b => b.result !== 'PENDING');
 
   // 날짜별 누적 손익 계산
   function buildProfitByDate(days) {
@@ -102,7 +104,7 @@ function updateCharts() {
   const resolved = allResolved; // 종목별/배당 집계용
   // Sport distribution - handle multi-sport bets
   const sportCounts = {};
-  bets.forEach(b => {
+  _scopedBets.forEach(b => {
     (b.sport || '기타').split(', ').forEach(sp => {
       sportCounts[sp] = (sportCounts[sp] || 0) + 1;
     });
@@ -146,8 +148,9 @@ function toggleKellyGradeAdj() {
 function calcPredGrade() {
   // 엔진 결과 우선 사용
   if (window._SS && window._SS.grade !== undefined) return window._SS.grade;
-  // 엔진 없으면 직접 계산 (폴백)
-  const resolved = bets.filter(b => b.result !== 'PENDING');
+  // 엔진 없으면 직접 계산 (폴백) — scope 필터 적용
+  const _sb = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
+  const resolved = _sb.filter(b => b.result !== 'PENDING');
   const predBets = resolved.filter(b => b.myProb && b.betmanOdds);
   if (predBets.length < 5) return null;
   const predEdge = predBets.reduce((s,b) => s + (b.myProb - 100/b.betmanOdds), 0) / predBets.length;
@@ -201,12 +204,16 @@ function calcKelly() {
   const unitRaw = Math.floor(seed / 12 * _totalMult);
   const unit = Math.min(unitRaw, maxUnit);  // 상한선 적용
 
-  // ── 하이브리드 Kelly 계산 ─────────────────────────────────
-  // finalBet = baseBet × (1 + kellyClamped × k)
-  // k = 데이터 수 + ECE 기반 자동 조정
-  // kelly clamp: -0.2 ~ 0.2
-  // finalBet cap: baseBet × 0.5 ~ 1.5
-  // EV-: Kelly 미적용 + 경고
+  // ── 1/12 기반 하이브리드 Kelly 계산 ──────────────────────────
+  // base = activeRound.seed / 12  (회차 시드 고정 기준값, 변경 금지)
+  // Kelly(k)는 multiplier 구간만 결정 — 직접 금액 계산 금지
+  //   k <= 0       → ×0.5  (EV- → 최소 베팅 유지, 데이터 축적 + 흐름 유지)
+  //   k < 0.03     → ×0.9  (약 EV+ → 소폭 축소)
+  //   k < 0.07     → ×1.0  (기본 유지)
+  //   k < 0.12     → ×1.1  (Kelly +8%대 → +10% 보정)
+  //   k < 0.20     → ×1.2  (Kelly +15%대 → +20% 보정)
+  //   k >= 0.20    → ×1.3  (강한 EV+ → +30% 보정)
+  // finalBet = base × multiplier (cap 없음)
   let hybridKelly = null;
   const _adjProbEl = document.getElementById('r-adjusted-prob');
   const _adjProbPct = _adjProbEl ? parseFloat(_adjProbEl.value) : 0;
@@ -218,65 +225,75 @@ function calcKelly() {
 
   if (_adjProbPct > 0 && _adjOdds >= 1 && unit > 0) {
     const ss = window._SS;
-    const baseBet = unit;
-    const bankroll = getCurrentBankroll() || appSettings.startFund || seed;
 
-    // calibProb 기반 Kelly
+    // 1. base = 회차 시드 ÷ 12 (고정 기준값)
+    const activeRound = (typeof getActiveRound === 'function') ? getActiveRound() : null;
+    const roundSeed = activeRound ? activeRound.seed : seed;
+    const base = Math.round(roundSeed / 12);
+
+    // 2. calibProb 기반 Kelly 분수 계산
     const p = _adjProbPct / 100;
     const q = 1 - p;
     const b = _adjOdds - 1;
-    const kellyRaw = (p * b - q) / b;
+    const k = (p * b - q) / b;  // Full Kelly
 
-    // raw Kelly (비교용)
+    // raw Kelly (비교/경고용)
     const pRaw = _rawProbPct / 100;
     const kellyRawProb = ((pRaw * b - (1 - pRaw)) / b);
 
-    // Kelly clamp [-0.2 ~ 0.2]
-    const kellyClamped = Math.min(Math.max(kellyRaw, -0.2), 0.2);
+    // 3. multiplier 구간 결정 (Kelly 직접 금액 계산 금지)
+    //    [A] k ≤ 0 분기: 강한 EV-(k < -0.05) → 완전 스킵 / 약한 EV- → ×0.5 최소 유지
+    let multiplier;
+    let skipped = false; // 강한 EV- 스킵 플래그
+    if (k < -0.05) {
+      skipped = true;    // 강한 EV- → 베팅 완전 차단, hybridKelly에 skipped 전달
+    } else if (k <= 0) {
+      multiplier = 0.5;  // 약한 EV- (-0.05 ~ 0) → 최소 베팅 유지 (데이터 축적)
+    } else if (k < 0.03) multiplier = 0.9;   // 약 EV+ (엣지 매우 낮음, 리스크 축소)
+    else if (k < 0.07)   multiplier = 1.0;   // 기본 유지
+    else if (k < 0.12)   multiplier = 1.1;   // Kelly +8%대  → +10%
+    else if (k < 0.20)   multiplier = 1.2;   // Kelly +15%대 → +20%
+    else                 multiplier = 1.3;   // 강한 EV+     → +30%
 
-    // k 계산: 데이터 수 + ECE 기반
-    const n = ss ? ss.n : 0;
-    const ece = ss ? ss.ece : null;
-    const baseK = n < 50 ? 0.2 : n < 100 ? 0.3 : 0.4;
-    const accAdj = ece != null ? Math.max(0.5, 1 - ece / 100) : 0.7;
-    const k = baseK * accAdj;
+    // 강한 EV- → hybridKelly를 null로 두고 skipped 플래그만 전달
+    if (skipped) {
+      hybridKelly = {
+        skipped: true, kellyRaw: k, base,
+        calibProb: _adjProbPct, impliedProb: (1 / _adjOdds * 100), odds: _adjOdds,
+        evCalib: (p * b) - q
+      };
+      // if 블록 종료 후 아래 정상 hybridKelly 할당 건너뜀
+    } else {
+
+    // 4. finalBet = base × multiplier (cap 없음, 구간만으로 제어)
+    const finalBet = Math.round(base * multiplier);
+    const kellyApplied = true; // k≤0(×0.5) 포함 항상 multiplier 적용
 
     // EV 판단
-    const evCalibPositive = kellyRaw > 0;
+    const evCalibPositive = k > 0;
     const evRawPositive   = kellyRawProb > 0;
     const isCritical      = evRawPositive && !evCalibPositive; // raw+ / calib- 패턴
 
-    // finalBet 계산
-    let finalBet, kellyApplied;
-    if (!evCalibPositive) {
-      // EV-: Kelly 미적용, baseBet 유지
-      finalBet = baseBet;
-      kellyApplied = false;
-    } else {
-      finalBet = Math.round(baseBet * (1 + kellyClamped * k));
-      // 상/하단 cap
-      finalBet = Math.min(finalBet, Math.round(baseBet * 1.5));
-      finalBet = Math.max(finalBet, Math.round(baseBet * 0.5));
-      kellyApplied = true;
-    }
-
-    // 내재확률
+    // 내재확률 & EV 수치
     const impliedProb = (1 / _adjOdds * 100);
-    // EV 수치
     const evCalib = (p * b) - q;
     const evRaw   = (pRaw * b) - (1 - pRaw);
 
+    const bankroll = getCurrentBankroll() || appSettings.startFund || seed;
+
     hybridKelly = {
-      baseBet, finalBet, kellyApplied,
-      kellyRaw, kellyClamped, k, baseK, accAdj,
+      skipped: false,
+      base, baseBet: base, finalBet, kellyApplied,
+      kellyRaw: k, multiplier,
       evCalib, evRaw, evCalibPositive, evRawPositive, isCritical,
       calibProb: _adjProbPct, rawProb: _rawProbPct,
       impliedProb, odds: _adjOdds,
-      n, ece,
+      n: ss ? ss.n : 0, ece: ss ? ss.ece : null,
       bankroll,
       diffProbPct: (_adjProbPct - _rawProbPct).toFixed(1),
       diffEv: (evCalib - evRaw).toFixed(3)
     };
+    } // end skipped else
   }
   if (_SS) { _SS.hybridKelly = hybridKelly; }
 
@@ -293,8 +310,9 @@ function calcKelly() {
     }
   }
 
-  // 베팅 기록 기반 현재 회차 자동 계산
-  const resolved  = bets.filter(b => b.result !== 'PENDING');
+  // 베팅 기록 기반 현재 회차 자동 계산 — scope 필터 적용
+  const _sb2     = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
+  const resolved  = _sb2.filter(b => b.result !== 'PENDING');
   const cyclePos  = resolved.length % 12;  // 0~11
   const roundNum  = cyclePos + 1;
   const remain    = 12 - cyclePos;
@@ -305,72 +323,165 @@ function calcKelly() {
   remainEl.textContent = remain + '회';
   remainEl.style.color = remain <= 3 ? 'var(--accent2)' : 'var(--text)';
 
-  // 이번 베팅 금액 강조 표시
-  const nextBetEl    = document.getElementById('kelly-next-bet');
-  const nextAmountEl = document.getElementById('kelly-next-amount');
-  const nextNoteEl   = document.getElementById('kelly-next-note');
+  // ── 하이브리드 Kelly 베팅 카드 (통합 렌더) ─────────────────
+  const nextBetEl      = document.getElementById('kelly-next-bet');
+  const nextAmountEl   = document.getElementById('kelly-next-amount');
+  const nextNoteEl     = document.getElementById('kelly-next-note');
+  const baseAmountEl   = document.getElementById('kelly-base-amount');
+  const adjBadgeEl     = document.getElementById('kelly-adj-badge');
+  const auxRowEl       = document.getElementById('kelly-aux-row');
+  const warnRowEl      = document.getElementById('kelly-warn-row');
+  const cycleBadgeEl   = document.getElementById('kelly-next-cycle-badge');
+
   nextBetEl.style.display = 'block';
-  nextAmountEl.textContent = '₩' + unit.toLocaleString();
-  const eceNote2 = (_SS && _SS.ece !== null && appSettings.kellyGradeAdj) ? ` · ECE ${_SS.ece.toFixed(1)}% x${_eceMult.toFixed(2)}` : '';
-  nextNoteEl.textContent = cycleNum + '사이클 ' + roundNum + '번째 베팅 · ' + remain + '회 남음' + (_totalMult < 1 && _grade ? ' · ' + _grade.letter + '등급 x' + _totalMult.toFixed(2) + eceNote2 : '') + (unit < unitRaw ? ' · 상한선 ₩' + maxUnit.toLocaleString() + ' 적용' : '');
 
-  // ── calibProb 기반 순수 Kelly 표시 ──────────────────────────
-  // ── 하이브리드 Kelly UI 표시 ─────────────────────────────
-  const calibKellyEl = document.getElementById('kelly-calib-row');
-  if (calibKellyEl) {
-    if (hybridKelly) {
-      const hk = hybridKelly;
-      const betDiff = hk.finalBet - hk.baseBet;
-      const betDiffStr = betDiff >= 0 ? `+₩${betDiff.toLocaleString()}` : `-₩${Math.abs(betDiff).toLocaleString()}`;
+  // 사이클 배지
+  const eceNote2 = (_SS && _SS.ece !== null && appSettings.kellyGradeAdj) ? ` · ECE ${_SS.ece.toFixed(1)}% ×${_eceMult.toFixed(2)}` : '';
+  const gradeNote = (_totalMult < 1 && _grade) ? ` · ${_grade.letter}등급 ×${_totalMult.toFixed(2)}${eceNote2}` : '';
+  const capNote   = unit < unitRaw ? ` · 상한선 ₩${maxUnit.toLocaleString()} 적용` : '';
+  if (cycleBadgeEl) cycleBadgeEl.textContent = `${cycleNum}사이클 ${roundNum}번째 · ${remain}회 남음`;
+  if (nextNoteEl)   nextNoteEl.textContent   = `${cycleNum}사이클 ${roundNum}번째 베팅 · ${remain}회 남음${gradeNote}${capNote}`;
 
-      let warningHtml = '';
-      if (hk.isCritical) {
-        warningHtml = `
-          <div style="margin-top:6px;padding:8px 10px;background:rgba(255,59,92,0.12);border:1px solid rgba(255,59,92,0.5);border-radius:6px;">
-            <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:4px;">🔴 과신 편향 감지 — 가장 위험한 패턴</div>
-            <div style="font-size:11px;color:var(--text2);line-height:1.6;">
-              내 판단(raw)은 EV+이지만 <strong>보정 기준으로는 EV-</strong><br>
-              ΔProb: raw ${hk.rawProb.toFixed(1)}% → calib ${hk.calibProb.toFixed(1)}% (${hk.diffProbPct}%p)
-              &nbsp;|&nbsp; ΔEV: ${hk.evRaw>=0?'+':''}${(hk.evRaw*100).toFixed(2)}% → ${hk.evCalib>=0?'+':''}${(hk.evCalib*100).toFixed(2)}%
-            </div>
-          </div>`;
-      } else if (!hk.evCalibPositive) {
-        warningHtml = `
-          <div style="margin-top:6px;padding:8px 10px;background:rgba(255,152,0,0.1);border:1px solid rgba(255,152,0,0.4);border-radius:6px;">
-            <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:3px;">⚠️ EV- (보정 기준) → Kelly 미적용</div>
-            <div style="font-size:11px;color:var(--text2);">
-              보정확률 ${hk.calibProb.toFixed(1)}% · 내재확률 ${hk.impliedProb.toFixed(1)}% · EV ${(hk.evCalib*100).toFixed(2)}%<br>
-              보정 기준 엣지 없음 — 베팅 근거 재검토 권장
-            </div>
-          </div>`;
-      }
-
-      calibKellyEl.style.display = 'block';
-      calibKellyEl.innerHTML = `
-        <div style="padding:10px 12px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:6px;font-size:11px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <span style="font-size:12px;font-weight:700;color:var(--accent);">📐 하이브리드 Kelly 권장금</span>
-            <span style="font-size:10px;color:var(--text3);">k=${hk.k.toFixed(2)} (${hk.n}건 · ECE ${hk.ece!=null?hk.ece.toFixed(1)+'%':'없음'})</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px;">
-            <span style="color:var(--text3);">기본 <span class="mono" style="color:var(--text2);">₩${hk.baseBet.toLocaleString()}</span></span>
-            <span style="color:var(--text3);">→</span>
-            <span style="font-size:18px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${hk.kellyApplied?(betDiff>=0?'var(--green)':'var(--accent2)'):'var(--text2)'};">
-              ₩${hk.finalBet.toLocaleString()}
-            </span>
-            ${hk.kellyApplied
-              ? `<span style="font-size:11px;color:${betDiff>=0?'var(--green)':'var(--accent2)'};">(${betDiffStr})</span>`
-              : `<span style="font-size:10px;color:var(--text3);">Kelly 미적용</span>`}
-          </div>
-          <div style="font-size:10px;color:var(--text3);">
-            calibProb ${hk.calibProb.toFixed(1)}% · 내재확률 ${hk.impliedProb.toFixed(1)}% · EV ${hk.evCalib>=0?'+':''}${(hk.evCalib*100).toFixed(2)}%
-            ${hk.kellyApplied ? `· Kelly ${(hk.kellyClamped*100).toFixed(1)}% × k${hk.k.toFixed(2)} · cap 50~150%` : ''}
-          </div>
-          ${warningHtml}
-        </div>`;
-    } else {
-      calibKellyEl.style.display = 'none';
+  // [A] 강한 EV- 스킵 처리 (k < -0.05) — 별도 카드 렌더
+  if (hybridKelly && hybridKelly.skipped) {
+    const hk = hybridKelly;
+    if (baseAmountEl) baseAmountEl.textContent = '₩' + hk.base.toLocaleString();
+    if (adjBadgeEl) {
+      adjBadgeEl.textContent = '🚫 강한 EV- → 베팅 차단';
+      adjBadgeEl.style.background = 'rgba(255,59,92,0.18)';
+      adjBadgeEl.style.color      = 'var(--red)';
     }
+    if (nextAmountEl) {
+      nextAmountEl.textContent = '차단';
+      nextAmountEl.style.color = 'var(--red)';
+    }
+    if (nextBetEl)  nextBetEl.style.borderColor = 'rgba(255,59,92,0.5)';
+    if (auxRowEl)   auxRowEl.style.display = 'none';
+    if (warnRowEl) {
+      warnRowEl.style.display = 'block';
+      warnRowEl.innerHTML = `
+        <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:2px;">🚫 강한 EV- 차단 (k = ${hk.kellyRaw.toFixed(3)} &lt; -0.05)</div>
+        <div style="font-size:10px;color:var(--text3);">보정확률 ${hk.calibProb.toFixed(1)}% · 내재확률 ${hk.impliedProb.toFixed(1)}% — 이 베팅은 명확한 손실 구조입니다</div>`;
+      warnRowEl.style.background = 'rgba(255,59,92,0.08)';
+      warnRowEl.style.borderTopColor = 'rgba(255,59,92,0.3)';
+    }
+
+  } else if (hybridKelly && !hybridKelly.skipped) {
+    const hk = hybridKelly;
+
+    // [C] 색상 기준 — k 범위 기준으로 정량화 통일
+    //   k ≤ 0           → 빨강  (EV-)
+    //   0 < k < 0.05    → 주황  (약 EV+, 리스크 축소)
+    //   0.05 ≤ k < 0.12 → 회색  (중립/기본)
+    //   k ≥ 0.12        → 초록  (강한 EV+)
+    const k_val = hk.kellyRaw;
+    const colorByK = k_val <= 0      ? 'var(--red)'
+                   : k_val < 0.05    ? '#ff9800'
+                   : k_val < 0.12    ? 'var(--text2)'
+                   : 'var(--green)';
+    const bgByK    = k_val <= 0      ? 'rgba(255,59,92,0.12)'
+                   : k_val < 0.05    ? 'rgba(255,152,0,0.12)'
+                   : k_val < 0.12    ? 'var(--bg3)'
+                   : 'rgba(0,230,118,0.15)';
+    const borderByK = k_val <= 0     ? 'rgba(255,59,92,0.4)'
+                    : k_val < 0.05   ? 'rgba(255,152,0,0.4)'
+                    : k_val < 0.12   ? 'rgba(255,215,0,0.3)'
+                    : 'rgba(0,230,118,0.4)';
+
+    // [B] multiplier → 문구 (의미 명시, 약 EV+ 설명 포함)
+    const multPctMap = {
+      0.5: `약한 EV- (k=${k_val.toFixed(3)}) → ×0.5 최소 베팅`,
+      0.9: `약 EV+ (엣지 매우 낮음, 리스크 축소) → ×0.9`,
+      1.0: `기본 유지 (k=${k_val.toFixed(3)}) → ×1.0`,
+      1.1: `Kelly +8%대 (k=${k_val.toFixed(3)}) → ×1.1 (+10%)`,
+      1.2: `Kelly +15%대 (k=${k_val.toFixed(3)}) → ×1.2 (+20%)`,
+      1.3: `강한 EV+ (k≥0.20) → ×1.3 (+30%)`
+    };
+    const adjLabel = multPctMap[hk.multiplier] || `×${hk.multiplier}`;
+
+    // 기본 베팅 (시드 ÷ 12)
+    if (baseAmountEl) baseAmountEl.textContent = '₩' + hk.base.toLocaleString();
+
+    // 켈리 보정 배지 — [C] k 기준 색상
+    if (adjBadgeEl) {
+      adjBadgeEl.textContent        = adjLabel;
+      adjBadgeEl.style.background   = bgByK;
+      adjBadgeEl.style.color        = colorByK;
+    }
+
+    // 최종 베팅 금액 — [C] k 기준 색상
+    if (nextAmountEl) {
+      nextAmountEl.textContent = '₩' + hk.finalBet.toLocaleString();
+      nextAmountEl.style.color = colorByK;
+    }
+
+    // 카드 테두리 — [C] k 기준 색상
+    if (nextBetEl) {
+      nextBetEl.style.borderColor = borderByK;
+    }
+
+    // 보조 정보 행
+    if (auxRowEl) {
+      auxRowEl.style.display = 'flex';
+      const probEl = document.getElementById('kelly-aux-prob');
+      const oddsEl = document.getElementById('kelly-aux-odds');
+      const edgeEl = document.getElementById('kelly-aux-edge');
+      if (probEl) { probEl.textContent = hk.calibProb.toFixed(1) + '%'; }
+      if (oddsEl) { oddsEl.textContent = hk.odds.toFixed(2); }
+      if (edgeEl) {
+        const edgePct = (hk.evCalib * 100);
+        edgeEl.textContent = (edgePct >= 0 ? '+' : '') + edgePct.toFixed(2) + '%';
+        edgeEl.style.color = edgePct >= 0 ? 'var(--green)' : 'var(--red)';
+      }
+    }
+
+    // 경고 행
+    if (warnRowEl) {
+      if (hk.isCritical) {
+        warnRowEl.style.display = 'block';
+        warnRowEl.innerHTML = `
+          <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:3px;">🔴 과신 편향 감지 — 가장 위험한 패턴</div>
+          <div style="font-size:11px;color:var(--text2);line-height:1.6;">
+            raw EV+이지만 보정 기준 EV- · ΔProb ${hk.rawProb.toFixed(1)}%→${hk.calibProb.toFixed(1)}% (${hk.diffProbPct}%p)
+          </div>`;
+        warnRowEl.style.background = 'rgba(255,59,92,0.08)';
+        warnRowEl.style.borderTopColor = 'rgba(255,59,92,0.3)';
+      } else if (hk.multiplier === 0.5) {
+        // 약한 EV- (−0.05 ~ 0) → 최소 베팅 경고
+        warnRowEl.style.display = 'block';
+        warnRowEl.innerHTML = `
+          <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:2px;">⚠️ 약한 EV- (k=${k_val.toFixed(3)}) → ×0.5 최소 베팅 유지</div>
+          <div style="font-size:10px;color:var(--text3);">보정확률 ${hk.calibProb.toFixed(1)}% · 내재확률 ${hk.impliedProb.toFixed(1)}% — 데이터 축적 목적, 베팅 근거 재검토 권장</div>`;
+        warnRowEl.style.background = 'rgba(255,152,0,0.06)';
+        warnRowEl.style.borderTopColor = 'rgba(255,152,0,0.3)';
+      } else if (hk.multiplier === 0.9) {
+        // 약 EV+ (리스크 축소 구간) 안내
+        warnRowEl.style.display = 'block';
+        warnRowEl.innerHTML = `
+          <div style="font-size:11px;font-weight:700;color:#ff9800;margin-bottom:2px;">🟡 약 EV+ (리스크 축소 구간) · k=${k_val.toFixed(3)}</div>
+          <div style="font-size:10px;color:var(--text3);">엣지가 매우 낮아 소폭 축소(×0.9) 적용. 확신이 낮은 베팅은 신중하게.</div>`;
+        warnRowEl.style.background = 'rgba(255,152,0,0.04)';
+        warnRowEl.style.borderTopColor = 'rgba(255,152,0,0.2)';
+      } else {
+        warnRowEl.style.display = 'none';
+      }
+    }
+
+  } else {
+    // 확률 미입력 → 기본 구조 (시드÷12 표시)
+    const activeRound = (typeof getActiveRound === 'function') ? getActiveRound() : null;
+    const roundSeed = activeRound ? activeRound.seed : seed;
+    const baseDisplay = Math.round(roundSeed / 12);
+    if (baseAmountEl) baseAmountEl.textContent = '₩' + baseDisplay.toLocaleString();
+    if (adjBadgeEl)   {
+      adjBadgeEl.textContent = '확률 입력 시 Kelly 보정 자동 적용';
+      adjBadgeEl.style.background = 'var(--bg3)';
+      adjBadgeEl.style.color      = 'var(--text3)';
+    }
+    if (nextAmountEl) { nextAmountEl.textContent = '₩' + baseDisplay.toLocaleString(); nextAmountEl.style.color = 'var(--gold)'; }
+    if (nextBetEl)    nextBetEl.style.borderColor = 'rgba(255,215,0,0.3)';
+    if (auxRowEl)     auxRowEl.style.display = 'none';
+    if (warnRowEl)    warnRowEl.style.display = 'none';
   }
 
   renderKellySlots(cyclePos, resolved);

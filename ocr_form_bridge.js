@@ -8,7 +8,7 @@
 // ============================================================
 
 // ── 상수 ──────────────────────────────────────────────────────
-const BRIDGE_VERSION = '1.7.2';  // 1.7.2: ocr_import 제거·UI텍스트 정리·단일파이프라인확정
+const BRIDGE_VERSION = '2.0.0';  // 2.0.0: raw 우선 정책 + 히스토리 자동완성 도입
 
 // OCR 처리 후 폼에 표시할 토스트 지속시간 (ms)
 const BRIDGE_TOAST_DURATION = 3500;
@@ -273,11 +273,14 @@ function applyOcrToForm(parsedRows, rawGameCount = null) {
     );
   }
 
-  // ── [2] 2차 필터: 폼 주입 기준 — 양쪽 팀명이 모두 존재하는 행만 ─
-  // OCR 수집 결과(usableRows)와 실제 폼 입력(formRows)을 분리하여
-  // gameNum·odds만으로 통과한 행이 폼을 오염시키지 않도록 합니다.
+  // ── [2] 2차 필터: 폼 주입 기준 ─────────────────────────────────────────────
+  // 정책 변경 (v2.0): 팀명은 raw 그대로 사용하므로 rawHome/rawAway 존재 여부로 판정.
+  // 배당(odds)만 있는 행도 "배당만 추가" 경로로 허용.
+  // → parse 실패 기준: 배당 없음 AND 경기번호 없음 AND 팀명 없음 (이것만 제외)
   function hasBothTeams(r) {
-    return !!(r.normHome?.team && r.normAway?.team);
+    const home = r.rawHome || r.normHome?.team || '';
+    const away = r.rawAway || r.normAway?.team || '';
+    return !!(home && away);
   }
 
   const noiseCount = parsedRows.filter(r => !isUsableRow(r)).length;
@@ -515,75 +518,19 @@ function _showCountMismatchWarning(parsedCount, rawCount) {
   console.warn('[OCR Bridge] 경기 수 불일치', { rawCount, parsedCount, diff });
 }
 
-// ── [3] confidence 구간별 경고 (DOM 인라인 노트, 제외 없음) ─────
-// 구간: 60~40 → ⚠️ 경고 / 40 미만 → 🔴 재촬영 권장
-// ⚠️ ocr_import.js의 CONF_WARN(0.70)과 이름 충돌 방지 → BRIDGE_CONF_WARN 사용
-// parseOcrLines() 반환 row에는 r.confidence 없음 — normHome/normAway 내부 confidence 사용
-const BRIDGE_CONF_WARN      = 0.60;
-const BRIDGE_CONF_HIGH_RISK = 0.40;
+// ── confidence 구간별 경고 — v2.0 이후 no-op ──────────────────────────────
+// v2.0 정책: normHome/normAway.confidence는 항상 1.0 (raw 그대로).
+// "낮은 인식률" 경고는 더 이상 의미 없음 — 배당 없음/팀명 없음만 실질 경고.
+// 기존 applyOcrToForm 호환성 유지용으로 함수 시그니처는 보존.
+const BRIDGE_CONF_WARN      = 0.60;  // 하위 호환 상수
+const BRIDGE_CONF_HIGH_RISK = 0.40;  // 하위 호환 상수
 
-function _rowTeamConf(r) {
-  const hc = r.normHome?.confidence ?? null;
-  const ac = r.normAway?.confidence ?? null;
-  if (hc == null && ac == null) return null;
-  if (hc == null) return ac;
-  if (ac == null) return hc;
-  return (hc + ac) / 2;
+function _rowTeamConf(_r) { return 1.0; }  // 항상 1.0
+
+function _markLowConfRows(_rows) {
+  // v2.0: confidence 기반 경고 제거. 배당 없음 경고는 renderOcrPreviewRows에서 처리.
 }
 
-function _markLowConfRows(rows) {
-  const warnRows     = rows.filter(r => { const c = _rowTeamConf(r); return c != null && c >= BRIDGE_CONF_HIGH_RISK && c < BRIDGE_CONF_WARN; });
-  const highRiskRows = rows.filter(r => { const c = _rowTeamConf(r); return c != null && c < BRIDGE_CONF_HIGH_RISK; });
-
-  // isHighRisk 플래그 설정 (BRIDGE_CONF_HIGH_RISK 기준)
-  highRiskRows.forEach(r => { r.isHighRisk = true; });
-
-  if (warnRows.length === 0 && highRiskRows.length === 0) return;
-
-  const _nums = arr => arr
-    .map(r => r.gameNum != null ? `#${r.gameNum}` : '?')
-    .join(', ');
-
-  const lines = [];
-  if (highRiskRows.length > 0) {
-    lines.push(`🔴 재촬영 권장 경기: ${_nums(highRiskRows)} (인식률 40% 미만)`);
-  }
-  if (warnRows.length > 0) {
-    lines.push(`⚠️ 확인 필요 경기: ${_nums(warnRows)} (인식률 40~60%)`);
-  }
-
-  let note = document.getElementById('ocr-bridge-conf-note');
-  if (!note) {
-    note = document.createElement('div');
-    note.id = 'ocr-bridge-conf-note';
-    note.style.cssText = `
-      margin:6px 0 4px;padding:8px 12px;border-radius:8px;
-      font-size:11px;font-weight:600;line-height:1.8;
-    `;
-    const wrap = document.getElementById('ocr-bridge-btn-wrap');
-    if (wrap && wrap.parentNode) {
-      wrap.parentNode.insertBefore(note, wrap.nextSibling);
-    } else {
-      document.body.prepend(note);
-    }
-  }
-
-  // 고위험 있으면 빨간 스타일, 경고만이면 노란 스타일
-  if (highRiskRows.length > 0) {
-    note.style.background = 'rgba(255,59,92,0.12)';
-    note.style.border     = '1px solid rgba(255,59,92,0.45)';
-    note.style.color      = '#ff5370';
-  } else {
-    note.style.background = 'rgba(255,200,0,0.10)';
-    note.style.border     = '1px solid rgba(255,200,0,0.40)';
-    note.style.color      = '#ffc800';
-  }
-
-  note.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
-  note.style.display = 'block';
-  // 20초 후 자동 숨김
-  setTimeout(() => { if (note) note.style.display = 'none'; }, 20000);
-}
 
 // ── 단폴 폼 채우기 ───────────────────────────────────────────
 function _fillSingleForm(row) {
@@ -744,9 +691,11 @@ function _countRawGameLines(text) {
 }
 
 // ── 유틸: 경기 문자열 조립 ────────────────────────────────────
+// v2.0 정책: rawHome/rawAway 우선. normHome은 alias 매핑된 경우만 다를 수 있음.
 function _buildGameString(row) {
-  const home = row.normHome && row.normHome.team ? row.normHome.team : (row.rawHome || '');
-  const away = row.normAway && row.normAway.team ? row.normAway.team : (row.rawAway || '');
+  // raw 우선, 없으면 normHome.team (alias 매핑된 경우)
+  const home = row.rawHome || (row.normHome && row.normHome.team) || '';
+  const away = row.rawAway || (row.normAway && row.normAway.team) || '';
   if (home && away) return `${home} vs ${away}`;
   if (home) return home;
   if (away) return away;
@@ -1126,18 +1075,17 @@ function renderOcrPreviewRows(parsedRows, rawGameCount = null) {
   }
 
   // ── 2차: complete / incomplete 분류 ──────────────────────
+  // v2.0 정책: rawHome/rawAway 기준으로 판단 (normHome.team은 raw와 동일)
   function hasBothTeams(r) {
-    return !!(r.normHome?.team && r.normAway?.team);
+    const home = r.rawHome || r.normHome?.team || '';
+    const away = r.rawAway || r.normAway?.team || '';
+    return !!(home && away);
   }
-  function teamConf(r) {
-    const hc = r.normHome?.confidence ?? null;
-    const ac = r.normAway?.confidence ?? null;
-    if (hc == null && ac == null) return 1;
-    if (hc == null) return ac;
-    if (ac == null) return hc;
-    return (hc + ac) / 2;
+  // confidence 뱃지는 더 이상 "normalize 실패" 여부가 아닌
+  // "배당 없음" 여부만 표시 (그게 실질적 parse 실패 기준)
+  function isOddsMissing(r) {
+    return !r.odds;
   }
-  const BRIDGE_CONF_HIGH_RISK = 0.40;
 
   // 경기 수 누락 경고
   if (rawGameCount !== null && rawGameCount > usable.length + 1) {
@@ -1147,36 +1095,31 @@ function renderOcrPreviewRows(parsedRows, rawGameCount = null) {
 
   // ── 각 row 렌더링 ─────────────────────────────────────────
   usable.forEach((row, idx) => {
-    const complete   = hasBothTeams(row);
-    const conf       = teamConf(row);
-    const isHighRisk = complete && conf < BRIDGE_CONF_HIGH_RISK;
+    const complete    = hasBothTeams(row);
+    const oddsMissing = isOddsMissing(row);
 
     // 저장소에 등록 (DOM 인덱스 동기화용)
     const rowData = { ...row, _previewIdx: idx };
     _ocrPreviewRows.push(rowData);
 
     // 기본 체크 상태:
-    //   complete && !highRisk → true
-    //   incomplete OR highRisk → false (사용자가 직접 선택)
-    const defaultChecked = complete && !isHighRisk;
+    //   팀명 있음 → true (raw 그대로여도 통과)
+    //   팀명 없음 OR 배당 없음 → false (사용자가 직접 확인)
+    const defaultChecked = complete && !oddsMissing;
 
-    // 경기명 초기값
+    // 경기명 초기값 (rawHome vs rawAway 우선)
     const gameStr = _buildGameString(row) || `경기 #${row.gameNum ?? idx + 1}`;
 
-    // 상태 뱃지
+    // 상태 뱃지 — "normalize 실패" 뱃지 제거, 실질적 문제만 표시
     let badge = '';
     if (!complete) {
       badge = `<span style="font-size:9px;padding:1px 5px;border-radius:6px;
         background:rgba(255,152,0,0.15);color:#ff9800;border:1px solid rgba(255,152,0,0.4);">
-        ⚠️ 팀명 불완전</span>`;
-    } else if (isHighRisk) {
-      badge = `<span style="font-size:9px;padding:1px 5px;border-radius:6px;
-        background:rgba(255,59,92,0.12);color:var(--red);border:1px solid rgba(255,59,92,0.3);">
-        🔴 인식률 낮음</span>`;
-    } else if (conf < 0.60) {
+        ⚠️ 팀명 없음</span>`;
+    } else if (oddsMissing) {
       badge = `<span style="font-size:9px;padding:1px 5px;border-radius:6px;
         background:rgba(255,200,0,0.10);color:#ffc800;border:1px solid rgba(255,200,0,0.3);">
-        ⚡ 확인 권장</span>`;
+        💡 배당 입력 필요</span>`;
     }
 
     // gameNum 뱃지
@@ -1210,12 +1153,22 @@ function renderOcrPreviewRows(parsedRows, rawGameCount = null) {
         </div>
         <input type="text" class="ocr-row-game" data-idx="${idx}"
           value="${gameStr}"
-          placeholder="경기명"
+          placeholder="경기명 (팀명 직접 수정 가능)"
+          autocomplete="off"
+          data-ocr-raw-home="${row.rawHome || ''}"
+          data-ocr-raw-away="${row.rawAway || ''}"
           style="
             width:100%;padding:4px 7px;font-size:12px;
             background:var(--bg2);border:1px solid var(--border);
             border-radius:5px;color:var(--text1);box-sizing:border-box;
           ">
+        <!-- 히스토리 기반 자동완성 드롭다운 (동적 삽입) -->
+        <div class="ocr-autocomplete-list" data-for="${idx}"
+          style="display:none;position:absolute;z-index:9999;background:var(--bg1);
+                 border:1px solid var(--border);border-radius:6px;
+                 font-size:11px;max-height:120px;overflow-y:auto;
+                 box-shadow:0 4px 12px rgba(0,0,0,0.4);min-width:180px;">
+        </div>
       </div>
 
       <!-- 배당 input -->
@@ -1252,9 +1205,19 @@ function renderOcrPreviewRows(parsedRows, rawGameCount = null) {
     // 삭제 버튼
     rowEl.querySelector('.ocr-row-del').addEventListener('click', () => {
       rowEl.remove();
-      _ocrPreviewRows[idx] = null;  // null로 마킹 (인덱스 유지)
+      _ocrPreviewRows[idx] = null;
       _updatePreviewCount();
     });
+
+    // ── 히스토리 기반 자동완성 ────────────────────────────────
+    // 팀명 input 포커스/입력 시 getTeamHistorySuggestions() 로 후보 드롭다운 표시
+    const gameInput = rowEl.querySelector('.ocr-row-game');
+    const acList    = rowEl.querySelector('.ocr-autocomplete-list');
+    if (gameInput && acList && typeof getTeamHistorySuggestions === 'function') {
+      gameInput.addEventListener('focus', () => _showAutocomplete(gameInput, acList));
+      gameInput.addEventListener('input', () => _showAutocomplete(gameInput, acList));
+      gameInput.addEventListener('blur',  () => setTimeout(() => { acList.style.display = 'none'; }, 180));
+    }
   });
 
   _updatePreviewCount();
@@ -1277,6 +1240,60 @@ function _updatePreviewCount() {
   const total = document.querySelectorAll('.ocr-row-check').length;
   const checked = document.querySelectorAll('.ocr-row-check:checked').length;
   el.textContent = `${checked} / ${total}개 선택`;
+}
+
+// ── 히스토리 기반 자동완성 드롭다운 ──────────────────────────────────────────
+// OCR로 쌓인 팀명 히스토리(getTeamHistorySuggestions)를 기반으로 후보 표시.
+// 사용자가 선택하면 경기명 input에 반영.
+function _showAutocomplete(inputEl, listEl) {
+  if (typeof getTeamHistorySuggestions !== 'function') return;
+
+  const val = inputEl.value.trim();
+  // "팀명 vs 팀명" 형식에서 마지막으로 편집 중인 토큰 추출
+  // (커서 위치 앞쪽 텍스트로 prefix 결정)
+  const cursor = inputEl.selectionStart ?? val.length;
+  const before = val.slice(0, cursor);
+  const prefix = before.split(/\s+vs\s+/i).pop() || '';
+
+  const suggestions = getTeamHistorySuggestions(prefix, 6);
+
+  if (!suggestions.length || (!prefix && suggestions.length === 0)) {
+    listEl.style.display = 'none';
+    return;
+  }
+
+  listEl.innerHTML = suggestions.map(s =>
+    `<div data-name="${s.name}" style="
+      padding:6px 10px;cursor:pointer;white-space:nowrap;
+      border-bottom:1px solid var(--border);color:var(--text1);
+      transition:background 0.1s;
+    " onmouseover="this.style.background='rgba(0,229,255,0.1)'"
+       onmouseout="this.style.background=''"
+    >${s.name} <span style="color:var(--text3);font-size:10px;">${s.count}회</span></div>`
+  ).join('');
+
+  // 후보 클릭 시 해당 토큰을 치환
+  listEl.querySelectorAll('[data-name]').forEach(item => {
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault();  // blur 방지
+      const chosen = item.dataset.name;
+      const parts  = val.split(/(\s+vs\s+)/i);
+      // 마지막 팀명 토큰을 chosen으로 교체
+      if (parts.length >= 1) parts[parts.length - 1] = chosen;
+      inputEl.value = parts.join('');
+      inputEl.dispatchEvent(new Event('input'));
+      listEl.style.display = 'none';
+      // 히스토리에 선택한 팀명 기록 (사용 빈도 증가)
+      if (typeof recordTeamHistory === 'function') recordTeamHistory(chosen);
+    });
+  });
+
+  // input 기준으로 드롭다운 위치 설정
+  const rect = inputEl.getBoundingClientRect();
+  listEl.style.top    = `${inputEl.offsetTop + inputEl.offsetHeight}px`;
+  listEl.style.left   = `${inputEl.offsetLeft}px`;
+  listEl.style.width  = `${inputEl.offsetWidth}px`;
+  listEl.style.display = 'block';
 }
 
 // ── 선택 경기 등록 (핵심 루프) ───────────────────────────────

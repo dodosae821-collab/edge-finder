@@ -1,5 +1,7 @@
 function updateStatsAnalysis() {
-  const resolved = bets.filter(b => b.result !== 'PENDING');
+  // scope 필터 적용
+  const _scopedBets = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
+  const resolved = _scopedBets.filter(b => b.result !== 'PENDING');
   if (resolved.length === 0) {
     ['folder-stat-table','sport-stat-table','type-stat-table','odds-range-table','pred-table','dow-stat-table'].forEach(id => {
       const el = document.getElementById(id);
@@ -59,7 +61,7 @@ function updateStatsAnalysis() {
     : '데이터 부족';
 
   // 누적 EV+ 카운터
-  const evPlusBets = bets.filter(b => b.isValue === true);
+  const evPlusBets = _scopedBets.filter(b => b.isValue === true);
   const evPlusCount = evPlusBets.length;
   const evEl = document.getElementById('sa-ev-plus-count');
   const evLabelEl = document.getElementById('sa-ev-plus-label');
@@ -133,7 +135,7 @@ function updateStatsAnalysis() {
     `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">데이터 없음</td></tr>`;
 
   // 폴더별 상세 패널 렌더
-  const allBets = bets; // PENDING 포함 전체
+  const allBets = _scopedBets; // PENDING 포함 전체 (scope 필터 적용)
   renderFolderDetail('single', allBets.filter(b => b.mode !== 'multi'));
   renderFolderDetail('2',      allBets.filter(b => b.mode === 'multi' && b.folderCount === '2'));
   renderFolderDetail('3',      allBets.filter(b => b.mode === 'multi' && b.folderCount === '3'));
@@ -314,6 +316,7 @@ function updateStatsAnalysis() {
   // 시장별 ROI 막대 차트
   const chartData = marketData.filter(m=>m.total>0);
   if (chartData.length >= 1) {
+    if (window._marketRoiChart) { window._marketRoiChart.destroy(); window._marketRoiChart = null; }
     window._marketRoiChart = safeCreateChart('market-roi-chart', {
       type: 'bar',
       data: {
@@ -609,7 +612,8 @@ function updateStatsAnalysis() {
 
 // ========== EV 판단 오류 패턴 ==========
 function updateEvBias() {
-  const evBets = bets.filter(b =>
+  const _sb = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
+  const evBets = _sb.filter(b =>
     b.isValue === true && (b.result === 'WIN' || b.result === 'LOSE')
   );
 
@@ -741,7 +745,8 @@ function updateEvBias() {
 
 // ========== EV+ 월별 추이 ==========
 function updateEvMonthly() {
-  const evBets = bets.filter(b =>
+  const _sb = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
+  const evBets = _sb.filter(b =>
     b.isValue === true && (b.result === 'WIN' || b.result === 'LOSE') && b.date
   );
 
@@ -836,8 +841,9 @@ function updateEvMonthly() {
 }
 
 function updateEvCum() {
-  // EV+ 이고 결과 확정된 베팅만, 날짜순 정렬
-  const resolved = bets
+  // EV+ 이고 결과 확정된 베팅만, 날짜순 정렬 — scope 필터 적용
+  const _sb = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
+  const resolved = _sb
     .filter(b => b.result === 'WIN' || b.result === 'LOSE')
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
@@ -976,8 +982,9 @@ function toggleGuide() {
 }
 
 function updateKellyHistory() {
-  // EV+ 베팅 중 myProb과 betmanOdds가 있는 것만 분석
-  const evBets = bets.filter(b =>
+  // EV+ 베팅 중 myProb과 betmanOdds가 있는 것만 분석 — scope 필터 적용
+  const _sb = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
+  const evBets = _sb.filter(b =>
     b.isValue && b.myProb && b.betmanOdds >= 1 &&
     (b.result === 'WIN' || b.result === 'LOSE')
   );
@@ -993,7 +1000,7 @@ function updateKellyHistory() {
     return;
   }
 
-  // 각 베팅 시점의 뱅크롤 재구성 (시간순 정렬)
+  // 각 베팅 시점의 뱅크롤 재구성 (시간순 정렬) — 전체 bets 기준 (뱅크롤 추적은 글로벌)
   const sorted = [...bets].sort((a, b) => new Date(a.date) - new Date(b.date));
   const { startFund = 0 } = appSettings;
   let runningBankroll = startFund;

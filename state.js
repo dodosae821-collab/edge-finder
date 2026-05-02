@@ -10,7 +10,218 @@ function safeCreateChart(canvasId, config) {
   return new Chart(el, config);
 }
 // ========== STATE ==========
-let bets = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+let bets = (function () {
+  let raw;
+  try {
+    raw = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+    if (!Array.isArray(raw)) raw = [];
+  } catch (e) {
+    console.error('[state] edge_bets 파싱 실패:', e);
+    raw = [];
+  }
+  // projectId 자동 보정 — 기존 데이터는 'default'로 처리
+  return raw.map(b => ({ projectId: b.projectId || 'default', ...b }));
+}());
+
+// ============================================================
+// ▶ rounds — 회차(시드) 사이클 관리
+//   구조: [{ id, seed, remaining, status:'LOCKED'|'UNLOCKED', createdAt, closedAt }]
+//   LOCKED  = 진행 중 (항상 최대 1개)
+//   UNLOCKED = 종료됨
+//   localStorage key: edge_rounds
+// ============================================================
+let rounds = (function () {
+  try {
+    const raw = JSON.parse(localStorage.getItem('edge_rounds') || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch (e) {
+    console.error('[state] edge_rounds 파싱 실패:', e);
+    return [];
+  }
+}());
+
+function saveRounds(arr) {
+  rounds = arr;
+  localStorage.setItem('edge_rounds', JSON.stringify(arr));
+}
+
+/** 진행 중인 회차 (LOCKED) — 항상 1개 또는 null */
+function getActiveRound() {
+  return rounds.find(r => r.status === 'LOCKED') || null;
+}
+
+/** 새 회차 시작 — LOCKED 회차가 없을 때만 생성 가능 */
+function lockNewRound(seed) {
+  if (getActiveRound()) {
+    alert('진행 중인 회차가 있습니다. 현재 회차를 먼저 종료하세요.');
+    return false;
+  }
+  const parsedSeed = parseInt(seed, 10);
+  if (!parsedSeed || parsedSeed <= 0) {
+    alert('유효한 시드 금액을 입력하세요.');
+    return false;
+  }
+  const id = 'r' + Date.now();
+  const newRound = {
+    id,
+    seed:      parsedSeed,
+    remaining: parsedSeed,
+    status:    'LOCKED',
+    createdAt: new Date().toISOString(),
+    closedAt:  null
+  };
+  saveRounds([...rounds, newRound]);
+  localStorage.setItem('edge_current_round', id);
+  window.dispatchEvent(new Event('storage'));
+  return true;
+}
+
+/** 베팅 금액 차감 → remaining <= 0 이면 자동 UNLOCKED */
+function applyRoundBet(amount) {
+  const round = getActiveRound();
+  if (!round) return;
+  round.remaining = Math.max(0, round.remaining - amount);
+  if (round.remaining <= 0) {
+    round.status    = 'UNLOCKED';
+    round.closedAt  = new Date().toISOString();
+  }
+  saveRounds([...rounds]);          // 참조 갱신
+  window.dispatchEvent(new Event('storage'));
+}
+
+/** 베팅 취소/삭제 시 금액 환원 (LOCKED 회차에만) */
+function refundRoundBet(amount) {
+  const round = getActiveRound();
+  if (!round) return;
+  round.remaining = Math.min(round.seed, round.remaining + amount);
+  saveRounds([...rounds]);
+}
+
+/** 현재 회차 수동 종료 */
+function closeActiveRound() {
+  const round = getActiveRound();
+  if (!round) return;
+  if (!confirm('현재 회차를 종료하시겠습니까?')) return;
+  round.status   = 'UNLOCKED';
+  round.closedAt = new Date().toISOString();
+
+  // ── snapshot 저장 — 렌더 시 재계산 제거 / 성능 개선 ──
+  const roundBets = bets.filter(b => b.roundId && b.roundId === round.id && b.result !== 'PENDING');
+  const total     = roundBets.length;
+  const wins      = roundBets.filter(b => b.result === 'WIN').length;
+  const profit    = roundBets.reduce((s, b) => s + (b.profit || 0), 0);
+  round.summary = {
+    total,
+    wins:      wins ?? 0,
+    profit:    Math.round(profit),
+    roi:       total > 0 && round.seed > 0 ? +(profit / round.seed * 100).toFixed(2) : 0,
+    hitRate:   total > 0 ? +(wins / total * 100).toFixed(2) : 0,
+    createdAt: Date.now()
+  };
+
+  saveRounds([...rounds]);
+  window.dispatchEvent(new Event('storage'));
+}
+
+// ── Scope 헬퍼 ───────────────────────────────────────────────────────────────
+// scope: 'all' | 'round'  (기존 'project'는 하위 호환 유지)
+// 통계 계산은 반드시 getBetsByScope() 를 통해 데이터를 가져옴.
+// bets 전역은 저장/삭제 등 원본 접근에만 사용.
+
+function getCurrentScope() {
+  return localStorage.getItem('edge_scope') || 'all';
+}
+function setCurrentScope(scope) {
+  localStorage.setItem('edge_scope', scope);
+}
+function getCurrentProject() {
+  return localStorage.getItem('edge_current_project') || 'default';
+}
+function setCurrentProject(id) {
+  if (!id || typeof id !== 'string') return;
+  localStorage.setItem('edge_current_project', id.trim() || 'default');
+}
+
+/** 현재 scope에 맞는 bets 배열 반환. 통계 계산 전에 항상 사용. */
+function getBetsByScope() {
+  const scope = getCurrentScope();
+  // ── 현재 회차 ──
+  if (scope === 'round') {
+    const r = getActiveRound();
+    if (!r) return [];                          // 진행 중 회차 없으면 빈 배열
+    return bets.filter(b => b.roundId === r.id);
+  }
+  // ── 프로젝트 (하위 호환) ──
+  if (scope === 'project') {
+    const p = getCurrentProject();
+    return bets.filter(b => (b.projectId || 'default') === p);
+  }
+  return bets; // 'all' 또는 미지정
+}
+
+/** scope 전환 — 이벤트 트리거 전용.
+ *  계산은 storage 이벤트 → refreshAllUI() → calcSystemState() 순으로 단 1회만 실행. */
+function switchScope(scope) {
+  setCurrentScope(scope);
+  window.dispatchEvent(new Event('storage'));
+}
+
+/** 현재 활성 탭을 기준으로 모든 UI 컴포넌트를 재렌더.
+ *  storage 이벤트 핸들러 및 scope 전환 후 단일 진입점. */
+function refreshAllUI() {
+  // ── 1. 중앙 엔진 재계산 (scopedBets 반영) ──
+  calcSystemState();
+
+  // ── 2. 대시보드 공통 컴포넌트 ──
+  if (typeof updateCharts         === 'function') updateCharts();
+  if (typeof updateJudgePanel     === 'function') updateJudgePanel();
+
+  // ── 3. 현재 활성 탭 전용 업데이트 ──
+  const page = (typeof activePage !== 'undefined') ? activePage : '';
+  if (page === 'analysis' || page === 'analysis2') {
+    if (typeof updateStatsAnalysis === 'function') updateStatsAnalysis();
+    if (page === 'analysis')  { if (typeof updateTagStats === 'function') updateTagStats(); }
+  }
+  if (page === 'analysis3') {
+    if (typeof updateStatsAnalysis === 'function') updateStatsAnalysis();
+    if (typeof updateEvBias        === 'function') updateEvBias();
+    if (typeof updateEvMonthly     === 'function') updateEvMonthly();
+    if (typeof updateEvCum         === 'function') updateEvCum();
+  }
+  if (page === 'analyze')    { if (typeof updateAnalyzeTab    === 'function') updateAnalyzeTab(); }
+  if (page === 'predict')    { if (typeof updateGoalStats     === 'function') updateGoalStats();
+                               if (typeof updatePredictTab    === 'function') updatePredictTab(); }
+  if (page === 'predpower')  { if (typeof updatePredPowerPanel=== 'function') updatePredPowerPanel(); }
+  if (page === 'judgeall')   { if (typeof updateJudgeAll      === 'function') updateJudgeAll(); }
+  if (page === 'simulator')  {
+    if (typeof calcKelly            === 'function') calcKelly();
+    if (typeof renderKellySlots     === 'function') {
+      const resolved = (typeof getBetsByScope === 'function' ? getBetsByScope() : bets)
+                         .filter(b => b.result !== 'PENDING');
+      renderKellySlots(resolved.length % 12, resolved);
+    }
+    if (typeof updateSimRoundSeedBanner === 'function') updateSimRoundSeedBanner();
+    if (typeof updateKellyHistory       === 'function') updateKellyHistory();
+    if (typeof updateKellyGradeBanner   === 'function') updateKellyGradeBanner();
+  }
+  if (page === 'goal') {
+    if (typeof updateRoundHistory      === 'function') updateRoundHistory();
+    if (typeof renderPrincipleList     === 'function') renderPrincipleList();
+    if (typeof renderPrincipleChecklist=== 'function') renderPrincipleChecklist();
+    if (typeof renderRoundReviewList   === 'function') renderRoundReviewList();
+    if (typeof updateGoalStats         === 'function') updateGoalStats();
+    if (typeof calcGoal                === 'function') calcGoal();
+  }
+  if (page === 'round-report') {
+    if (typeof updateRoundReport === 'function') updateRoundReport();
+  }
+  if (page === 'verify') {
+    if (typeof renderVerifyPage === 'function') renderVerifyPage();
+  }
+
+  // ── 4. Scope UI 동기화 (두 위치 모두) ──
+  _syncScopeUI();
+}
 let charts = { profit: null, sport: null, odds: null, monthly: null, seed: null, goal: null, ev: null, evAmount: null, predAccuracy: null, dow: null, weeklyProfit: null, trend: null, oddsDist: null, condition: null, kellyDist: null, evMonthly: null, evCum: null, analyzeChart: null, judgeFolder: null, judgePred: null, judgeTrend: null, judgeOdds: null, judgeBias: null };
 
 // ============================================================
@@ -32,7 +243,10 @@ function getCalibCorrFactor(corrFactor, resolvedCount) {
 //   window._SS 에 저장. 각 탭은 이 객체를 읽기만 한다.
 // ============================================================
 function calcSystemState() {
-  const resolved  = bets.filter(b => b.result !== 'PENDING');
+  // scope 필터 적용 — 'all': 전체 / 'project': 현재 프로젝트만
+  const scopedBets = getBetsByScope();
+
+  const resolved  = scopedBets.filter(b => b.result !== 'PENDING');
   const wins      = resolved.filter(b => b.result === 'WIN');
   const n         = resolved.length;
 
@@ -195,7 +409,7 @@ function calcSystemState() {
     const goalProb = reached / RUNS * 100;
     // 주당 베팅 수 (최근 4주 기준)
     const ago4w    = new Date(Date.now() - 28*24*3600*1000);
-    const weeklyN  = bets.filter(b=>b.date&&new Date(b.date)>=ago4w).length / 4 || 5;
+    const weeklyN  = scopedBets.filter(b=>b.date&&new Date(b.date)>=ago4w).length / 4 || 5;
     const avgSteps = reached > 0 ? totalSteps / reached : null;
     const weeksEst = avgSteps ? Math.ceil(avgSteps / weeklyN) : null;
 
@@ -265,6 +479,11 @@ function calcSystemState() {
     labels: ['수익성','예측 엣지','리스크 관리','현재 컨디션','편향 없음','데이터 신뢰도','보정도'],
     icons:  ['💰','🎯','🛡','🌡','👁','📦','📐'],
     verdict, verdictInfo, warnings, stops,
+    // scope 메타 — UI 레이블 표시용
+    scope: getCurrentScope(),
+    scopeProject: getCurrentProject(),
+    scopedTotal: scopedBets.length,
+    activeRound: getActiveRound(),          // 현재 회차 객체 (null 가능)
     // 타임스탬프
     _ts: Date.now()
   };
@@ -318,7 +537,7 @@ function switchTabFromDropdown(name, el) {
   const triggerMap = {
     analysis: 'stats', analysis2: 'stats', analysis3: 'stats',
     analyze: 'insight', predict: 'insight', predpower: 'insight', verify: 'insight',
-    simulator: 'fund', goal: 'fund'
+    simulator: 'fund', goal: 'fund', 'round-report': 'fund'
   };
   const triggerKey = triggerMap[name];
   if (triggerKey) {
@@ -349,6 +568,7 @@ function switchTabFromDropdown(name, el) {
   renderPrincipleList();
   renderPrincipleChecklist();
   renderRoundReviewList(); updateGoalStats(); calcGoal(); }
+  // round-report: refreshAllUI에서 단일 처리 (이중 렌더 방지)
 }
 
 function updateAnalyzeTab() {
@@ -1395,3 +1615,158 @@ function getCLVAdjustedProb(myProbPct) {
   }
   return Math.min(Math.max(adj, 5), 95);
 }
+
+// ============================================================
+// ▶ _syncScopeUI() — scope 버튼 active 상태 + 라벨 동기화
+//   switchScope / storage 이벤트 후 항상 호출.
+//   대시보드 + 설정 탭 양쪽을 동시에 갱신.
+// ============================================================
+function _syncScopeUI() {
+  const scope   = getCurrentScope();
+  const project = getCurrentProject();
+  const round   = getActiveRound();
+
+  // ── 공통 스타일 팩토리 ──
+  const ON_DASH  = { background:'var(--accent)',           color:'#000',          borderColor:'var(--accent)' };
+  const OFF_DASH = { background:'var(--bg3)',               color:'var(--text2)',   borderColor:'var(--border)' };
+  const ON_SET   = { background:'rgba(0,229,255,0.15)',    color:'var(--accent)', border:'1px solid rgba(0,229,255,0.4)' };
+  const OFF_SET  = { background:'var(--bg3)',               color:'var(--text2)',  border:'1px solid var(--border)' };
+
+  // ── 대시보드 scope 토글 버튼 (all / round) ──
+  const btnAll   = document.getElementById('scope-btn-all');
+  const btnRound = document.getElementById('scope-btn-round');
+  const label    = document.getElementById('scope-label');
+  if (btnAll && btnRound) {
+    const applyD = (el, s) => { el.style.background = s.background; el.style.color = s.color; el.style.borderColor = s.borderColor; };
+    if (scope === 'round') {
+      applyD(btnAll, OFF_DASH); applyD(btnRound, ON_DASH);
+      if (label) label.textContent = round ? '(회차 #' + rounds.indexOf(round) + 1 + ')' : '(없음)';
+    } else {
+      applyD(btnAll, ON_DASH);  applyD(btnRound, OFF_DASH);
+      if (label) label.textContent = '';
+    }
+    // 회차 없으면 round 버튼 비활성화
+    if (btnRound) {
+      btnRound.disabled      = !round;
+      btnRound.style.opacity = round ? '1' : '0.4';
+      btnRound.title         = round ? '현재 회차 통계만 보기' : '진행 중인 회차가 없습니다';
+    }
+  }
+
+  // ── 설정 탭 scope 버튼 ──
+  const sBtnAll   = document.getElementById('settings-scope-btn-all');
+  const sBtnRound = document.getElementById('settings-scope-btn-round');
+  const sInfo     = document.getElementById('settings-scope-current');
+  if (sBtnAll && sBtnRound) {
+    const applyS = (el, s) => { el.style.background = s.background; el.style.color = s.color; el.style.border = s.border; };
+    if (scope === 'round') {
+      applyS(sBtnAll, OFF_SET); applyS(sBtnRound, ON_SET);
+      if (sInfo) sInfo.textContent = round ? '현재 적용: 회차 ' + round.id + ' (남은 시드 ₩' + (round.remaining || 0).toLocaleString() + ')' : '현재 적용: 회차 (없음)';
+    } else {
+      applyS(sBtnAll, ON_SET);  applyS(sBtnRound, OFF_SET);
+      if (sInfo) sInfo.textContent = '현재 적용: 전체 베팅 기록';
+    }
+    if (sBtnRound) {
+      sBtnRound.disabled      = !round;
+      sBtnRound.style.opacity = round ? '1' : '0.4';
+    }
+  }
+
+  // ── 회차 상태 패널 갱신 (있으면) ──
+  _syncRoundStatusUI();
+}
+
+// ============================================================
+// ▶ storage 이벤트 리스너 — scope 전환 / 외부 탭 변경 감지
+//   switchScope()가 dispatchEvent(new Event('storage'))를 발생시키면
+//   여기서 받아 refreshAllUI()를 호출한다.
+//   단, 연속 호출 방지를 위해 100ms 디바운스 적용.
+// ============================================================
+// ============================================================
+// ▶ _syncRoundStatusUI() — 회차 상태 패널 렌더
+//   #round-status-panel (settings.js 또는 index.html에 존재)을 갱신.
+//   _syncScopeUI 내부에서 항상 호출됨.
+// ============================================================
+function _syncRoundStatusUI() {
+  const round = getActiveRound();
+
+  // ── 상태 텍스트 ──
+  const statusEl  = document.getElementById('round-status-text');
+  const seedEl    = document.getElementById('round-status-seed');
+  const remEl     = document.getElementById('round-status-remaining');
+  const barEl     = document.getElementById('round-status-bar');
+  const lockBtn   = document.getElementById('round-lock-btn');
+  const closeBtn  = document.getElementById('round-close-btn');
+
+  if (round) {
+    const pct = round.seed > 0 ? Math.max(0, round.remaining / round.seed * 100) : 0;
+    const barColor = pct > 50 ? 'var(--green)' : pct > 20 ? 'var(--gold)' : 'var(--red)';
+
+    if (statusEl)  { statusEl.textContent = '🔒 LOCKED — 진행 중'; statusEl.style.color = 'var(--green)'; }
+    if (seedEl)    seedEl.textContent  = '₩' + round.seed.toLocaleString();
+    if (remEl)     { remEl.textContent = '₩' + round.remaining.toLocaleString(); remEl.style.color = barColor; }
+    if (barEl)     { barEl.style.width = pct.toFixed(1) + '%'; barEl.style.background = barColor; }
+    if (lockBtn)   { lockBtn.disabled = true;  lockBtn.style.opacity = '0.4'; }
+    if (closeBtn)  { closeBtn.disabled = false; closeBtn.style.opacity = '1'; }
+  } else {
+    if (statusEl)  { statusEl.textContent = '⏹ UNLOCKED — 회차 없음'; statusEl.style.color = 'var(--text3)'; }
+    if (seedEl)    seedEl.textContent  = '—';
+    if (remEl)     { remEl.textContent = '—'; remEl.style.color = 'var(--text3)'; }
+    if (barEl)     { barEl.style.width = '0%'; barEl.style.background = 'var(--border)'; }
+    if (lockBtn)   { lockBtn.disabled = false; lockBtn.style.opacity = '1'; }
+    if (closeBtn)  { closeBtn.disabled = true;  closeBtn.style.opacity = '0.4'; }
+  }
+
+  // ── 회차 목록 (이력) ──
+  const histEl = document.getElementById('round-history-list');
+  if (histEl && rounds.length > 0) {
+    histEl.innerHTML = [...rounds].reverse().map((r, i) => {
+      const idx      = rounds.length - i;
+      const usedPct  = r.seed > 0 ? ((r.seed - r.remaining) / r.seed * 100).toFixed(0) : 0;
+      const statusBadge = r.status === 'LOCKED'
+        ? '<span style="color:var(--green);font-weight:700;">🔒 진행 중</span>'
+        : '<span style="color:var(--text3);">⏹ 종료</span>';
+      const startDate = r.createdAt ? r.createdAt.split('T')[0] : '—';
+      const endDate   = r.closedAt  ? r.closedAt.split('T')[0]  : '—';
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:8px 6px;font-size:11px;color:var(--text3);">${idx}회차</td>
+        <td style="padding:8px 6px;font-size:11px;">₩${r.seed.toLocaleString()}</td>
+        <td style="padding:8px 6px;font-size:11px;color:${r.remaining > 0 ? 'var(--text2)' : 'var(--red)'};">₩${r.remaining.toLocaleString()}</td>
+        <td style="padding:8px 6px;font-size:11px;color:var(--text3);">${usedPct}%</td>
+        <td style="padding:8px 6px;font-size:11px;">${statusBadge}</td>
+        <td style="padding:8px 6px;font-size:10px;color:var(--text3);">${startDate} ~ ${endDate}</td>
+      </tr>`;
+    }).join('');
+  } else if (histEl) {
+    histEl.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px;font-size:12px;">회차 기록 없음</td></tr>';
+  }
+}
+
+(function _initStorageListener() {
+  let _debounceTimer = null;
+
+  window.addEventListener('storage', function () {
+    clearTimeout(_debounceTimer);
+    _debounceTimer = setTimeout(function () {
+      // bets 배열 최신화 (다른 탭에서 변경된 경우 대비)
+      try {
+        const raw = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+        if (Array.isArray(raw)) {
+          bets.length = 0;
+          raw.forEach(b => bets.push({ projectId: b.projectId || 'default', ...b }));
+        }
+      } catch (e) { /* 파싱 실패 시 기존 bets 유지 */ }
+
+      // rounds 배열 최신화
+      try {
+        const rawR = JSON.parse(localStorage.getItem('edge_rounds') || '[]');
+        if (Array.isArray(rawR)) {
+          rounds.length = 0;
+          rawR.forEach(r => rounds.push(r));
+        }
+      } catch (e) { /* 파싱 실패 시 기존 rounds 유지 */ }
+
+      refreshAllUI();
+    }, 100);
+  });
+}());

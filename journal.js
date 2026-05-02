@@ -1269,58 +1269,56 @@ function showRoundSeedModal() {
 }
 
 function updateDashboardRoundStats() {
-  const locked = getLockedSeed();
+  // ── [핵심 원칙] _SS = scope 기반 통계 / activeRound = 회차 상태 — 혼용 금지 ──
+  const _SS = window._SS;
+  const r   = _SS?.activeRound || null;   // 신형 rounds 시스템 (state.js)
 
-  // 회차 시드 카드
-  const seedEl     = document.getElementById('d-round-seed');
-  const seedLabel  = document.getElementById('d-round-seed-label');
-  const seedPct    = document.getElementById('d-round-seed-pct');
-  const seedBar    = document.getElementById('d-round-seed-bar');
-  const roundProfit = document.getElementById('d-round-profit');
+  const seedEl           = document.getElementById('d-round-seed');
+  const seedLabel        = document.getElementById('d-round-seed-label');
+  const seedPct          = document.getElementById('d-round-seed-pct');
+  const seedBar          = document.getElementById('d-round-seed-bar');
+  const roundProfit      = document.getElementById('d-round-profit');
   const roundProfitLabel = document.getElementById('d-round-profit-label');
+  const pendingWrap      = document.getElementById('d-round-pending-wrap');
+  const pendingAmtEl     = document.getElementById('d-round-pending-amt');
+  const pendingCntEl     = document.getElementById('d-round-pending-cnt');
+  const cntEl            = document.getElementById('d-round-bet-count');
+  const dashRoundedNote  = document.getElementById('d-round-seed-rounded-note');
 
-  if (!locked) {
-    if (seedEl) seedEl.textContent = '—';
-    if (seedLabel) { seedLabel.textContent = '고정 전'; seedLabel.style.color = 'var(--text3)'; }
-    if (seedPct) seedPct.textContent = '—';
-    if (seedBar) seedBar.style.width = '0%';
-    if (roundProfit) { roundProfit.textContent = '—'; roundProfit.style.color = 'var(--text2)'; }
-    if (roundProfitLabel) roundProfitLabel.textContent = '회차 시드 고정 후 기준';
+  // 회차 없음 → 카드 비활성 상태로 표시
+  if (!r) {
+    if (seedEl)           { seedEl.textContent = '—'; seedEl.style.color = 'var(--text3)'; }
+    if (seedLabel)        { seedLabel.textContent = '진행 중 회차 없음'; seedLabel.style.color = 'var(--text3)'; }
+    if (seedPct)          seedPct.textContent = '';
+    if (seedBar)          { seedBar.style.width = '0%'; seedBar.style.background = 'var(--border)'; }
+    if (roundProfit)      { roundProfit.textContent = '—'; roundProfit.style.color = 'var(--text3)'; }
+    if (roundProfitLabel) roundProfitLabel.textContent = '회차를 시작하면 표시됩니다';
+    if (pendingWrap)      pendingWrap.style.display = 'none';
+    if (dashRoundedNote)  dashRoundedNote.style.display = 'none';
+    if (cntEl)            cntEl.textContent = '';
+    // 회차 관련 카드 테두리를 비활성 색상으로
+    const seedCard = seedEl ? seedEl.closest('.card') : null;
+    if (seedCard) seedCard.style.borderColor = 'var(--border)';
+    const profitCard = roundProfit ? roundProfit.closest('.card') : null;
+    if (profitCard) profitCard.style.borderColor = 'var(--border)';
     return;
   }
 
-  // 고정 후 손익 계산
-  const lockFrom = locked.lockedAt ? new Date(locked.lockedAt) : (() => { const d = new Date(locked.date); d.setHours(0,0,0,0); return d; })();
-  const useTs = !!locked.lockedAt;
-  const betInRound = b => {
-    if (!b.date) return false;
-    if (useTs) return b.savedAt && new Date(b.savedAt) >= lockFrom;
-    return new Date(b.date) >= lockFrom;
-  };
+  // 회차 있음 → 카드 테두리 복원
+  const seedCardActive = seedEl ? seedEl.closest('.card') : null;
+  if (seedCardActive) seedCardActive.style.borderColor = 'rgba(255,215,0,0.3)';
+  const profitCardActive = roundProfit ? roundProfit.closest('.card') : null;
+  if (profitCardActive) profitCardActive.style.borderColor = 'rgba(0,230,118,0.3)';
+  if (seedEl) seedEl.style.color = '';
 
-  // 결과 확정 베팅
-  const roundBets = bets.filter(b => b.result && b.result !== 'PENDING' && betInRound(b));
-  // 미결 베팅
-  const pendingBets = bets.filter(b => b.result === 'PENDING' && betInRound(b));
-  const pendingAmt = pendingBets.reduce((s, b) => s + (b.amount || 0), 0);
+  // ── [수정 3] 회차 시드 카드 — activeRound.seed 고정 ──
+  if (seedEl)          seedEl.textContent = '₩' + r.seed.toLocaleString();
+  if (dashRoundedNote) dashRoundedNote.style.display = 'none';   // 신형엔 올림 없음
 
-  const pnl = roundBets.reduce((s, b) => s + (b.profit || 0), 0);
-  // 소진율 = 실제 베팅에 쓴 금액 기준 (적중 여부 무관)
-  const spent = roundBets.reduce((s, b) => s + (b.amount || 0), 0);
-  const loss = spent + pendingAmt;
-  const pct = locked.seed > 0 ? Math.min(100, Math.round(loss / locked.seed * 100)) : 0;
+  // ── [수정 Q2] 소진률 바 — remaining 기반으로 교체 (구형 날짜 필터 제거) ──
+  const burnRate = r.seed > 0 ? (r.seed - r.remaining) / r.seed : 0;
+  const pct = Math.min(100, Math.round(burnRate * 100));
 
-  if (seedEl) seedEl.textContent = '₩' + locked.seed.toLocaleString();
-  // 대시보드 올림 표시
-  const dashRoundedNote = document.getElementById('d-round-seed-rounded-note');
-  if (dashRoundedNote) {
-    if (locked.wasRounded && locked.rawSeed) {
-      dashRoundedNote.style.display = 'block';
-      dashRoundedNote.textContent = '↑ 실제 ₩' + locked.rawSeed.toLocaleString() + ' → 10만원 올림';
-    } else {
-      dashRoundedNote.style.display = 'none';
-    }
-  }
   if (seedPct) seedPct.textContent = pct + '% 소진';
   if (seedBar) {
     seedBar.style.width = pct + '%';
@@ -1330,15 +1328,18 @@ function updateDashboardRoundStats() {
     if (pct >= 100) {
       seedLabel.textContent = '🛑 소진 완료'; seedLabel.style.color = 'var(--red)';
       showRoundSeedModal();
+    } else if (pct >= 70) {
+      seedLabel.textContent = `잔여 ₩${Math.round(r.remaining).toLocaleString()}`; seedLabel.style.color = '#ff9800';
+    } else {
+      seedLabel.textContent = `잔여 ₩${Math.round(r.remaining).toLocaleString()}`; seedLabel.style.color = 'var(--green)';
     }
-    else if (pct >= 70) { seedLabel.textContent = `잔여 ₩${Math.round(locked.seed - loss).toLocaleString()}`; seedLabel.style.color = '#ff9800'; }
-    else { seedLabel.textContent = `잔여 ₩${Math.round(locked.seed - loss).toLocaleString()}`; seedLabel.style.color = 'var(--green)'; }
   }
 
-  // 미결 표시
-  const pendingWrap = document.getElementById('d-round-pending-wrap');
-  const pendingAmtEl = document.getElementById('d-round-pending-amt');
-  const pendingCntEl = document.getElementById('d-round-pending-cnt');
+  // ── 미결 베팅 — getBetsByScope() 기준 (scope 반영) ──
+  const scopedBets  = typeof getBetsByScope === 'function' ? getBetsByScope() : bets;
+  const pendingBets = scopedBets.filter(b => b.result === 'PENDING');
+  const pendingAmt  = pendingBets.reduce((s, b) => s + (b.amount || 0), 0);
+
   if (pendingWrap) {
     if (pendingBets.length > 0) {
       pendingWrap.style.display = 'block';
@@ -1349,20 +1350,22 @@ function updateDashboardRoundStats() {
     }
   }
 
+  // ── [2] 손익 카드 — _SS.totalProfit 통일, 라벨만 scope 분기 ──
+  const scope  = typeof getCurrentScope === 'function' ? getCurrentScope() : 'all';
+  const profit = _SS?.totalProfit || 0;
+
   if (roundProfit) {
-    // 미결을 손실로 포함한 손익
-    const pnlWithPending = pnl - pendingAmt;
-    roundProfit.textContent = (pnlWithPending >= 0 ? '+' : '') + '₩' + Math.round(pnlWithPending).toLocaleString();
-    roundProfit.style.color = pnlWithPending > 0 ? 'var(--green)' : pnlWithPending < 0 ? 'var(--red)' : 'var(--text2)';
+    roundProfit.textContent = (profit >= 0 ? '+' : '') + '₩' + Math.round(profit).toLocaleString();
+    roundProfit.style.color = profit > 0 ? 'var(--green)' : profit < 0 ? 'var(--red)' : 'var(--text2)';
   }
   if (roundProfitLabel) {
-    const cnt = roundBets.length;
-    roundProfitLabel.textContent = `${locked.date} 고정 후 ${cnt}건${pendingBets.length > 0 ? ' (미결 포함)' : ''}`;
+    roundProfitLabel.textContent = scope === 'round' ? '⚡ 이번 회차 손익' : '⚡ 전체 누적 손익';
   }
-  const cntEl = document.getElementById('d-round-bet-count');
+
+  // ── [1] 건수 — _SS.scopedTotal 우선 사용 ──
   if (cntEl) {
-    const total = bets.filter(b => b.date && new Date(b.date) >= lockDate).length;
-    const pending = bets.filter(b => b.date && new Date(b.date) >= lockDate && b.result === 'PENDING').length;
+    const total   = _SS?.scopedTotal ?? scopedBets.length;
+    const pending = pendingBets.length;
     cntEl.textContent = pending > 0 ? `총 ${total}베팅 (미결 ${pending}건)` : `총 ${total}베팅`;
   }
 }
@@ -1403,3 +1406,400 @@ function updateSimRoundSeedBanner() {
   if (_bar) { _bar.style.width = pct + '%'; _bar.style.background = pct >= 100 ? 'var(--red)' : pct >= 70 ? '#ff9800' : 'var(--green)'; }
 }
 
+
+// ============================================================
+// ▶ 회차 리포트 탭 — 페이징 기반 회차 리스트 + 상세
+// ============================================================
+(function () {
+  const PAGE_SIZE = 15;
+  let _rrPage      = 1;
+  let _rrRounds    = [];   // 종료 회차 최신순
+  let _rrSelected  = null; // 선택된 round id
+
+  // ── 회차별 bets 집계 헬퍼 ──
+  function calcRoundStats(round) {
+    // [A1] snapshot 무결성 검증 — 타입 깨짐 / 수동 수정 / s.total 음수 대응
+    const s = round.summary;
+    const validSnapshot =
+      s &&
+      typeof s.roi     === 'number' && isFinite(s.roi)              &&
+      typeof s.profit  === 'number' && isFinite(s.profit)           &&
+      typeof s.total   === 'number' && isFinite(s.total) && s.total >= 0 &&
+      typeof s.hitRate === 'number' && isFinite(s.hitRate);
+    // [D1] snapshot 유효 → 반복 계산 제거
+    if (validSnapshot) {
+      const burnRate = round.seed > 0 ? (round.seed - round.remaining) / round.seed : 0;
+      return { bets: s.total, wins: s.wins ?? 0, profit: s.profit, invested: 0, roi: s.roi, wr: s.hitRate, burnRate };
+    }
+    // fallback: snapshot 없는 구형 데이터 — live 계산
+    // [A3] roundId 없는 bet 방어 (전역 통일)
+    const roundBets = bets.filter(b => b.roundId && b.roundId === round.id && b.result !== 'PENDING');
+    const total     = roundBets.length;
+    const wins      = roundBets.filter(b => b.result === 'WIN').length;
+    const profit    = roundBets.reduce((s, b) => s + (b.profit || 0), 0);
+    const invested  = roundBets.reduce((s, b) => s + (b.amount || 0), 0);
+    // [A2] division 안전 처리
+    const roi       = round.seed > 0 && total > 0 ? profit / round.seed * 100 : 0;
+    const wr        = total > 0 ? wins / total * 100 : 0;
+    const burnRate  = round.seed > 0 ? (round.seed - round.remaining) / round.seed : 0;
+    return { bets: total, wins, profit, invested, roi, wr, burnRate };
+  }
+
+  // ── 카드 클릭 → 상세 영역 업데이트 ──
+  function rrSelectRound(id) {
+    _rrSelected = id;
+    // 하이라이트 갱신
+    document.querySelectorAll('.rr-list-item').forEach(el => {
+      el.style.background = el.dataset.roundId === id ? 'rgba(0,229,255,0.08)' : 'var(--bg2)';
+      el.style.borderColor = el.dataset.roundId === id ? 'var(--accent)' : 'var(--border)';
+    });
+
+    const round = _rrRounds.find(r => r.id === id);
+    if (!round) return;
+
+    const wrap = document.getElementById('rr-detail-wrap');
+    if (wrap) wrap.style.display = 'block';
+
+    const idx   = _rrRounds.length - _rrRounds.indexOf(round);
+    const s     = calcRoundStats(round);
+    const start = round.createdAt ? round.createdAt.split('T')[0] : '—';
+    const end   = round.closedAt  ? round.closedAt.split('T')[0]  : '—';
+    const pct   = Math.min(100, Math.round(s.burnRate * 100));
+    const barColor = pct >= 100 ? 'var(--red)' : pct >= 70 ? '#ff9800' : 'var(--green)';
+
+    _set('rr-detail-label',     `${idx}회차 (${round.id})`);
+    _set('rr-detail-dates',     `${start} ~ ${end}`);
+    _setPnl('rr-detail-pnl',    s.profit);
+    _setRoi('rr-detail-roi',    s.roi);
+    _set('rr-detail-bets',      s.bets + '건');
+    _set('rr-detail-wr',        s.bets > 0 ? s.wr.toFixed(1) + '%' : '—');
+    _set('rr-detail-seed',      '₩' + round.seed.toLocaleString());
+    const remEl = document.getElementById('rr-detail-remaining');
+    if (remEl) {
+      remEl.textContent = '₩' + Math.round(round.remaining).toLocaleString();
+      remEl.style.color = round.remaining > 0 ? 'var(--green)' : 'var(--red)';
+    }
+    _set('rr-detail-burn-pct', pct + '%');
+    const bar = document.getElementById('rr-detail-burn-bar');
+    if (bar) { bar.style.width = pct + '%'; bar.style.background = barColor; }
+  }
+
+  // ── 페이지 렌더 ──
+  function rrRenderList() {
+    const listEl  = document.getElementById('rr-list-body');
+    const emptyEl = document.getElementById('rr-list-empty');
+    const pagEl   = document.getElementById('rr-pagination');
+    if (!listEl) return;
+
+    if (_rrRounds.length === 0) {
+      listEl.innerHTML  = '';
+      if (emptyEl) emptyEl.style.display = 'block';
+      if (pagEl)   pagEl.style.display   = 'none';
+      return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    const totalPages = Math.ceil(_rrRounds.length / PAGE_SIZE);
+    _rrPage = Math.max(1, Math.min(_rrPage, totalPages));
+
+    const start     = (_rrPage - 1) * PAGE_SIZE;
+    const pageItems = _rrRounds.slice(start, start + PAGE_SIZE);
+
+    listEl.innerHTML = '';
+    pageItems.forEach((round, i) => {
+      const idx    = _rrRounds.length - (start + i);
+      const s      = calcRoundStats(round);
+      const pct    = Math.min(100, Math.round(s.burnRate * 100));
+      const barBg  = pct >= 100 ? 'var(--red)' : pct >= 70 ? '#ff9800' : 'var(--green)';
+      const pnlStr = (s.profit >= 0 ? '+' : '') + '₩' + Math.abs(Math.round(s.profit)).toLocaleString();
+      const pnlCol = s.profit > 0 ? 'var(--green)' : s.profit < 0 ? 'var(--red)' : 'var(--text2)';
+      const roiStr = (s.roi >= 0 ? '+' : '') + s.roi.toFixed(1) + '%';
+      const roiCol = s.roi >= 0 ? 'var(--green)' : 'var(--red)';
+      const isSelected = round.id === _rrSelected;
+
+      const item = document.createElement('div');
+      item.className       = 'rr-list-item';
+      item.dataset.roundId = round.id;
+      item.style.cssText   = `
+        padding:10px 12px;border-radius:8px;border:1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'};
+        background:${isSelected ? 'rgba(0,229,255,0.08)' : 'var(--bg2)'};
+        cursor:pointer;transition:background .15s,border-color .15s;
+      `;
+      item.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <span style="font-size:13px;font-weight:800;color:var(--text);">${idx}회차</span>
+          <span style="font-size:12px;font-weight:700;color:${pnlCol};">${pnlStr}</span>
+        </div>
+        <div style="display:flex;gap:12px;font-size:11px;color:var(--text3);margin-bottom:6px;">
+          <span>ROI <span style="color:${roiCol};font-weight:600;">${roiStr}</span></span>
+          <span>${s.bets}건</span>
+          <span>승률 ${s.bets > 0 ? s.wr.toFixed(0) + '%' : '—'}</span>
+          <span style="margin-left:auto;">₩${round.seed.toLocaleString()}</span>
+        </div>
+        <div style="height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${barBg};border-radius:2px;"></div>
+        </div>
+      `;
+      item.onclick = () => rrSelectRound(round.id);
+      listEl.appendChild(item);
+    });
+
+    // 페이지 네비 표시
+    if (pagEl) pagEl.style.display = totalPages > 1 ? 'flex' : 'none';
+    _set('rr-page-label', `Page ${_rrPage} / ${totalPages}`);
+    const prevBtn = document.getElementById('rr-btn-prev');
+    const nextBtn = document.getElementById('rr-btn-next');
+    if (prevBtn) { prevBtn.disabled = _rrPage <= 1; prevBtn.style.opacity = _rrPage <= 1 ? '0.35' : '1'; }
+    if (nextBtn) { nextBtn.disabled = _rrPage >= totalPages; nextBtn.style.opacity = _rrPage >= totalPages ? '0.35' : '1'; }
+  }
+
+  // ── 상단 최근 종료 회차 요약 ──
+  function rrRenderLatest() {
+    const latest   = _rrRounds[0] || null;
+    const noHist   = document.getElementById('rr-no-history');
+    const body     = document.getElementById('rr-latest-body');
+    if (!latest) {
+      if (noHist) noHist.style.display = 'block';
+      if (body)   body.style.display   = 'none';
+      return;
+    }
+    if (noHist) noHist.style.display = 'none';
+    if (body)   body.style.display   = 'block';
+
+    const idx    = _rrRounds.length;
+    const s      = calcRoundStats(latest);
+    const start  = latest.createdAt ? latest.createdAt.split('T')[0] : '—';
+    const end    = latest.closedAt  ? latest.closedAt.split('T')[0]  : '—';
+    const pct    = Math.min(100, Math.round(s.burnRate * 100));
+    const barBg  = pct >= 100 ? 'var(--red)' : pct >= 70 ? '#ff9800' : 'var(--green)';
+
+    _set('rr-latest-label', `최근 종료 — ${idx}회차`);
+    _set('rr-latest-dates', `${start} ~ ${end}`);
+    _setPnl('rr-latest-pnl', s.profit);
+    _setRoi('rr-latest-roi', s.roi);
+    _set('rr-latest-bets', s.bets + '건');
+    _set('rr-latest-wr',   s.bets > 0 ? s.wr.toFixed(1) + '%' : '—');
+    _set('rr-latest-burn-pct', pct + '%');
+    const bar = document.getElementById('rr-latest-burn-bar');
+    if (bar) { bar.style.width = pct + '%'; bar.style.background = barBg; }
+  }
+
+  // ── DOM 헬퍼 ──
+  function _set(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; }
+  function _setPnl(id, val) {
+    const el = document.getElementById(id); if (!el) return;
+    el.textContent = (val >= 0 ? '+' : '') + '₩' + Math.abs(Math.round(val)).toLocaleString();
+    el.style.color = val > 0 ? 'var(--green)' : val < 0 ? 'var(--red)' : 'var(--text2)';
+  }
+  function _setRoi(id, val) {
+    const el = document.getElementById(id); if (!el) return;
+    el.textContent = val !== null ? (val >= 0 ? '+' : '') + val.toFixed(1) + '%' : '—';
+    el.style.color = val === null ? 'var(--text3)' : val >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+
+  // ── [B1] 빈 상태 렌더 ──
+  function rrRenderEmpty() {
+    const listEl  = document.getElementById('rr-list-body');
+    const emptyEl = document.getElementById('rr-list-empty');
+    const pagEl   = document.getElementById('rr-pagination');
+    const latWrap = document.getElementById('rr-latest-wrap');
+    const graphEl = document.getElementById('rr-graph-section');
+    const kpiEl   = document.getElementById('rr-kpi-section');
+    if (listEl)  listEl.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = 'block';
+    if (pagEl)   pagEl.style.display   = 'none';
+    if (latWrap) latWrap.style.display = 'none';
+    if (graphEl) graphEl.style.display = 'none';
+    if (kpiEl)   kpiEl.style.display   = 'none';
+    const detailWrap = document.getElementById('rr-detail-wrap');
+    if (detailWrap) detailWrap.style.display = 'none';
+  }
+
+  // ── [E3] KPI 렌더 ──
+  function rrRenderKPI() {
+    const kpiEl = document.getElementById('rr-kpi-section');
+    if (!kpiEl || _rrRounds.length === 0) { if (kpiEl) kpiEl.style.display = 'none'; return; }
+    kpiEl.style.display = 'block';
+
+    const stats = _rrRounds.map(r => calcRoundStats(r));
+    const avgRoi = stats.reduce((s, v) => s + v.roi, 0) / stats.length;
+
+    let bestIdx = 0, worstIdx = 0;
+    stats.forEach((v, i) => {
+      if (v.roi > stats[bestIdx].roi)  bestIdx  = i;
+      if (v.roi < stats[worstIdx].roi) worstIdx = i;
+    });
+    const best  = _rrRounds[bestIdx];
+    const worst = _rrRounds[worstIdx];
+    const bestN  = _rrRounds.length - bestIdx;
+    const worstN = _rrRounds.length - worstIdx;
+
+    const avgC  = avgRoi  >= 0 ? 'var(--green)' : 'var(--red)';
+    const bestC = stats[bestIdx].roi  >= 0 ? 'var(--green)' : 'var(--red)';
+    const wrstC = stats[worstIdx].roi >= 0 ? 'var(--green)' : 'var(--red)';
+
+    kpiEl.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+        <div class="card" style="text-align:center;padding:12px 8px;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">평균 ROI</div>
+          <div style="font-size:20px;font-weight:900;color:${avgC};">${avgRoi >= 0 ? '+' : ''}${avgRoi.toFixed(1)}%</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">전체 ${_rrRounds.length}회차</div>
+        </div>
+        <div class="card" style="text-align:center;padding:12px 8px;cursor:pointer;" onclick="rrSelectRoundFromKPI('${best.id}')">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">최고 ROI</div>
+          <div style="font-size:20px;font-weight:900;color:${bestC};">${stats[bestIdx].roi >= 0 ? '+' : ''}${stats[bestIdx].roi.toFixed(1)}%</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">${bestN}회차</div>
+        </div>
+        <div class="card" style="text-align:center;padding:12px 8px;cursor:pointer;" onclick="rrSelectRoundFromKPI('${worst.id}')">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">최저 ROI</div>
+          <div style="font-size:20px;font-weight:900;color:${wrstC};">${stats[worstIdx].roi >= 0 ? '+' : ''}${stats[worstIdx].roi.toFixed(1)}%</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;">${worstN}회차</div>
+        </div>
+      </div>`;
+  }
+
+  // ── [E1][E2] 그래프 렌더 ──
+  let _rrChartROI = null;
+  let _rrChartCum = null;
+
+  function rrRenderGraphs() {
+    const graphEl = document.getElementById('rr-graph-section');
+    if (!graphEl) return;
+    if (_rrRounds.length < 2) { graphEl.style.display = 'none'; return; }
+    graphEl.style.display = 'block';
+
+    // 시간순 정렬 (그래프는 오래된 것부터)
+    const chrono = [..._rrRounds].reverse();
+    const labels = chrono.map((r, i) => `${i + 1}회차`);
+    const stats  = chrono.map(r => calcRoundStats(r));
+
+    // [E1] 회차별 ROI
+    const roiData = stats.map(s => +s.roi.toFixed(2));
+    const roiColors = roiData.map(v => v >= 0 ? 'rgba(0,230,118,0.8)' : 'rgba(255,59,92,0.8)');
+
+    const roiCtx = document.getElementById('rr-chart-roi');
+    if (roiCtx) {
+      if (_rrChartROI) { _rrChartROI.destroy(); _rrChartROI = null; }
+      _rrChartROI = new Chart(roiCtx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'ROI (%)',
+            data: roiData,
+            backgroundColor: roiColors,
+            borderRadius: 4,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#888', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            y: { ticks: { color: '#888', font: { size: 10 }, callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+          }
+        }
+      });
+    }
+
+    // [E2] 누적 수익 곡선
+    let acc = 0;
+    const cumData = stats.map(s => { acc += s.profit; return Math.round(acc); });
+
+    const cumCtx = document.getElementById('rr-chart-cum');
+    if (cumCtx) {
+      if (_rrChartCum) { _rrChartCum.destroy(); _rrChartCum = null; }
+      _rrChartCum = new Chart(cumCtx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: '누적 손익 (₩)',
+            data: cumData,
+            borderColor: 'var(--accent)',
+            backgroundColor: 'rgba(0,229,255,0.08)',
+            borderWidth: 2,
+            pointRadius: 3,
+            pointBackgroundColor: 'var(--accent)',
+            fill: true,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#888', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            y: {
+              ticks: {
+                color: '#888', font: { size: 10 },
+                callback: v => (v >= 0 ? '+₩' : '-₩') + Math.abs(v).toLocaleString()
+              },
+              grid: { color: 'rgba(255,255,255,0.05)' }
+            }
+          }
+        }
+      });
+    }
+  }
+
+  // ── 공개 진입점 ──
+  window.updateRoundReport = function () {
+    // UNLOCKED 회차 최신순 정렬
+    _rrRounds = [...rounds]
+      .filter(r => r.status === 'UNLOCKED')
+      .sort((a, b) => new Date(b.closedAt) - new Date(a.closedAt));
+
+    _set('rr-total-count', `(${_rrRounds.length}회차)`);
+
+    // [A4] 빈 상태 처리
+    const totalPages = Math.ceil(_rrRounds.length / PAGE_SIZE) || 1;
+    if (_rrRounds.length === 0) {
+      rrRenderEmpty();
+      return;
+    }
+
+    // [A4] 페이지 경계 보정
+    if (_rrPage > totalPages) _rrPage = totalPages;
+    if (_rrPage < 1)          _rrPage = 1;
+
+    // 각 영역 표시 복원
+    const latWrap = document.getElementById('rr-latest-wrap');
+    const emptyEl = document.getElementById('rr-list-empty');
+    if (latWrap) latWrap.style.display = 'block';
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    rrRenderKPI();
+    rrRenderLatest();
+    rrRenderList();
+    rrRenderGraphs();
+
+    // [B2] 선택 상태 유지
+    if (_rrSelected && _rrRounds.find(r => r.id === _rrSelected)) {
+      rrSelectRound(_rrSelected);
+    } else {
+      _rrSelected = null;
+      const w = document.getElementById('rr-detail-wrap');
+      if (w) w.style.display = 'none';
+    }
+  };
+
+  window.rrChangePage = function (delta) {
+    const totalPages = Math.ceil(_rrRounds.length / PAGE_SIZE) || 1;
+    _rrPage = Math.max(1, Math.min(_rrPage + delta, totalPages));
+    rrRenderList();
+  };
+
+  // KPI 카드 클릭 → 해당 회차 하이라이트 (페이지 이동 포함)
+  window.rrSelectRoundFromKPI = function (id) {
+    const idx = _rrRounds.findIndex(r => r.id === id);
+    if (idx < 0) return;
+    const targetPage = Math.floor(idx / PAGE_SIZE) + 1;
+    if (_rrPage !== targetPage) {
+      _rrPage = targetPage;
+      rrRenderList();
+    }
+    rrSelectRound(id);
+  };
+}());

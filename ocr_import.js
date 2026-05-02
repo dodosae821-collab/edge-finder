@@ -6,7 +6,7 @@
 // ============================================================
 
 // ── 상수 ──────────────────────────────────────────────────────
-const OCR_VERSION = '1.0.0';
+const OCR_VERSION = '2.0.0';
 
 // 확신도 임계값
 const CONF_AUTO   = 0.90;   // 자동 체크 (초록)
@@ -271,35 +271,57 @@ function getKnownTeams() {
   return [...teams];
 }
 
-function normalizeTeam(raw, knownTeams) {
-  const aliasMap = loadAliasMap();
-  const key = raw.toLowerCase().trim();
+/**
+ * normalizeTeam — 정책 변경 (v2.0)
+ *
+ * 프로토 용지는 축약 팀명 사용 ("클리가디", "템파레이" 등) → 정규화 100% 불가능.
+ * 따라서 OCR raw 텍스트를 그대로 저장하고 UX 레이어(히스토리 자동완성)에서 해결.
+ *
+ * 동작:
+ *   - alias 테이블에 직접 매핑이 있으면 그것을 사용 (사용자가 직접 추가한 것만)
+ *   - 그 외 → raw 그대로, confidence 1.0 (절대 row 드롭 안 함)
+ *   - knownTeams 유사도 매칭은 완전 제거 (구조적 실패)
+ *
+ * @param {string}   raw         OCR 인식 원문
+ * @param {string[]} _knownTeams (무시됨 — 호환성 유지용 파라미터)
+ * @returns {{ team: string, confidence: number, candidates: string[], source: string }}
+ */
+function normalizeTeam(raw, _knownTeams) {
+  const rawNorm = raw.trim();
+  if (!rawNorm) {
+    return { team: '', confidence: 1.0, candidates: [], source: 'empty' };
+  }
 
-  // 1단계: alias 직접 매핑
+  // alias 테이블 직접 매핑 (사용자가 명시적으로 추가한 것만 반영)
+  const aliasMap = loadAliasMap();
+  const key = rawNorm.toLowerCase();
   if (aliasMap[key]) {
     return { team: aliasMap[key], confidence: 1.0, candidates: [aliasMap[key]], source: 'alias' };
   }
 
-  // 2단계: 알려진 팀명과 유사도 비교
-  if (!knownTeams.length) {
-    return { team: raw.trim(), confidence: 0.5, candidates: [raw.trim()], source: 'raw' };
-  }
+  // raw 그대로 반환 — 항상 통과, confidence 1.0
+  return { team: rawNorm, confidence: 1.0, candidates: [rawNorm], source: 'raw' };
+}
 
-  const scored = knownTeams.map(t => ({ t, s: strSimilarity(raw, t) }))
-                           .sort((a, b) => b.s - a.s);
-
+/**
+ * normalizeTeamOptional — 선택적 정규화 (유사도 매칭)
+ *
+ * UI에서 "정규 팀명 후보 보기" 같은 선택적 기능에서만 사용.
+ * 파싱 파이프라인에서는 절대 사용하지 않음.
+ */
+function normalizeTeamOptional(raw, knownTeams) {
+  if (!raw || !knownTeams.length) return null;
+  const scored = knownTeams
+    .map(t => ({ t, s: strSimilarity(raw, t) }))
+    .sort((a, b) => b.s - a.s);
   const best = scored[0];
-  const candidates = scored.filter(x => x.s >= SIMILARITY_CAND).slice(0, 3).map(x => x.t);
-
-  if (best.s >= SIMILARITY_AUTO) {
-    return { team: best.t, confidence: best.s, candidates, source: 'auto' };
-  }
-  if (best.s >= SIMILARITY_CAND) {
-    return { team: best.t, confidence: best.s, candidates, source: 'candidate' };
-  }
-
-  // 3단계: 매칭 실패
-  return { team: raw.trim(), confidence: best.s, candidates: candidates.slice(0,2), source: 'failed' };
+  if (best.s < SIMILARITY_CAND) return null;
+  return {
+    team: best.t,
+    confidence: best.s,
+    candidates: scored.filter(x => x.s >= SIMILARITY_CAND).slice(0, 3).map(x => x.t),
+    source: 'optional',
+  };
 }
 
 // ── 구조 기반 OCR 파서 ────────────────────────────────────────
@@ -325,74 +347,145 @@ function splitTeamHandicap(raw) {
 // 예상결과 토큰 목록
 const PICK_TOKENS = new Set(['승', '패', '무', '홈승', '원정승', '오버', '언더', '오버언더']);
 
+// 연속 단일 대문자 토큰 병합
+// OCR이 "K I A" / "L G" / "S S G" 처럼 쪼개는 경우 → "KIA" / "LG" / "SSG"
+// 반드시 garbage 필터 전에 적용 (단일 문자 제거가 팀명을 지우기 전에 복원)
+function mergeUppercaseTokens(tokens) {
+  const result = [];
+  let buffer = [];
+  for (const t of tokens) {
+    if (/^[A-Z]$/.test(t)) {
+      buffer.push(t);
+    } else {
+      if (buffer.length) { result.push(buffer.join('')); buffer = []; }
+      result.push(t);
+    }
+  }
+  if (buffer.length) result.push(buffer.join(''));
+  return result;
+}
+
+// garbage 토큰 판별
+// *, 경기번호(176), 핸디캡(8.5) 등 — 파싱 대상이 아닌 노이즈
+// 주의: 단일 문자는 mergeUppercaseTokens 이후 남은 것만 제거
+function _isGarbage(t) {
+  // ×2224, *2224, x2224 등 — OCR이 *를 ×/x로 오인식한 경기번호 패턴 포함
+  if (/^[×x\*]?\d{3,4}$/.test(t)) return true;   // 경기번호 (기호 prefix 허용)
+  if (/^\d+\.\d+$/.test(t)) return true;          // 핸디캡/소수
+  if (t.length === 1) return true;                   // 단일 문자
+  return false;
+}
+
+// 팀명 유효성 검사
+// \W는 JS에서 한글도 포함하므로 사용 금지 — 두산/한화 등 한글 팀명 전부 false 처리됨
+// 숫자만, 소수만, 기호만인 토큰과 단일 문자만 제거
+function isValidTeam(t) {
+  if (!t) return false;
+  if (t.length === 1) return false;
+  if (/^\d+(\.\d+)?$/.test(t)) return false;        // 숫자/소수만
+  if (/^[^\w가-힣a-zA-Z]+$/.test(t)) return false;  // 기호만 (콜론 등)
+  return true;
+}
+
 // 단일 행을 구조 파싱
-// 반환: null (파싱 실패) 또는 구조체
+// ── 핵심 원칙 ─────────────────────────────────────────────────────────────────
+// ① 앞에서 해석 금지: *, 경기번호(176), 핸디캡(8.5) 같은 노이즈로 줄을 버리지 않음
+// ② 뒤에서 확정값(배당 → pick) 제거 → 대문자 병합 → garbage 필터 → 팀명 추출
+// ③ 콜론 있으면: 콜론 기준 분리 후 끝/첫 토큰으로 팀명 추출
+// ④ 콜론 없으면: 중앙 기준 분리 fallback (한화 등 누락 방지 핵심 — 절대 삭제 금지)
+// ─────────────────────────────────────────────────────────────────────────────
 function parseProtoRow(line) {
-  // ── 푸터 감지: 이 라인이 푸터 키워드 포함이면 null ──────
-  if (FOOTER_KEYWORDS.some(kw => line.includes(kw))) return null;
+  if (!line) return null;
 
-  // ── 헤더 행 skip ─────────────────────────────────────────
-  if (/^경기\s+홈/.test(line)) return null;
+  // ── Step 1: 토큰화 ──────────────────────────────────────────────────────────
+  let tokens = line.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length < 3) return null;
 
-  // ── [Step 1] 마켓 prefix 추출 ────────────────────────────
-  // 행 맨 앞에 H / h / U / Uh / Hh / 1 등이 오면 marketType으로 분리.
-  // prefix는 경기번호 앞에 위치. 제거하지 않고 별도 필드로 보존.
-  // 예: "Hh*222 삼성 -1.5 : 롯데 패 1.44"
-  //   → marketType = 'Hh', lineAfterPrefix = "*222 삼성 -1.5 : 롯데 패 1.44"
+  // ── Step 2: 맨 끝 → 배당 ────────────────────────────────────────────────────
+  // 배당 토큰 조건:
+  //   ① 순수 숫자여야 함 (4.30배, 50,000원 등 suffix 붙은 토큰 차단)
+  //   ② 실제 배당 범위 1.01 ~ 99.99 (회차번호 1538198575, 금액 301 등 차단)
+  const rawOddsToken = tokens[tokens.length - 1];
+  if (!/^\d+(\.\d+)?$/.test(rawOddsToken)) return null;  // 숫자 외 suffix 있으면 차단
+  const odds = parseFloat(rawOddsToken);
+  if (isNaN(odds) || odds < 1.01 || odds > 99.99) return null;
+  tokens.pop();
+
+  // ── Step 3: pick (있으면 제거) ──────────────────────────────────────────────
+  let pick = null;
+  if (PICK_TOKENS.has(tokens[tokens.length - 1])) {
+    pick = tokens.pop();
+  }
+
+  // ── Step 4: 대문자 병합 → garbage 제거 ─────────────────────────────────────
+  // 순서 중요: 병합 먼저 해야 "K I A" → "KIA" 후 단일문자 필터가 KIA를 살림
+  tokens = mergeUppercaseTokens(tokens);
+  tokens = tokens.filter(t => !_isGarbage(t));
+
+  // tokens 2개 정확히 맞으면 바로 반환 (콜론/mid-split 불필요)
+  if (tokens.length === 2) {
+    const [h, a] = tokens;
+    // ── 최종 검증: home/away 기준으로만 ───────────────────────────────────────
+    if (!isValidTeam(h) || !isValidTeam(a)) return null;
+    const { marketType, rest: lp } = extractMarketPrefix(line);
+    const nm = lp.match(/^(\*?)(\d{3,4})\s/);
+    return {
+      gameNum: nm ? nm[2] : null, isBetTarget: nm ? nm[1] === '*' : false,
+      marketType, rawHome: h, rawAway: a,
+      handicap: null, pick, odds, rawLine: line,
+    };
+  }
+
+  if (tokens.length < 2) return null;
+
+  // ── Step 5a: 콜론 있으면 콜론 기준 분리 ────────────────────────────────────
+  const joined = tokens.join(' ');
+  let homeRaw, awayRaw;
+
+  const colonIdx = joined.search(/[：:]/);
+  if (colonIdx !== -1) {
+    const homePart = joined.slice(0, colonIdx).trim();
+    const awayPart = joined.slice(colonIdx + 1).trim();
+    const homeTokens = homePart.split(/\s+/).filter(Boolean);
+    const awayTokens = awayPart.split(/\s+/).filter(Boolean);
+    homeRaw = homeTokens[homeTokens.length - 1] || '';  // 홈 파트 끝 토큰
+    awayRaw = awayTokens[0] || '';                       // 원정 파트 첫 토큰
+  } else {
+    // ── Step 5b: 콜론 없으면 중앙 기준 분리 (fallback — 절대 삭제 금지) ─────────
+    // 콜론이 OCR에서 누락됐을 때도 팀명을 살리는 핵심 경로
+    // 예) "* 176 두산 8.5 한화 오버 1.64" → garbage 제거 후 ["두산","한화"] → mid=1
+    const mid = Math.floor(tokens.length / 2);
+    homeRaw = tokens.slice(0, mid).join(' ');
+    awayRaw = tokens.slice(mid).join(' ');
+
+    if (window.__OCR_DEBUG__) {
+      console.log('[OCR parseProtoRow fallback:center-split]', { line, tokens, mid, homeRaw, awayRaw });
+    }
+  }
+
+  // ── 최종 검증: home/away 기준으로만 (line 기준 필터 없음) ──────────────────
+  // OCR은 줄 구조가 깨지므로 line 단위 필터는 정상 데이터까지 제거함
+  if (!isValidTeam(homeRaw) || !isValidTeam(awayRaw)) return null;
+
+  // ── 보조 정보: 마켓 prefix / 경기번호 (실패해도 줄 버리지 않음) ──────────────
   const { marketType, rest: lineAfterPrefix } = extractMarketPrefix(line);
+  const numMatch    = lineAfterPrefix.match(/^(\*?)(\d{3,4})\s/);
+  const gameNum     = numMatch ? numMatch[2] : null;
+  const isBetTarget = numMatch ? numMatch[1] === '*' : false;
 
-  // ── [Step 2] 경기번호 추출 ───────────────────────────────
-  // 패턴: 선택적 * + 3~4자리 숫자 (prefix 제거 후 라인 기준)
-  const numMatch = lineAfterPrefix.match(/^(\*?)(\d{3,4})\s+(.*)/);
-  if (!numMatch) return null;
-
-  const isBetTarget = numMatch[1] === '*';   // * = 단폴 구매 가능 경기
-  const gameNum     = numMatch[2];           // "176", "089" 등
-  const rest        = numMatch[3];           // 경기번호 이후 나머지
-
-  // ── ":" 구분자로 홈 / 원정 영역 분리 ─────────────────────
-  // OCR이 ： (전각)로 인식하기도 함
-  const colonIdx = rest.search(/\s*[：:]\s*/);
-  if (colonIdx === -1) return null;
-
-  const homeRaw  = rest.slice(0, colonIdx).trim();
-  const afterCol = rest.slice(rest.indexOf(':', colonIdx) + 1 < rest.length
-                             ? rest.indexOf(':', colonIdx) + 1
-                             : colonIdx + 1).trim();
-
-  // ── afterCol에서 원정팀 / 예상결과 / 배당률 분리 ─────────
-  // 배당률: 끝쪽 소수점 2자리 숫자
-  // 예상결과: 배당률 바로 앞 토큰
-  const tokens = afterCol.split(/\s+/);
-  let odds = null, pick = null, awayRaw = '';
-
-  // 역방향 탐색: 배당률 → 예상결과 → 나머지=원정팀
-  const oddsRe = /^\d+\.\d{2}$/;
-  let ti = tokens.length - 1;
-
-  if (ti >= 0 && oddsRe.test(tokens[ti])) {
-    odds = parseFloat(tokens[ti--]);
+  if (window.__OCR_DEBUG__) {
+    console.log('[OCR parseProtoRow]', { line, homeRaw, awayRaw, pick, odds, gameNum });
   }
-  if (ti >= 0 && PICK_TOKENS.has(tokens[ti])) {
-    pick = tokens[ti--];
-  }
-  awayRaw = tokens.slice(0, ti + 1).join(' ').trim();
-
-  if (!homeRaw && !awayRaw) return null;
-
-  // ── 홈팀 핸디캡 분리 ─────────────────────────────────────
-  const { team: homeTeam, handicap } = splitTeamHandicap(homeRaw);
-  const awayTeam = awayRaw.trim();
 
   return {
-    gameNum,          // "176"
-    isBetTarget,      // true = * 경기
-    marketType,       // 'H' | 'h' | 'U' | 'Uh' | 'Hh' | '1' | null
-    rawHome: homeTeam,
-    rawAway: awayTeam,
-    handicap,         // null | number
-    pick,             // "오버" | "승" | null
-    odds,             // 1.64 | null
+    gameNum,
+    isBetTarget,
+    marketType,
+    rawHome: homeRaw,
+    rawAway: awayRaw,
+    handicap: null,
+    pick,
+    odds,
     rawLine: line,
   };
 }
@@ -457,15 +550,18 @@ function parseResultRow(line) {
 
 function parseOcrLines(fullText) {
   const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
-  const knownTeams = getKnownTeams();
   const results = [];
 
-  // 푸터 키워드 등장 시 파싱 중단
-  let footerReached = false;
+  if (window.__OCR_DEBUG__) {
+    console.log('[OCR RAW lines]', lines);
+  }
+
+  // 푸터 키워드 포함 줄은 skip — break 하지 않음
+  // OCR은 줄이 깨지므로 푸터 키워드가 경기 줄과 합쳐질 수 있음
+  // break하면 그 뒤 경기 데이터까지 전부 날아감
 
   for (const line of lines) {
-    if (footerReached) break;
-    if (FOOTER_KEYWORDS.some(kw => line.includes(kw))) { footerReached = true; break; }
+    if (FOOTER_KEYWORDS.some(kw => line.includes(kw))) continue;
 
     // 결과 용지 행 시도 (스코어 포함)
     let row = parseResultRow(line);
@@ -474,39 +570,95 @@ function parseOcrLines(fullText) {
     if (!row) row = parseProtoRow(line);
 
     if (!row) {
-      // 경기번호 패턴이 있는데 파싱 실패한 경우만 warn
-      // prefix 있는 경우(Hh*222, H 103 등)도 포함하도록 정규식 확장
       if (/^(?:Hh|Uh|H|h|U|1)?\s*\*?\d{3,4}\s/.test(line)) {
         console.warn('[OCR] 파싱 실패 라인 (alias/패턴 검토 필요):', JSON.stringify(line));
       }
       continue;
     }
 
-    // 팀명 정규화
-    const normHome = row.rawHome ? normalizeTeam(row.rawHome, knownTeams)
-                                 : { team: '', confidence: 0, candidates: [], source: 'missing' };
-    const normAway = row.rawAway ? normalizeTeam(row.rawAway, knownTeams)
-                                 : { team: '', confidence: 0, candidates: [], source: 'missing' };
+    // ── 팀명: raw 그대로 보존 — normalize는 alias 체크만 ────────────────
+    // 정책: OCR 결과는 절대 버리지 않음. confidence 항상 1.0.
+    // "클리가디", "템파레이" 같은 축약형이 정상 입력임.
+    const normHome = normalizeTeam(row.rawHome || '', null);
+    const normAway = normalizeTeam(row.rawAway || '', null);
+
+    if (window.__OCR_DEBUG__) {
+      console.log('[OCR row]', {
+        gameNum: row.gameNum,
+        rawHome: row.rawHome, normHome: normHome.team, homeSrc: normHome.source,
+        rawAway: row.rawAway, normAway: normAway.team, awaySrc: normAway.source,
+        odds: row.odds,
+      });
+    }
+
+    // 팀명 히스토리 DB에 기록 (자동완성 기반 UX용)
+    if (row.rawHome) recordTeamHistory(row.rawHome);
+    if (row.rawAway) recordTeamHistory(row.rawAway);
 
     results.push({
       rawLine:    row.rawLine,
       rawHome:    row.rawHome,
       rawAway:    row.rawAway,
-      normHome,
+      normHome,                 // team = raw 그대로 (alias 매핑된 경우만 변환)
       normAway,
-      gameNum:    row.gameNum,      // 경기번호 — 매칭 최우선 키
-      isSingleOk: row.isBetTarget,  // * = 단폴 구매 가능 경기
-      marketType: row.marketType,   // 'H'|'h'|'U'|'Uh'|'Hh'|'1'|null — 베팅 마켓 구분
-      handicap:   row.handicap,     // 핸디캡 수치 (있으면)
-      pick:       row.pick,         // 예상결과 토큰 (투표 용지)
-      odds:       row.odds,         // 배당률 (보조 식별자)
-      score:      row.score || null,    // 결과 용지만 존재
+      gameNum:    row.gameNum,
+      isSingleOk: row.isBetTarget,
+      marketType: row.marketType,
+      handicap:   row.handicap,
+      pick:       row.pick,
+      odds:       row.odds,
+      score:      row.score || null,
       scorePairs: row.score ? [{ a: row.score.home, b: row.score.away }] : [],
     });
   }
 
+  if (window.__OCR_DEBUG__) {
+    console.log('[OCR PARSED]', results);
+  }
+
   return results;
 }
+
+// ── 팀명 히스토리 DB ──────────────────────────────────────────────────────────
+// OCR로 인식된 팀명(raw)을 localStorage에 누적 저장.
+// 이후 자동완성 / 선택형 UI의 기반 데이터가 됨.
+//
+// 구조: { [rawName]: { count: number, lastSeen: ISO string } }
+const TEAM_HISTORY_KEY = 'ocr_team_history';
+
+function recordTeamHistory(rawName) {
+  if (!rawName || rawName.length < 2) return;  // 너무 짧은 단편 제외
+  try {
+    const db = JSON.parse(localStorage.getItem(TEAM_HISTORY_KEY) || '{}');
+    const entry = db[rawName] || { count: 0, lastSeen: null };
+    entry.count++;
+    entry.lastSeen = new Date().toISOString();
+    db[rawName] = entry;
+    localStorage.setItem(TEAM_HISTORY_KEY, JSON.stringify(db));
+  } catch { /* localStorage 실패 무시 */ }
+}
+
+/**
+ * getTeamHistorySuggestions — 자동완성 후보 반환
+ * @param {string} prefix  사용자가 입력 중인 접두어
+ * @param {number} limit   최대 반환 수 (기본 8)
+ * @returns {Array<{ name: string, count: number }>}
+ */
+function getTeamHistorySuggestions(prefix, limit = 8) {
+  try {
+    const db = JSON.parse(localStorage.getItem(TEAM_HISTORY_KEY) || '{}');
+    const norm = prefix.toLowerCase().replace(/\s/g, '');
+    return Object.entries(db)
+      .filter(([name]) => name.toLowerCase().replace(/\s/g, '').includes(norm))
+      .sort((a, b) => b[1].count - a[1].count || b[1].lastSeen.localeCompare(a[1].lastSeen))
+      .slice(0, limit)
+      .map(([name, { count }]) => ({ name, count }));
+  } catch { return []; }
+}
+
+// 전역 노출 (index.html / 폼에서 직접 호출 가능)
+window.getTeamHistorySuggestions = getTeamHistorySuggestions;
+window.recordTeamHistory = recordTeamHistory;
 
 // ── 베팅 매칭 ──────────────────────────────────────────────────
 function parseBetTeams(bet) {
@@ -640,15 +792,23 @@ function matchBetToOcr(parsed, imageDate, ocrConf) {
       const betTeams = parseBetTeams(bet);
       if (!betTeams) continue;
 
-      const teamSimFwd = (strSimilarity(p.normHome.team, betTeams.home) +
-                          strSimilarity(p.normAway.team || '', betTeams.away)) / 2;
-      const teamSimRev = (strSimilarity(p.normHome.team, betTeams.away) +
-                          strSimilarity(p.normAway.team || '', betTeams.home)) / 2;
+      // raw 우선 비교 (normHome.team === rawHome since v2.0 policy)
+      // raw와 bet 팀명 모두 비교해 더 높은 쪽 사용 (alias 매핑된 경우를 위해 norm도 유지)
+      const simH_fwd = Math.max(strSimilarity(p.rawHome || '', betTeams.home),
+                                strSimilarity(p.normHome.team, betTeams.home));
+      const simA_fwd = Math.max(strSimilarity(p.rawAway || '', betTeams.away),
+                                strSimilarity(p.normAway.team || '', betTeams.away));
+      const simH_rev = Math.max(strSimilarity(p.rawHome || '', betTeams.away),
+                                strSimilarity(p.normHome.team, betTeams.away));
+      const simA_rev = Math.max(strSimilarity(p.rawAway || '', betTeams.home),
+                                strSimilarity(p.normAway.team || '', betTeams.home));
+      const teamSimFwd = (simH_fwd + simA_fwd) / 2;
+      const teamSimRev = (simH_rev + simA_rev) / 2;
 
       const isReversed    = teamSimRev > teamSimFwd;
       const teamSim       = Math.max(teamSimFwd, teamSimRev);
       const datePx        = dateProximityScore(bet.date, imageDate);
-      const teamNormConf  = (p.normHome.confidence + (p.normAway.confidence || 0.5)) / 2;
+      // v2.0: teamNormConf는 항상 1.0 (raw 정책). baseConf에서 팀명 신뢰도 가중치 제거.
       const hasDateSignal = !!(bet.date && imageDate);
 
       const oScore   = oddsScore(p.odds, bet.betmanOdds);
@@ -685,7 +845,8 @@ function matchBetToOcr(parsed, imageDate, ocrConf) {
         mktScore <= 0.35  ? 0.85 :   // OCR有/bet無 → 약한 제약
         1.0;                          // 그 외 → 페널티 없음
 
-      const baseConf    = (teamSimFinal * 0.55 + datePx * 0.20 + teamNormConf * 0.25) * mktPenalty;
+      // v2.0: teamNormConf 제거 → teamSimFinal 0.75 + datePx 0.25
+      const baseConf    = (teamSimFinal * 0.75 + datePx * 0.25) * mktPenalty;
       const dateDecayed = hasDateSignal ? baseConf : baseConf * NO_DATE_DECAY;
       // ── confidence 상한 캡 적용 ───────────────────────────
       const finalConf   = Math.min(
