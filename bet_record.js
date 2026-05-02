@@ -2700,19 +2700,31 @@ function updateAll() {
   try { updateSlumpBanner(); } catch(e) { console.warn('updateSlumpBanner', e); }
   try { checkAutoRoundReset(); } catch(e) { console.warn('checkAutoRoundReset', e); }
   try { loadSettingsDisplay(); } catch(e) { console.warn('loadSettingsDisplay', e); }
-  const _SS2 = window._SS;
-  const resolved = bets.filter(b => b.result !== 'PENDING');
-  const totalBets    = _SS2 ? _SS2.n        : resolved.length;
-  const winRate      = _SS2 ? _SS2.winRate * 100 : (totalBets > 0 ? resolved.filter(b=>b.result==='WIN').length / totalBets * 100 : 0);
-  const totalProfit  = _SS2 ? _SS2.totalProfit  : resolved.reduce((s,b)=>s+b.profit,0);
-  const totalInvested= _SS2 ? _SS2.totalInvest  : resolved.reduce((s,b)=>s+b.amount,0);
-  const roi          = _SS2 ? _SS2.roi           : (totalInvested > 0 ? totalProfit/totalInvested*100 : 0);
-  const avgOdds      = _SS2 ? _SS2.avgOdds       : (totalBets > 0 ? resolved.reduce((s,b)=>s+b.betmanOdds,0)/totalBets : 0);
+  // KPI 카드 — _SS 단일 소스, scope 전환 연동
+  updateDashboardKPI();
+  renderTable();
+  renderRecentTable();
+  updateCharts();
+}
 
-  const valueBets    = resolved.filter(b => b.isValue);
+// ── 대시보드 KPI 카드 갱신 — scope 전환 시에도 호출됨 ──
+// refreshAllUI() + updateAll() 양쪽에서 호출. _SS 단일 소스.
+function updateDashboardKPI() {
+  const SS = window._SS;
+  if (!SS) return;
+
+  const totalBets     = SS.n;
+  const winRate       = SS.winRate * 100;
+  const totalProfit   = SS.totalProfit;
+  const totalInvested = SS.totalInvest;
+  const roi           = SS.roi;
+  const avgOdds       = SS.avgOdds;
+
+  // valueBets — SS.resolved 기반 (scope 반영)
+  const valueBets    = SS.resolved.filter(b => b.isValue);
   const valueWins    = valueBets.filter(b => b.result === 'WIN');
   const valueWinRate = valueBets.length > 0 ? (valueWins.length / valueBets.length * 100) : 0;
-  const oddsCount    = resolved.filter(b => b.betmanOdds > 0).length;
+  const oddsCount    = SS.resolved.filter(b => b.betmanOdds > 0).length;
 
   // Header
   const _htb = document.getElementById('h-total-bets'); if (_htb) _htb.textContent = totalBets;
@@ -2735,27 +2747,27 @@ function updateAll() {
     }
   }
 
-  // 평균 배당
   const _dao = document.getElementById('d-avg-odds');
   const _daol = document.getElementById('d-avg-odds-label');
-  if (_dao) { _dao.textContent = avgOdds > 0 ? avgOdds.toFixed(2) : '—'; }
+  if (_dao)  { _dao.textContent  = avgOdds > 0 ? avgOdds.toFixed(2) : '—'; }
   if (_daol) { _daol.textContent = oddsCount > 0 ? `${oddsCount}건 평균` : '결과 있는 베팅 기준'; }
 
-  const _dvw = document.getElementById('d-value-winrate');   if (_dvw) _dvw.textContent = `${valueWinRate.toFixed(1)}%`;
-  const _dvf = document.getElementById('d-value-fill');      if (_dvf) _dvf.style.width = `${valueWinRate}%`;
+  const _dvw = document.getElementById('d-value-winrate'); if (_dvw) _dvw.textContent = `${valueWinRate.toFixed(1)}%`;
+  const _dvf = document.getElementById('d-value-fill');    if (_dvf) _dvf.style.width  = `${valueWinRate}%`;
   const dRoi = document.getElementById('d-roi');
   if (dRoi) { dRoi.textContent = `${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`; dRoi.className = `stat-val ${roi >= 0 ? 'green' : 'red'}`; }
-  const _drn = document.getElementById('d-roi-note');        if (_drn) _drn.textContent = totalBets > 0 ? `${totalBets}경기 기준` : '베팅 기록을 추가하세요';
-
-  renderTable();
-  renderRecentTable();
-  updateCharts();
+  const _drn = document.getElementById('d-roi-note'); if (_drn) _drn.textContent = totalBets > 0 ? `${totalBets}경기 기준` : '베팅 기록을 추가하세요';
 }
 
 function renderRecentTable() {
   const tbody = document.getElementById('recent-table');
   if (!tbody) return;
-  const recent = [...bets].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 8);
+  // scope 기반 — SS.resolved + pending 합산 후 최신순 8건
+  const SS  = window._SS;
+  const _sb = SS
+    ? [...SS.resolved, ...(typeof getBetsByScope === 'function' ? getBetsByScope().filter(b => b.result === 'PENDING') : [])]
+    : (typeof getBetsByScope === 'function' ? getBetsByScope() : bets);
+  const recent = [..._sb].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 8);
   if (recent.length === 0) {
     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:24px;">베팅 기록이 없습니다.</td></tr>';
     return;

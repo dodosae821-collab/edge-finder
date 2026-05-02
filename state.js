@@ -173,8 +173,12 @@ function refreshAllUI() {
   calcSystemState();
 
   // ── 2. 대시보드 공통 컴포넌트 ──
-  if (typeof updateCharts         === 'function') updateCharts();
-  if (typeof updateJudgePanel     === 'function') updateJudgePanel();
+  if (typeof updateCharts             === 'function') updateCharts();
+  if (typeof updateJudgePanel         === 'function') updateJudgePanel();
+  // 대시보드 KPI 카드 — scope 전환 시에도 반드시 갱신
+  if (typeof updateFundCards          === 'function') updateFundCards();
+  if (typeof updateDashboardKPI       === 'function') updateDashboardKPI();
+  if (typeof updateDashboardRoundStats=== 'function') updateDashboardRoundStats();
 
   // ── 3. 현재 활성 탭 전용 업데이트 ──
   const page = (typeof activePage !== 'undefined') ? activePage : '';
@@ -236,6 +240,23 @@ function getCalibCorrFactor(corrFactor, resolvedCount) {
   const cf = Math.min(corrFactor, 1.0); // 과소추정(>1)은 보정 안 함
   if (resolvedCount < 50) return 1.0 + (cf - 1.0) * 0.5;
   return cf;
+}
+
+// ============================================================
+// ▶ getAdaptiveMultiplier(roi, sampleSize) — Adaptive Multiplier
+//   최근 30건 ROI 기반으로 켈리 배율을 동적 조정.
+//   ROI 극단값은 호출 전 ±20 클램프 적용할 것.
+//   샘플 부족(10건 미만) 시 중립값 1.0 반환.
+// ============================================================
+function getAdaptiveMultiplier(roi, sampleSize) {
+  if (sampleSize < 10) return 1.0;
+
+  if (roi >= 10)       return 1.2;   // 고성과 — 소폭 공격
+  if (roi >= 5)        return 1.1;   // 양호
+  if (roi >= 0)        return 1.0;   // 중립
+  if (roi >= -5)       return 0.9;   // 경미한 부진
+  if (roi >= -10)      return 0.75;  // 부진
+  return 0.6;                        // 심각한 부진
 }
 
 // ▶ calcSystemState() — 중앙 계산 엔진
@@ -378,8 +399,65 @@ function calcSystemState() {
   const maxBetPct  = appSettings.maxBetPct || 5;
   const maxUnit    = bankroll > 0 ? Math.floor(bankroll * maxBetPct / 100) : Infinity;
   const gradeAdj   = appSettings.kellyGradeAdj && grade ? grade.mult : 1.0;
-  const unitRaw    = seed > 0 ? Math.floor(seed / 12 * gradeAdj) : 0;
-  const kellyUnit  = seed > 0 ? Math.min(unitRaw, maxUnit) : 0;
+  const baseKelly  = seed > 0 ? Math.floor(seed / 12 * gradeAdj) : 0;
+
+  // ===== Adaptive Multiplier Block =====
+
+  // [수정5] PENDING / VOID 제외 — WIN·LOSE 확정 결과만 사용
+  const allResolved = bets.filter(b => b.result === 'WIN' || b.result === 'LOSE');
+
+  // 최신순 정렬
+  const _getTime = (b) => new Date(b.savedAt || b.date || 0).getTime();
+
+  const recent = [...allResolved]
+    .sort((a, b) => _getTime(b) - _getTime(a))
+    .slice(0, 30);
+
+  // ROI 계산 (분모 0 방어)
+  const totalAmt = recent.reduce((s, b) => s + (b.amount || 0), 0);
+
+  const rec30roi = totalAmt > 0
+    ? recent.reduce((s, b) => s + (b.profit || 0), 0) / totalAmt * 100
+    : 0;
+
+  // 극단값 방어
+  const rec30roiClamped = Math.max(-20, Math.min(20, rec30roi));
+
+  // multiplier 계산
+  let adaptiveMultiplier = getAdaptiveMultiplier(rec30roiClamped, recent.length);
+
+  // [수정2] prevMultiplier 안정화 — NaN / Infinity / undefined 방어
+  const _prevMult = Number.isFinite(window._prevMultiplier)
+    ? window._prevMultiplier
+    : 1;
+
+  // 히스테리시스 — 변화폭 0.05 미만이면 이전 값 유지
+  if (Math.abs(_prevMult - adaptiveMultiplier) < 0.05) {
+    adaptiveMultiplier = _prevMult;
+  }
+
+  window._prevMultiplier = adaptiveMultiplier;
+
+  // [수정3] 손실 방어 — 최근 10건 중 손실 7건 이상이면 강제 축소
+  const recent10 = recent.slice(0, 10);
+  const recentLossCount = recent10.filter(b => b.profit < 0).length;
+  if (recentLossCount >= 7) {
+    adaptiveMultiplier *= 0.7;
+  }
+
+  // [수정4] 손실 방어 적용 후 안전 clamp (0.5 ~ 1.2)
+  adaptiveMultiplier = Math.max(0.5, Math.min(1.2, adaptiveMultiplier));
+
+  // ===== End Adaptive Block =====
+
+  // [수정1] kellyUnit clamp 순서 — 상한(maxUnit) 먼저, 하한(MIN_BET) 나중
+  const MIN_BET = 1000;
+  let kellyUnit = 0;
+  if (seed > 0) {
+    kellyUnit = Math.floor(baseKelly * adaptiveMultiplier); // 기본 계산
+    kellyUnit = Math.min(maxUnit, kellyUnit);               // 상한 먼저
+    kellyUnit = Math.max(MIN_BET, kellyUnit);               // 하한 나중
+  }
 
   // ── 5. 목표 달성 시뮬레이션 (보정된 켈리 반영) ────────────
   const goalTarget = appSettings.targetFund || 0;
@@ -472,6 +550,7 @@ function calcSystemState() {
     grade,
     // 켈리
     seed, bankroll, kellyUnit, gradeAdj, maxUnit,
+    rec30roi, multiplier: adaptiveMultiplier,
     // 목표
     goalTarget, goalSim,
     // 종합판단
