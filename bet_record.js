@@ -527,7 +527,32 @@ function clearEV() {
 }
 
 // ========== BET RECORD ==========
+// ── storage 키 단일 상수 — 파일 전체에서 이 상수만 참조 ──
+const STORAGE_KEY = 'edge_bets';
+
+/** bets 직렬화 헬퍼 — stringify 실패 시 명확한 에러 던짐 (세 케이스 공통) */
+function _serializeBets() {
+  try {
+    return JSON.stringify(bets);
+  } catch (e) {
+    throw new Error('[storage] serialization failed: ' + e.message);
+  }
+}
+
+// [F] 중복 실행 가드 — 이벤트 연타 방지 (모듈 스코프, HTML 수정 불필요)
+let _adding = false;
+
 function addBet() {
+  if (_adding) return;
+  _adding = true;
+  try {
+    _addBetCore();
+  } finally {
+    _adding = false;   // 예외 발생 시에도 반드시 해제
+  }
+}
+
+function _addBetCore() {
   const sports = getSelectedVals('sport');
   const types  = getSelectedVals('type');
   const mode   = document.getElementById('r-betmode').value;
@@ -667,24 +692,96 @@ function addBet() {
     betData.calibProb    = null;
   }
 
+  // [E] 원자성 보장 — committed true 이후에만 UI 실행
+  let committed = false;
+
   if (editId) {
-    // 수정 모드 — 기존 기록 덮어쓰기
+    // 수정 모드 — 기존 기록 덮어쓰기 (remaining 재차감 없음)
     const idx = bets.findIndex(b => String(b.id) === String(editId));
     if (idx !== -1) {
+      const oldAmount = bets[idx].amount || 0;
       bets[idx] = { ...bets[idx], ...betData };
+      const diff = betData.amount - oldAmount;
+      if (diff !== 0 && typeof applyRoundBet === 'function') {
+        if (diff > 0) applyRoundBet(diff);
+        else if (typeof refundRoundBet === 'function') refundRoundBet(-diff);
+      }
     }
+    try {
+      const serialized = _serializeBets();
+      localStorage.setItem(STORAGE_KEY, serialized);
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved || saved.length !== serialized.length || saved !== serialized) {
+        throw new Error('[storage] write verification failed');
+      }
+      committed = true;
+    } catch (e) { throw e; }
+
   } else if (isDouble) {
-    // 2개 생성 모드
-    bets.push({ id: Date.now(),     ...betData });
-    bets.push({ id: Date.now() + 1, ...betData });
+    // [A] 객체 생성 → roundId 주입 (betData mutate 방지)
+    const bet1 = { id: Date.now(),     ...betData };
+    const bet2 = { id: Date.now() + 1, ...betData };
+    if (typeof attachRoundToBet === 'function') { attachRoundToBet(bet1); attachRoundToBet(bet2); }
+    const amount1 = Number(bet1.amount) || 0;
+    const amount2 = Number(bet2.amount) || 0;
+    // [G] 디버그 로그 (DEV 전용) — 로직은 단일 경로, 로그만 조건부
+    const _dbg1Before = window.__DEV__ ? getActiveRound()?.remaining : null;
+    const _dbg2Before = window.__DEV__ ? getActiveRound()?.remaining : null;
+    try {
+      // [B] applyRoundBet — 단일 실행 흐름, 플래그 없이 직접 호출
+      applyRoundBet?.(amount1);
+      if (window.__DEV__) console.log('[ROUND] bet1', { before: _dbg1Before, delta: amount1, after: getActiveRound()?.remaining });
+      applyRoundBet?.(amount2);
+      if (window.__DEV__) console.log('[ROUND] bet2', { before: _dbg2Before, delta: amount2, after: getActiveRound()?.remaining });
+      bets.push(bet1);
+      bets.push(bet2);
+      const serialized = _serializeBets();
+      localStorage.setItem(STORAGE_KEY, serialized);
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved || saved.length !== serialized.length || saved !== serialized) {
+        throw new Error('[storage] write verification failed');
+      }
+      committed = true;
+    } catch (e) {
+      refundRoundBet?.(amount1);  // 롤백
+      refundRoundBet?.(amount2);
+      throw e;
+    }
+
   } else {
-    bets.push({ id: Date.now(), ...betData });
+    // [A] 객체 생성 → roundId 주입 → push (betData mutate 방지)
+    const bet = { id: Date.now(), ...betData };
+    if (typeof attachRoundToBet === 'function') attachRoundToBet(bet);
+    const amount = Number(bet.amount) || 0;
+    // [G] 디버그 로그 (DEV 전용) — 로직은 단일 경로, 로그만 조건부
+    const _dbgBefore = window.__DEV__ ? getActiveRound()?.remaining : null;
+    try {
+      // [B][E] applyRoundBet → push → storage 원자 실행
+      applyRoundBet?.(amount);
+      if (window.__DEV__) {
+        const _dbgAfter = getActiveRound()?.remaining;
+        console.log('[ROUND]', { before: _dbgBefore, delta: amount, after: _dbgAfter });
+      }
+      bets.push(bet);
+      const serialized = _serializeBets();
+      localStorage.setItem(STORAGE_KEY, serialized);
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved || saved.length !== serialized.length || saved !== serialized) {
+        throw new Error('[storage] write verification failed');
+      }
+      committed = true;
+    } catch (e) {
+      refundRoundBet?.(amount);   // 롤백
+      throw e;
+    }
   }
 
-  localStorage.setItem('edge_bets', JSON.stringify(bets));
-  _gdriveAutoSync();
-  clearRecordForm();
-  updateAll();
+  // [E] storage 커밋 성공 이후에만 UI 실행
+  if (committed) {
+    _gdriveAutoSync?.();
+    clearRecordForm?.();
+    updateAll?.();
+  }
 }
 
 function setEvDirect(isEv) {
@@ -1281,15 +1378,27 @@ function resolvebet(id, result) {
   bet.profit = result === 'WIN'
     ? bet.amount * (bet.betmanOdds - 1)
     : -bet.amount;
-  localStorage.setItem('edge_bets', JSON.stringify(bets));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(bets));
   updateAll();
   renderTable();
 }
 
 function deleteBet(id) {
+  const _delTarget = bets.find(b => String(b.id) === String(id));
+  // [C] remaining 환원 — 현재 회차 소속 베팅일 때만 복구 (null-safe + 회차 일치)
+  const _activeRound = (typeof getActiveRound === 'function') ? getActiveRound() : null;
+  if (
+    _delTarget &&
+    _activeRound &&
+    _delTarget.roundId === _activeRound.id &&
+    typeof refundRoundBet === 'function'
+  ) {
+    refundRoundBet(_delTarget.amount || 0);
+  }
   bets = bets.filter(b => String(b.id) !== String(id));
-  localStorage.setItem('edge_bets', JSON.stringify(bets));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(bets));
   updateAll();
+  renderTable();
 }
 
 function toggleDouble() {
@@ -1668,7 +1777,7 @@ function clearAll() {
   if (!confirm('⚠️ 경고: 모든 베팅 기록이 영구 삭제됩니다.\n\n복구가 불가능합니다. 정말 삭제하시겠습니까?')) return;
   if (!confirm('마지막 확인입니다.\n전체 베팅 기록 ' + bets.length + '건을 삭제합니다.')) return;
   bets = [];
-  localStorage.setItem('edge_bets', JSON.stringify(bets));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(bets));
   // 필터 초기화
   const fs = document.getElementById('filter-sport');   if (fs) fs.value = 'ALL';
   const fr = document.getElementById('filter-result');  if (fr) fr.value = 'ALL';
@@ -1794,7 +1903,7 @@ function restoreData(e) {
       if (!confirm(`백업 파일에서 ${data.bets.length}개의 기록을 불러옵니다. 기존 데이터가 덮어쓰기 됩니다. 계속하시겠습니까?`)) return;
       bets = data.bets;
       if (data.settings) { appSettings = data.settings; localStorage.setItem('edge_settings', JSON.stringify(appSettings)); }
-      localStorage.setItem('edge_bets', JSON.stringify(bets));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(bets));
       loadSettingsDisplay();
       updateAll();
       alert(`✅ ${bets.length}개의 베팅 기록을 성공적으로 불러왔습니다.`);
@@ -1824,7 +1933,7 @@ function handleCSV(e) {
                    bet.result === 'LOSE' ? -bet.amount : 0;
       bets.push(bet);
     });
-    localStorage.setItem('edge_bets', JSON.stringify(bets));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(bets));
     updateAll();
     alert(`CSV 로드 완료!`);
   };
@@ -2622,7 +2731,7 @@ function confirmFolderResults() {
   bet.folderResults = results;
   bet.result = 'LOSE';
   bet.profit = -bet.amount;
-  localStorage.setItem('edge_bets', JSON.stringify(bets));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(bets));
   closeFolderResultModal();
   updateAll();
   renderTable();
