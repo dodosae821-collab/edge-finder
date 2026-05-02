@@ -235,64 +235,101 @@ function calcKelly() {
     const p = _adjProbPct / 100;
     const q = 1 - p;
     const b = _adjOdds - 1;
-    const k = (p * b - q) / b;  // Full Kelly
+    let k = (p * b - q) / b;  // Full Kelly
+    // 🔒 NaN/Infinity 방어 — odds 이상값·p 경계값으로 발생 가능, UI 깨짐·multiplier 폭주 차단
+    if (!Number.isFinite(k)) k = 0;
 
     // raw Kelly (비교/경고용)
     const pRaw = _rawProbPct / 100;
-    const kellyRawProb = ((pRaw * b - (1 - pRaw)) / b);
+    let kellyRawProb = ((pRaw * b - (1 - pRaw)) / b);
+    if (!Number.isFinite(kellyRawProb)) kellyRawProb = 0;
+
+    // [B] kDisplay — UI 표시용 클램프 [-0.25 ~ 0.25] (내부 계산 k는 원본 그대로 유지)
+    const kDisplay = Math.min(Math.max(k, -0.25), 0.25);
+
+    // [A] 전역 Kelly 상태 — window.__kellyState (네임스페이스 보호, 함수 오염 방지)
+    window.__kellyState = window.__kellyState || {};
+    const ks = window.__kellyState;
 
     // 3. multiplier 구간 결정 (Kelly 직접 금액 계산 금지)
-    //    [A] k ≤ 0 분기: 강한 EV-(k < -0.05) → 완전 스킵 / 약한 EV- → ×0.5 최소 유지
+    // [A] 히스테리시스: k<-0.05 → 차단 / -0.05≤k≤-0.03 → 이전 상태 유지 / k>-0.03 → 해제
+    //     경계값 흔들림(UI 깜빡임·판단 불안정) 방지
+    ks.lastSkipped = ks.lastSkipped ?? false;
+    const prevSkipped = ks.lastSkipped;
+    let skipped = false;
+    if      (k < -0.05)  skipped = true;         // 강한 EV- → 완전 차단
+    else if (k <= -0.03) skipped = prevSkipped;  // 히스테리시스 영역 → 이전 상태 유지
+    else                 skipped = false;         // k > -0.03 → 정상 운영
+    ks.lastSkipped = skipped;                     // 상태 저장 (함수 스코프 오염 없음)
+
     let multiplier;
-    let skipped = false; // 강한 EV- 스킵 플래그
-    if (k < -0.05) {
-      skipped = true;    // 강한 EV- → 베팅 완전 차단, hybridKelly에 skipped 전달
-    } else if (k <= 0) {
-      multiplier = 0.5;  // 약한 EV- (-0.05 ~ 0) → 최소 베팅 유지 (데이터 축적)
-    } else if (k < 0.03) multiplier = 0.9;   // 약 EV+ (엣지 매우 낮음, 리스크 축소)
-    else if (k < 0.07)   multiplier = 1.0;   // 기본 유지
-    else if (k < 0.12)   multiplier = 1.1;   // Kelly +8%대  → +10%
-    else if (k < 0.20)   multiplier = 1.2;   // Kelly +15%대 → +20%
-    else                 multiplier = 1.3;   // 강한 EV+     → +30%
+    if (!skipped) {
+      // 1. 구간 결정 (rawMultiplier 기준)
+      if      (k <= 0)   multiplier = 0.5;  // 약한 EV- (-0.03~0) → 최소 베팅 유지
+      else if (k < 0.03) multiplier = 0.9;  // 약 EV+ (엣지 매우 낮음, 리스크 축소)
+      else if (k < 0.07) multiplier = 1.0;  // 기본 유지
+      else if (k < 0.12) multiplier = 1.1;  // Kelly +8%대  → +10%
+      else if (k < 0.20) multiplier = 1.2;  // Kelly +15%대 → +20%
+      else               multiplier = 1.3;  // 강한 EV+     → +30%
 
-    // 강한 EV- → hybridKelly를 null로 두고 skipped 플래그만 전달
-    if (skipped) {
+      // 🔒 multiplier 하한선 고정 — 로직 오류로 0 이하 진입 완전 차단 (rawMultiplier 전에 적용)
+      multiplier = Math.max(0.5, multiplier);
+
+      // [C] streak 기반 연속 고배율 제한 (raw 기준으로 집계 → 완화 적용 → raw 기준 저장)
+      const rawMultiplier = multiplier;
+      const prevStreak = ks.highMultStreak || 0;
+      const nextStreak = rawMultiplier >= 1.2 ? prevStreak + 1 : 0;  // 2. streak 판단 (raw 기준)
+
+      // 3. 완화 적용
+      let consecutiveDampened = false;
+      if (nextStreak >= 2) {
+        multiplier = 1.1;         // 연속 2회 이상 고배율 → 자동 완화
+        consecutiveDampened = true;
+      }
+
+      // 4. streak·lastMultiplier 저장 (raw 기준 — 완화된 값 반영 안 함)
+      ks.highMultStreak = nextStreak;
+      ks.lastMultiplier = rawMultiplier;  // 디버깅·로그·튜닝용
+
+      // 🔒 finalBet 안전 보정: Floor(소수점 제거·보수적) + max(0) 음수 차단
+      const finalBet = Math.max(0, Math.floor(base * multiplier));
+      const kellyApplied = true; // k≤0(×0.5) 포함 항상 multiplier 적용
+
+      // EV 판단
+      const evCalibPositive = k > 0;
+      const evRawPositive   = kellyRawProb > 0;
+      const isCritical      = evRawPositive && !evCalibPositive;
+
+      // 내재확률 & EV 수치
+      const impliedProb = (1 / _adjOdds * 100);
+      const evCalib = (p * b) - q;
+      const evRaw   = (pRaw * b) - (1 - pRaw);
+
+      const bankroll = getCurrentBankroll() || appSettings.startFund || seed;
+
       hybridKelly = {
-        skipped: true, kellyRaw: k, base,
-        calibProb: _adjProbPct, impliedProb: (1 / _adjOdds * 100), odds: _adjOdds,
-        evCalib: (p * b) - q
+        skipped: false,
+        base, baseBet: base, finalBet, kellyApplied,
+        kellyRaw: k, kDisplay, multiplier, rawMultiplier,
+        consecutiveDampened,
+        evCalib, evRaw, evCalibPositive, evRawPositive, isCritical,
+        calibProb: _adjProbPct, rawProb: _rawProbPct,
+        impliedProb, odds: _adjOdds,
+        n: ss ? ss.n : 0, ece: ss ? ss.ece : null,
+        bankroll,
+        diffProbPct: (_adjProbPct - _rawProbPct).toFixed(1),
+        diffEv: (evCalib - evRaw).toFixed(3)
       };
-      // if 블록 종료 후 아래 정상 hybridKelly 할당 건너뜀
     } else {
-
-    // 4. finalBet = base × multiplier (cap 없음, 구간만으로 제어)
-    const finalBet = Math.round(base * multiplier);
-    const kellyApplied = true; // k≤0(×0.5) 포함 항상 multiplier 적용
-
-    // EV 판단
-    const evCalibPositive = k > 0;
-    const evRawPositive   = kellyRawProb > 0;
-    const isCritical      = evRawPositive && !evCalibPositive; // raw+ / calib- 패턴
-
-    // 내재확률 & EV 수치
-    const impliedProb = (1 / _adjOdds * 100);
-    const evCalib = (p * b) - q;
-    const evRaw   = (pRaw * b) - (1 - pRaw);
-
-    const bankroll = getCurrentBankroll() || appSettings.startFund || seed;
-
-    hybridKelly = {
-      skipped: false,
-      base, baseBet: base, finalBet, kellyApplied,
-      kellyRaw: k, multiplier,
-      evCalib, evRaw, evCalibPositive, evRawPositive, isCritical,
-      calibProb: _adjProbPct, rawProb: _rawProbPct,
-      impliedProb, odds: _adjOdds,
-      n: ss ? ss.n : 0, ece: ss ? ss.ece : null,
-      bankroll,
-      diffProbPct: (_adjProbPct - _rawProbPct).toFixed(1),
-      diffEv: (evCalib - evRaw).toFixed(3)
-    };
+      // 강한 EV- / 히스테리시스 스킵 → 별도 카드 렌더
+      ks.highMultStreak = 0;  // 스킵 구간에서 streak 리셋
+      hybridKelly = {
+        skipped: true,
+        kellyRaw: k, kDisplay, base,
+        calibProb: _adjProbPct, impliedProb: (1 / _adjOdds * 100), odds: _adjOdds,
+        evCalib: (p * b) - q,
+        inHysteresis: (k >= -0.05 && k <= -0.03)
+      };
     } // end skipped else
   }
   if (_SS) { _SS.hybridKelly = hybridKelly; }
@@ -359,9 +396,11 @@ function calcKelly() {
     if (auxRowEl)   auxRowEl.style.display = 'none';
     if (warnRowEl) {
       warnRowEl.style.display = 'block';
-      warnRowEl.innerHTML = `
-        <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:2px;">🚫 강한 EV- 차단 (k = ${hk.kellyRaw.toFixed(3)} &lt; -0.05)</div>
-        <div style="font-size:10px;color:var(--text3);">보정확률 ${hk.calibProb.toFixed(1)}% · 내재확률 ${hk.impliedProb.toFixed(1)}% — 이 베팅은 명확한 손실 구조입니다</div>`;
+      warnRowEl.innerHTML = hk.inHysteresis
+        ? `<div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:2px;">🔒 히스테리시스 유지 (k = ${hk.kellyRaw.toFixed(3)}, 경계 구간 -0.05~-0.03)</div>
+           <div style="font-size:10px;color:var(--text3);">k > -0.03 되면 자동 복귀. 이전 차단 상태 유지 중.</div>`
+        : `<div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:2px;">🚫 강한 EV- 차단 (k = ${hk.kellyRaw.toFixed(3)} &lt; -0.05)</div>
+           <div style="font-size:10px;color:var(--text3);">보정확률 ${hk.calibProb.toFixed(1)}% · 내재확률 ${hk.impliedProb.toFixed(1)}% — 이 베팅은 명확한 손실 구조입니다</div>`;
       warnRowEl.style.background = 'rgba(255,59,92,0.08)';
       warnRowEl.style.borderTopColor = 'rgba(255,59,92,0.3)';
     }
@@ -375,6 +414,8 @@ function calcKelly() {
     //   0.05 ≤ k < 0.12 → 회색  (중립/기본)
     //   k ≥ 0.12        → 초록  (강한 EV+)
     const k_val = hk.kellyRaw;
+    // [B] 렌더용 클램프 (내부 k_val은 색상 분기에 그대로 사용)
+    const kDisp = hk.kDisplay !== undefined ? hk.kDisplay : Math.min(Math.max(k_val,-0.25),0.25);
     const colorByK = k_val <= 0      ? 'var(--red)'
                    : k_val < 0.05    ? '#ff9800'
                    : k_val < 0.12    ? 'var(--text2)'
@@ -390,11 +431,11 @@ function calcKelly() {
 
     // [B] multiplier → 문구 (의미 명시, 약 EV+ 설명 포함)
     const multPctMap = {
-      0.5: `약한 EV- (k=${k_val.toFixed(3)}) → ×0.5 최소 베팅`,
+      0.5: `약한 EV- (k=${kDisp.toFixed(3)}) → ×0.5 최소 베팅`,
       0.9: `약 EV+ (엣지 매우 낮음, 리스크 축소) → ×0.9`,
-      1.0: `기본 유지 (k=${k_val.toFixed(3)}) → ×1.0`,
-      1.1: `Kelly +8%대 (k=${k_val.toFixed(3)}) → ×1.1 (+10%)`,
-      1.2: `Kelly +15%대 (k=${k_val.toFixed(3)}) → ×1.2 (+20%)`,
+      1.0: `기본 유지 (k=${kDisp.toFixed(3)}) → ×1.0`,
+      1.1: `Kelly +8%대 (k=${kDisp.toFixed(3)}) → ×1.1 (+10%)${hk.consecutiveDampened ? ' ⬇연속완화' : ''}`,
+      1.2: `Kelly +15%대 (k=${kDisp.toFixed(3)}) → ×1.2 (+20%)`,
       1.3: `강한 EV+ (k≥0.20) → ×1.3 (+30%)`
     };
     const adjLabel = multPctMap[hk.multiplier] || `×${hk.multiplier}`;
@@ -450,7 +491,7 @@ function calcKelly() {
         // 약한 EV- (−0.05 ~ 0) → 최소 베팅 경고
         warnRowEl.style.display = 'block';
         warnRowEl.innerHTML = `
-          <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:2px;">⚠️ 약한 EV- (k=${k_val.toFixed(3)}) → ×0.5 최소 베팅 유지</div>
+          <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:2px;">⚠️ 약한 EV- (k=${kDisp.toFixed(3)}) → ×0.5 최소 베팅 유지</div>
           <div style="font-size:10px;color:var(--text3);">보정확률 ${hk.calibProb.toFixed(1)}% · 내재확률 ${hk.impliedProb.toFixed(1)}% — 데이터 축적 목적, 베팅 근거 재검토 권장</div>`;
         warnRowEl.style.background = 'rgba(255,152,0,0.06)';
         warnRowEl.style.borderTopColor = 'rgba(255,152,0,0.3)';
@@ -458,7 +499,7 @@ function calcKelly() {
         // 약 EV+ (리스크 축소 구간) 안내
         warnRowEl.style.display = 'block';
         warnRowEl.innerHTML = `
-          <div style="font-size:11px;font-weight:700;color:#ff9800;margin-bottom:2px;">🟡 약 EV+ (리스크 축소 구간) · k=${k_val.toFixed(3)}</div>
+          <div style="font-size:11px;font-weight:700;color:#ff9800;margin-bottom:2px;">🟡 약 EV+ (리스크 축소 구간) · k=${kDisp.toFixed(3)}</div>
           <div style="font-size:10px;color:var(--text3);">엣지가 매우 낮아 소폭 축소(×0.9) 적용. 확신이 낮은 베팅은 신중하게.</div>`;
         warnRowEl.style.background = 'rgba(255,152,0,0.04)';
         warnRowEl.style.borderTopColor = 'rgba(255,152,0,0.2)';

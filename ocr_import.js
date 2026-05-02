@@ -344,6 +344,14 @@ function splitTeamHandicap(raw) {
   return { team: teamPart, handicap: parseFloat(m[2]) };
 }
 
+// OCR 노이즈 제거 — 팀명 앞뒤 구두점·특수문자 strip
+// ex) "투산." → "투산",  ".한화" → "한화",  "(552)" → "(552)" (isValidTeam에서 차단)
+function _cleanTeamToken(t) {
+  if (!t) return t;
+  // 앞뒤 구두점/기호 제거 (한글·영문·숫자는 보존)
+  return t.replace(/^[^가-힣a-zA-Z0-9]+|[^가-힣a-zA-Z0-9]+$/g, '').trim();
+}
+
 // 예상결과 토큰 목록
 const PICK_TOKENS = new Set(['승', '패', '무', '홈승', '원정승', '오버', '언더', '오버언더']);
 
@@ -429,10 +437,14 @@ function parseProtoRow(line) {
     if (!isValidTeam(h) || !isValidTeam(a)) return null;
     const { marketType, rest: lp } = extractMarketPrefix(line);
     const nm = lp.match(/^(\*?)(\d{3,4})\s/);
+    // 팀명 후처리: 핸디캡 분리 + OCR 노이즈 제거
+    const homeClean = _cleanTeamToken(splitTeamHandicap(h).team);
+    const awayClean = _cleanTeamToken(splitTeamHandicap(a).team);
+    if (!isValidTeam(homeClean) || !isValidTeam(awayClean)) return null;
     return {
       gameNum: nm ? nm[2] : null, isBetTarget: nm ? nm[1] === '*' : false,
-      marketType, rawHome: h, rawAway: a,
-      handicap: null, pick, odds, rawLine: line,
+      marketType, rawHome: homeClean, rawAway: awayClean,
+      handicap: splitTeamHandicap(h).handicap, pick, odds, rawLine: line,
     };
   }
 
@@ -462,6 +474,10 @@ function parseProtoRow(line) {
       console.log('[OCR parseProtoRow fallback:center-split]', { line, tokens, mid, homeRaw, awayRaw });
     }
   }
+
+  // ── 팀명 후처리: 핸디캡 분리 + OCR 노이즈(마침표 등) 제거 ──────────────────
+  homeRaw = _cleanTeamToken(splitTeamHandicap(homeRaw).team);
+  awayRaw = _cleanTeamToken(splitTeamHandicap(awayRaw).team);
 
   // ── 최종 검증: home/away 기준으로만 (line 기준 필터 없음) ──────────────────
   // OCR은 줄 구조가 깨지므로 line 단위 필터는 정상 데이터까지 제거함

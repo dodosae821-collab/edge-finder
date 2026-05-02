@@ -97,6 +97,118 @@ function updatePreview() {
   }
 }
 
+
+// ===== 원웨이 Kelly 판단 블록 =====
+
+// [0] multiplier 역산 (window._SS에 kellyMultiplier 없으므로)
+function getKellyMultiplier() {
+  const base = (appSettings.kellySeed || 0) / 12;
+  const kellyUnit = window._SS?.kellyUnit || 0;
+  if (!base || base <= 0) return 1;
+  const m = kellyUnit / base;
+  if (!Number.isFinite(m) || m <= 0) return 1;
+  // 안전 범위 제한 — streak 폭주 / NaN 방어
+  return Math.max(0.3, Math.min(m, 2.0));
+}
+
+// [9] 다폴 과신 방지 필터 (단폴 사용 금지)
+function applyMultiProbSafetyFilter({ p, odds, folderCount }) {
+  let safeP = p;
+
+  // 1. shrink — 폴더 수 증가에 따른 확률 축소
+  const shrink =
+    folderCount === 2 ? 0.92 :
+    folderCount === 3 ? 0.85 :
+    0.75;
+  safeP *= shrink;
+
+  // 2. breakeven cap — EV 과도 팽창 억제 (최대 +12% edge)
+  const breakeven = 1 / odds;
+  const maxEdge = 0.12;
+  safeP = Math.min(safeP, breakeven + maxEdge);
+
+  // 3. hard ceiling — 절대 확률 상한
+  const ceiling =
+    folderCount === 2 ? 0.65 :
+    folderCount === 3 ? 0.55 :
+    0.50;
+  safeP = Math.min(safeP, ceiling);
+
+  return Math.max(0, safeP);
+}
+
+// renderDecisionBlock — 순수 view-only (계산 금지, 전달값만 렌더)
+// params: { isMulti, ev, kelly, rawP, safeP, verdict, folderCount }
+function renderDecisionBlock({ isMulti, ev, kelly, rawP, safeP, verdict, folderCount }) {
+  const el = document.getElementById('oneway-kelly-card');
+  if (!el) return;
+
+  const base = (appSettings.kellySeed || 0) / 12;
+
+  // 색상/아이콘 맵
+  const vMap = {
+    GO:      { color: 'var(--green)',  bg: 'rgba(0,230,118,0.10)', icon: '✅', label: 'GO' },
+    CAUTION: { color: '#ff9800',       bg: 'rgba(255,152,0,0.10)', icon: '⚠️', label: 'CAUTION' },
+    WAIT:    { color: 'var(--gold)',   bg: 'rgba(255,215,0,0.08)', icon: '⏳', label: 'WAIT' },
+    PASS:    { color: 'var(--red)',    bg: 'rgba(255,59,92,0.10)', icon: '🚫', label: 'PASS' },
+    STOP:    { color: 'var(--red)',    bg: 'rgba(255,59,92,0.10)', icon: '🛑', label: 'STOP' },
+  };
+  const v = vMap[verdict] || vMap['WAIT'];
+
+  // EV 표시
+  const evColor = ev > 0.05 ? 'var(--green)' : ev > 0 ? 'var(--gold)' : 'var(--red)';
+  const evStr   = (ev >= 0 ? '+' : '') + (ev * 100).toFixed(1) + '%';
+
+  // Kelly 금액 표시
+  const kellyStr = base <= 0
+    ? '<span style="color:var(--text3);font-size:11px;">시드 설정 필요</span>'
+    : verdict === 'PASS'
+      ? '<span style="color:var(--red);font-weight:700;">₩0</span>'
+      : `<span style="color:var(--gold);font-weight:900;font-family:'JetBrains Mono',monospace;font-size:16px;">₩${kelly.toLocaleString()}</span>`;
+
+  // 변동성 태그 (다폴)
+  const varianceTag = isMulti
+    ? (folderCount === 2 ? '변동성 ↑' : folderCount === 3 ? '고변동' : '초고변동')
+    : '';
+
+  // 적중확률 표시 (다폴: 2단계)
+  const probHtml = isMulti ? `
+      <div style="margin-top:8px;padding:6px 8px;background:var(--bg2);border-radius:6px;font-size:11px;">
+        <span style="color:var(--text3);font-size:9px;letter-spacing:1px;">적중확률</span>
+        <span style="margin-left:6px;color:var(--text2);">
+          <span style="text-decoration:line-through;color:var(--text3);">${(rawP*100).toFixed(1)}%</span>
+          <span style="color:var(--gold);margin:0 4px;">→</span>
+          <span style="color:var(--gold);font-weight:700;">${(safeP*100).toFixed(1)}%</span>
+          <span style="color:var(--text3);font-size:10px;margin-left:4px;">(과신필터)</span>
+        </span>
+      </div>` : '';
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div style="padding:10px 14px;background:${v.bg};border:1px solid ${v.color}44;border-left:3px solid ${v.color};border-radius:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <span style="font-size:10px;color:var(--text3);letter-spacing:1px;font-weight:700;">⚡ 원웨이 판단${isMulti ? ` · ${folderCount}폴더` : ''}</span>
+        <span style="font-size:12px;font-weight:800;color:${v.color};">${v.icon} ${v.label}${isMulti && varianceTag ? ` <span style="font-size:10px;font-weight:400;">(${varianceTag})</span>` : ''}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div style="padding:8px;background:var(--bg2);border-radius:6px;text-align:center;">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:4px;letter-spacing:1px;">KELLY (이번 베팅)</div>
+          <div>${kellyStr}</div>
+        </div>
+        <div style="padding:8px;background:var(--bg2);border-radius:6px;text-align:center;">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:4px;letter-spacing:1px;">EV</div>
+          <div style="font-size:13px;font-weight:700;color:${evColor};">${evStr}</div>
+        </div>
+      </div>
+      ${probHtml}
+    </div>`;
+}
+
+function clearDecisionBlock() {
+  const el = document.getElementById('oneway-kelly-card');
+  if (el) el.style.display = 'none';
+}
+
 function updateLossRatio() {
   const amount  = parseFloat(document.getElementById('r-amount').value) || 0;
   const display = document.getElementById('loss-ratio-display');
@@ -213,6 +325,46 @@ function updateLossRatio() {
     } else {
       guide.style.display = 'none';
     }
+  }
+
+  // ── 원웨이 판단 블록 (단폴) ──
+  const _owOdds   = parseFloat(document.getElementById('r-betman-odds')?.value) || 0;
+  const _owProb   = parseFloat(document.getElementById('r-myprob-direct')?.value) || 0;
+  const _owMode   = document.getElementById('r-betmode')?.value || 'single';
+  if (_owMode === 'single' && _owOdds > 1 && _owProb > 0) {
+    const _owP      = _owProb / 100;
+    const pCalib    = typeof getCalibrated === 'function' ? getCalibrated(_owP) : _owP;
+    const acf       = getActiveCorrFactor();
+    const pAdj      = Math.max(0, pCalib * Math.min(acf, 1.0));
+
+    // [3] Kelly fraction (음수 방어)
+    const kellyFracRaw = (_owOdds * pAdj - 1) / (_owOdds - 1);
+    const kellyFrac    = Math.max(0, kellyFracRaw);
+
+    // [4] EV
+    const ev = pAdj * (_owOdds - 1) - (1 - pAdj);
+
+    // [5] 금액
+    const base       = (appSettings.kellySeed || 0) / 12;
+    const multiplier = getKellyMultiplier();
+    const finalBet   = Math.max(0, Math.floor(base * kellyFrac * multiplier));
+
+    // [8] verdict (EV<=0 or kelly=0 → PASS)
+    const verdict = ev <= 0 || finalBet <= 0
+      ? 'PASS'
+      : (window._SS?.verdict || 'WAIT');
+
+    renderDecisionBlock({
+      isMulti:     false,
+      ev,
+      kelly:       finalBet,
+      rawP:        pAdj,
+      safeP:       pAdj,
+      verdict,
+      folderCount: 1
+    });
+  } else if (_owMode === 'single') {
+    clearDecisionBlock();
   }
 }
 
@@ -1213,6 +1365,50 @@ function calcMultiEV() {
 
       if (mpEl) mpEl.textContent = (myProb * 100).toFixed(1) + '%';
 
+      // ── 원웨이 판단 블록 (다폴) ──
+      const _fc = validOddsCount;
+
+      // [2] 과신 방지 필터
+      const _safeP = applyMultiProbSafetyFilter({
+        p: myProb,
+        odds: roundedOdds,
+        folderCount: _fc
+      });
+
+      // [3] Kelly fraction (음수 방어)
+      const _kellyFracRaw = (roundedOdds * _safeP - 1) / (roundedOdds - 1);
+      const _kellyFrac    = Math.max(0, _kellyFracRaw);
+
+      // [4] EV (safeP 기준)
+      const _evSafe = _safeP * (roundedOdds - 1) - (1 - _safeP);
+
+      // [5] 금액
+      const _base       = (appSettings.kellySeed || 0) / 12;
+      const _multiplier = getKellyMultiplier();
+      const _rawBet     = Math.max(0, _base * _kellyFrac * _multiplier);
+
+      // [6] 다폴 리스크 보정 (safeP와 역할 분리 — 완화 적용)
+      const _riskAdj =
+        _fc === 2 ? 0.85 :
+        _fc === 3 ? 0.70 :
+        0.50;
+      const _finalBet = Math.max(0, Math.floor(_rawBet * _riskAdj));
+
+      // [8] verdict (EV<=0 or kelly=0 → PASS)
+      const _verdict = _evSafe <= 0 || _finalBet <= 0
+        ? 'PASS'
+        : (window._SS?.verdict || 'WAIT');
+
+      renderDecisionBlock({
+        isMulti:     true,
+        ev:          _evSafe,
+        kelly:       _finalBet,
+        rawP:        myProb,
+        safeP:       _safeP,
+        verdict:     _verdict,
+        folderCount: _fc
+      });
+
       const evRawPct = (evRaw * 100).toFixed(1);
       const calibNote = isOn
         ? ` <span style="font-size:10px;color:var(--gold);">📐보정</span>`
@@ -1280,6 +1476,7 @@ function calcMultiEV() {
     if (noteEl) noteEl.textContent = '각 폴더의 배당과 내 예상 승률을 입력하세요';
     const bdEl3 = document.getElementById('multi-ev-breakdown');
     if (bdEl3) bdEl3.style.display = 'none';
+    clearDecisionBlock();
   }
 }
 
@@ -1320,6 +1517,7 @@ function clearRecordForm() {
   if (typeLabel) typeLabel.textContent = '—';
   const _rPreview = document.getElementById('r-preview');
   if (_rPreview) _rPreview.textContent = '배당과 금액을 입력하면 예상 수익이 표시됩니다.';
+  clearDecisionBlock();
   const _rFc = document.getElementById('r-folder-count');
   if (_rFc) _rFc.value = '';
   const _fcw = document.getElementById('folder-count-wrap');

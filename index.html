@@ -850,6 +850,9 @@ if ('serviceWorker' in navigator) {
         </div>
         <div id="r-preview" style="margin-bottom:8px;font-size:11px;color:var(--text3);">배당과 금액을 입력하면 예상 수익이 표시됩니다.</div>
 
+        <!-- ⚡ 원웨이 판단 카드 -->
+        <div id="oneway-kelly-card" style="display:none;margin-bottom:10px;"></div>
+
         <!-- ⑧ 결과 -->
         <div style="margin-bottom:10px;">
           <label style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:4px;">결과</label>
@@ -2004,32 +2007,75 @@ if ('serviceWorker' in navigator) {
       <div class="card">
         <!-- 접기/펼치기 헤더 -->
         <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;" onclick="toggleGuide()">
-          <div class="card-title" style="margin-bottom:0;">📖 <span>1/12 전략 해설 &amp; 시스템 비교</span></div>
+          <div class="card-title" style="margin-bottom:0;">📖 <span>1/12 + Kelly 하이브리드 시스템 해설</span></div>
           <span id="guide-toggle-icon" style="font-size:18px;color:var(--text3);transition:transform 0.2s;">▼</span>
         </div>
         <!-- 접힌 상태 (기본) -->
         <div id="guide-content" style="display:none;margin-top:16px;">
           <div style="font-size:13px;line-height:2;color:var(--text2);">
+
+            <!-- 왜 순수 켈리를 쓰지 않는가 -->
             <div class="alert alert-warning" style="margin-bottom:16px;">
-              <strong>왜 켈리베팅이 아닌가?</strong><br>
-              켈리공식은 예상확률이 정밀해야 하나 이는 현실적으로 불가능에 가깝습니다. 대신 <strong>1/12 비율베팅</strong>은 정률베팅의 안정성과 켈리의 최적화를 결합한 현실적 대안입니다.
+              <strong>왜 순수 켈리 베팅을 쓰지 않는가?</strong><br>
+              켈리 공식은 이론적으로 최적의 베팅 비율을 제시하지만, 핵심 전제인 <strong>"정확한 확률(p)"</strong>을 현실에서 완벽히 맞추는 것은 거의 불가능합니다. 확률이 조금만 틀려도 베팅 금액이 과도해지며, 이는 큰 변동성과 손실로 이어질 수 있습니다.
             </div>
+
+            <!-- 핵심 구조 4블록 -->
             <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
               <div style="padding:12px;background:var(--bg3);border-radius:6px;border-left:3px solid var(--gold);">
-                <div style="color:var(--gold);font-weight:700;font-size:12px;margin-bottom:4px;">📌 기본 규칙</div>
-                시드머니를 <strong style="color:var(--gold);">12등분</strong> → 12회차 동일금액 베팅 → 13회차부터 <strong style="color:var(--gold);">시드 재계산</strong>
+                <div style="color:var(--gold);font-weight:700;font-size:12px;margin-bottom:4px;">📌 Kelly로 방향만 판단</div>
+                k 값으로 <strong>EV+ / EV- 구간</strong>을 판별 → 베팅 여부 및 강도 결정
               </div>
               <div style="padding:12px;background:var(--bg3);border-radius:6px;border-left:3px solid var(--accent);">
-                <div style="color:var(--accent);font-weight:700;font-size:12px;margin-bottom:4px;">💡 예시</div>
-                시드 <strong>120만원</strong> → 회차당 <strong style="color:var(--gold);">10만원</strong> × 12회<br>
-                180만원 됐다면 → 재계산 → <strong style="color:var(--gold);">15만원</strong> × 12회
+                <div style="color:var(--accent);font-weight:700;font-size:12px;margin-bottom:4px;">💡 베팅 금액은 제한된 범위 내에서만 조정</div>
+                기본 금액 <strong style="color:var(--gold);">base = 시드 ÷ 12</strong> 를 기준으로 multiplier 적용 (×0.5 ~ ×1.3)<br>
+                과도한 베팅 증가 방지
               </div>
               <div style="padding:12px;background:var(--bg3);border-radius:6px;border-left:3px solid var(--green);">
-                <div style="color:var(--green);font-weight:700;font-size:12px;margin-bottom:4px;">✅ 장점</div>
-                수익 시 자동으로 베팅금 증가 · 손실 시 자동으로 베팅금 감소<br>
-                → 마틴게일 파산 리스크 없이 복리 효과 달성
+                <div style="color:var(--green);font-weight:700;font-size:12px;margin-bottom:4px;">🔒 연속 리스크 자동 제어</div>
+                고배율(×1.2 이상) 연속 발생 시 자동 완화 · 히스테리시스로 경계값 흔들림 방지
+              </div>
+              <div style="padding:12px;background:var(--bg3);border-radius:6px;border-left:3px solid #a78bfa;">
+                <div style="color:#a78bfa;font-weight:700;font-size:12px;margin-bottom:4px;">📊 베팅 흐름</div>
+                <span style="color:var(--text3);">base(시드÷12) 설정</span>
+                <span style="color:var(--gold);margin:0 4px;">→</span>Kelly(k) 계산
+                <span style="color:var(--gold);margin:0 4px;">→</span>구간별 multiplier 결정
+                <span style="color:var(--gold);margin:0 4px;">→</span>연속 제한 / EV- 차단
+                <span style="color:var(--gold);margin:0 4px;">→</span><strong style="color:var(--gold);">최종 베팅 금액</strong>
               </div>
             </div>
+
+            <!-- 장단점 -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;">
+              <div style="padding:12px;background:var(--bg3);border-radius:6px;border-left:3px solid var(--green);">
+                <div style="color:var(--green);font-weight:700;font-size:12px;margin-bottom:6px;">✅ 장점</div>
+                <div style="font-size:12px;line-height:1.9;">
+                  EV- 구간 자동 차단 (손실 회피)<br>
+                  과도한 베팅 방지 (multiplier 제한)<br>
+                  연속 공격 억제 (streak 제어)<br>
+                  현실적인 확률 오차 대응 가능
+                </div>
+              </div>
+              <div style="padding:12px;background:var(--bg3);border-radius:6px;border-left:3px solid var(--red);">
+                <div style="color:var(--red);font-weight:700;font-size:12px;margin-bottom:6px;">❌ 왜 1/12만 쓰지 않는가?</div>
+                <div style="font-size:12px;line-height:1.9;">
+                  모든 상황에서 동일 금액 → 비효율<br>
+                  높은 엣지에서도 공격 불가<br>
+                  낮은 엣지에서도 동일 리스크
+                </div>
+              </div>
+            </div>
+
+            <!-- 결론 -->
+            <div style="padding:12px;background:rgba(255,215,0,0.06);border-radius:6px;border:1px solid rgba(255,215,0,0.25);margin-bottom:20px;text-align:center;">
+              <div style="color:var(--gold);font-weight:700;font-size:12px;margin-bottom:6px;">🎯 결론</div>
+              <div style="font-size:12px;line-height:1.9;color:var(--text2);">
+                <strong style="color:var(--gold);">"1/12의 안정성"</strong> + <strong style="color:var(--gold);">"Kelly의 최적화"</strong>를 결합하되<br>
+                실전에서 무너지지 않도록 제한·보정·완화를 적용한 구조<br>
+                <span style="color:var(--text3);">고정 분할 시스템이 아니라 → </span><strong>확률 기반 의사결정 시스템</strong>
+              </div>
+            </div>
+
             <!-- 시스템 비교 -->
             <div style="font-size:11px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">베팅 시스템 비교</div>
             <div class="grid-3" style="gap:12px;">
@@ -2040,9 +2086,9 @@ if ('serviceWorker' in navigator) {
                 </div>
               </div>
               <div style="padding:16px;background:var(--bg3);border-radius:8px;border:2px solid var(--gold);">
-                <div style="font-weight:700;color:var(--gold);margin-bottom:8px;font-size:13px;">⭐ 1/12 비율베팅</div>
+                <div style="font-weight:700;color:var(--gold);margin-bottom:8px;font-size:13px;">⭐ 1/12 + Kelly 하이브리드</div>
                 <div style="font-size:12px;color:var(--text2);line-height:1.9;">
-                  ✅ 안정성 + 복리 효과<br>✅ 따라하기 쉬움<br>✅ 장기 수익 최적화
+                  ✅ 안정성 + 상황별 최적화<br>✅ EV- 자동 차단<br>✅ 장기 리스크 관리
                 </div>
               </div>
               <div style="padding:16px;background:var(--bg3);border-radius:8px;border:1px solid rgba(136,146,164,0.2);">
