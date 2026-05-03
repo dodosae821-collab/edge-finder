@@ -344,6 +344,101 @@ function calcSystemState() {
     ? predBets.reduce((s,b) => s + (b.myProb*corrFactor - 100/b.betmanOdds), 0) / predBets.length
     : null;
 
+  // ── 2b. Recent ECE (최근 N건 기준) ──────────────────────────
+  // 전체 ECE는 누적 편향, recentEce는 지금 현재 상태 반영
+  const RECENT_ECE_N = 20;
+  const recentPredBets = predBets.slice(-RECENT_ECE_N);
+  let recentEce = null;
+  if (recentPredBets.length >= 5) {
+    const recentCalibRows = CALIB_BUCKETS.map(bk => {
+      const g = recentPredBets.filter(x => x.myProb >= bk.min && x.myProb < bk.max);
+      if (g.length < 2) return null;
+      const avgProb = g.reduce((s,x)=>s+x.myProb,0)/g.length;
+      const actWr   = g.filter(x=>x.result==='WIN').length/g.length*100;
+      return { avgProb, actWr, count:g.length, diff: actWr - avgProb };
+    }).filter(Boolean);
+    if (recentCalibRows.length > 0) {
+      const recentTotal = recentCalibRows.reduce((s,r)=>s+r.count,0);
+      recentEce = recentCalibRows.reduce((s,r) =>
+        s + (r.diff < 0 ? Math.abs(r.diff) : Math.abs(r.diff)*0.2)*r.count, 0
+      ) / recentTotal;
+    }
+  }
+
+  // ── 2c. adjustedProb 계산 헬퍼 (bucket 기반 우선) ───────────
+  // 개별 베팅 입력 시 bet_record.js의 getCalibrated()와 동일 로직
+  // window._SS에 함수 형태로 노출 → 어디서든 호출 가능
+  function _calcAdjustedProb(myProbPct) {
+    if (!myProbPct || myProbPct <= 0) return myProbPct;
+    // 1순위: bucket actWr (실제 적중률)
+    const bucket = calibRows.find(r => {
+      const bk = CALIB_BUCKETS.find(b => b.mid === r.mid);
+      return bk && myProbPct >= bk.min && myProbPct < bk.max;
+    });
+    if (bucket && bucket.count >= 5) {
+      return bucket.actWr; // 구간 실제 적중률로 덮어쓰기
+    }
+    // 2순위: 전체 corrFactor 곱하기
+    const cf = Math.min(corrFactor, 1.0);
+    return myProbPct * cf;
+  }
+
+  // ── 2d. Decision Gate ────────────────────────────────────────
+  // 베팅 허용 여부 + Kelly 조정 계수를 하나의 객체로 반환
+  // recentEce 우선, 전체 ECE 보조, 표본 수 최종
+  function _getBetDecision(myProbPct) {
+    const sampleSize = myProbPct
+      ? (() => {
+          const bk = CALIB_BUCKETS.find(b => myProbPct >= b.min && myProbPct < b.max);
+          const row = bk ? calibRows.find(r => r.mid === bk.mid) : null;
+          return row ? row.count : predBets.length;
+        })()
+      : predBets.length;
+
+    // 1. recentEce 차단 (가장 엄격) — 0.15 이상 시 차단 (0.10은 0.2배 축소)
+    if (recentEce !== null && recentEce > 15) {
+      return { allow: false, kellyFactor: 0, reason: 'RECENT_ECE_BLOCK',
+               label: 'BLOCK', labelColor: 'var(--red)',
+               desc: `최근 ECE ${recentEce.toFixed(1)}% → 베팅 차단` };
+    }
+    if (recentEce !== null && recentEce > 10) {
+      return { allow: true, kellyFactor: 0.2, reason: 'RECENT_ECE_HIGH',
+               label: 'REDUCE', labelColor: 'var(--red)',
+               desc: `최근 ECE ${recentEce.toFixed(1)}% → Kelly 0.2배` };
+    }
+
+    // 2. 전체 ECE
+    if (ece !== null && ece > 15) {
+      return { allow: true, kellyFactor: 0.2, reason: 'HIGH_ECE',
+               label: 'REDUCE', labelColor: 'var(--red)',
+               desc: `ECE ${ece.toFixed(1)}% → Kelly 0.2배` };
+    }
+    if (ece !== null && ece > 8) {
+      return { allow: true, kellyFactor: 0.4, reason: 'MID_ECE',
+               label: 'REDUCE', labelColor: '#ff9800',
+               desc: `ECE ${ece.toFixed(1)}% → Kelly 0.4배` };
+    }
+
+    // 3. 표본 수
+    if (sampleSize < 10) {
+      return { allow: true, kellyFactor: 0.3, reason: 'LOW_SAMPLE',
+               label: 'REDUCE', labelColor: '#ff9800',
+               desc: `구간 표본 ${sampleSize}건 → Kelly 0.3배` };
+    }
+    if (sampleSize < 30) {
+      return { allow: true, kellyFactor: 0.6, reason: 'MID_SAMPLE',
+               label: 'REDUCE', labelColor: 'var(--gold)',
+               desc: `구간 표본 ${sampleSize}건 → Kelly 0.6배` };
+    }
+
+    return { allow: true, kellyFactor: 1.0, reason: 'OK',
+             label: 'OK', labelColor: 'var(--green)',
+             desc: 'ECE·표본 조건 충족' };
+  }
+
+  // 현재 전체 상태 기준 기본 Decision (myProb 없이)
+  const betDecision = _getBetDecision(null);
+
   // 낙관 편향
   const withPred = resolved.filter(b => b.myProb != null && b.myProb > 0);
   const avgBias  = withPred.length > 0
@@ -451,12 +546,16 @@ function calcSystemState() {
   // ===== End Adaptive Block =====
 
   // [수정1] kellyUnit clamp 순서 — 상한(maxUnit) 먼저, 하한(MIN_BET) 나중
+  // Decision Gate kellyFactor 적용 (recentEce / ECE / 표본 수 기반)
   const MIN_BET = 1000;
   let kellyUnit = 0;
   if (seed > 0) {
-    kellyUnit = Math.floor(baseKelly * adaptiveMultiplier); // 기본 계산
+    const decisionFactor = betDecision.kellyFactor;         // 0 ~ 1.0
+    kellyUnit = Math.floor(baseKelly * adaptiveMultiplier * decisionFactor);
     kellyUnit = Math.min(maxUnit, kellyUnit);               // 상한 먼저
-    kellyUnit = Math.max(MIN_BET, kellyUnit);               // 하한 나중
+    if (betDecision.allow && kellyUnit > 0) {
+      kellyUnit = Math.max(MIN_BET, kellyUnit);             // 차단 상태엔 하한 적용 안 함
+    }
   }
 
   // ── 5. 목표 달성 시뮬레이션 (보정된 켈리 반영) ────────────
@@ -513,10 +612,12 @@ function calcSystemState() {
   const stops    = [];
 
   if (ece !== null && ece > 15)   stops.push(`보정 오차 ${ece.toFixed(1)}% — 켈리 신뢰 불가`);
+  if (recentEce !== null && recentEce > 15) stops.push(`최근 ECE ${recentEce.toFixed(1)}% — 베팅 차단`);
   if (streak >= 5 && streakType==='LOSE') stops.push(`${streak}연패 진행 중 — 감정적 베팅 위험`);
   if (grade && grade.letter === 'D') stops.push(`예측력 D등급 — 베팅 규모 최소화`);
   if (avgBias > 20)  warnings.push(`낙관 편향 ${avgBias.toFixed(1)}%p — myProb 재검토`);
   if (ece !== null && ece > 8 && ece <= 15) warnings.push(`보정 오차 ${ece.toFixed(1)}% — 분수 켈리 적용`);
+  if (recentEce !== null && recentEce > 10 && recentEce <= 15) warnings.push(`최근 ECE ${recentEce.toFixed(1)}% — Kelly 0.2배 축소 중`);
   if (rec10roi < -15) warnings.push(`최근 10건 ROI ${rec10roi.toFixed(1)}% — 슬럼프 가능성`);
   if (streak >= 3 && streakType==='LOSE') warnings.push(`${streak}연패 — 분석 강화 권장`);
 
@@ -544,6 +645,11 @@ function calcSystemState() {
     predBets, calibRows, ece, corrFactor,
     activeCorrFactor: getCalibCorrFactor(corrFactor, n),
     rawEdge, corrEdge,
+    // ── Decision Layer (v7.2) ──────────────────────────────
+    recentEce,                      // 최근 20건 ECE % (null 가능)
+    betDecision,                    // 현재 베팅 허용 여부 + kellyFactor (snapshot)
+    // 주의: Live 계산은 getAdjustedProbLive() / getBetDecisionLive() 사용
+    //       _SS는 데이터 공급 전용 — 함수 노출 제거됨 (v7.2)
     // 구간별 보정 버킷 (adjustedProb 강제 적용용)
     calibBuckets: calibRows,
     // 등급
@@ -1699,6 +1805,205 @@ function getCLVAdjustedProb(myProbPct) {
 // ▶ _syncScopeUI() — scope 버튼 active 상태 + 라벨 동기화
 //   switchScope / storage 이벤트 후 항상 호출.
 //   대시보드 + 설정 탭 양쪽을 동시에 갱신.
+// ============================================================
+// ============================================================
+// ▶ Decision Layer — Stateless Live 함수 (v7.1)
+//   _SS는 데이터 공급만 담당.
+//   계산은 항상 현재 입력값 기준으로 독립 실행.
+// ============================================================
+
+/**
+ * getAdjustedProbLive({ myProb, buckets, corrFactor, totalN })
+ * myProb(%) → adjustedProb(%) 보정
+ * bucket 기반 우선, 없으면 corrFactor 적용
+ * @returns { adjustedProb, source, delta, bucketCount }
+ */
+function getAdjustedProbLive({ myProb, buckets, corrFactor, totalN }) {
+  if (!myProb || myProb <= 0) return { adjustedProb: myProb, source: 'RAW', delta: 0, bucketCount: 0 };
+
+  const ss = window._SS;
+  // 데이터 부족 → raw 그대로
+  if (!ss || (totalN || ss.n || 0) < 10) {
+    return { adjustedProb: myProb, source: 'RAW', delta: 0, bucketCount: 0 };
+  }
+
+  const bkts = buckets || ss.calibBuckets || [];
+  // bucket 탐색 — mid 기준으로 구간 매핑
+  const BUCKET_EDGES = [0,10,20,30,40,50,60,70,80,90,101];
+  const bkIdx = BUCKET_EDGES.findIndex((e, i) => i < BUCKET_EDGES.length-1 && myProb >= e && myProb < BUCKET_EDGES[i+1]);
+  const mid   = bkIdx >= 0 ? BUCKET_EDGES[bkIdx] + 5 : null;
+  const bucket = mid !== null ? bkts.find(r => r.mid === mid) : null;
+
+  // bucket 기반 보정 (5건 이상일 때 신뢰)
+  if (bucket && bucket.count >= 5) {
+    // actWr로 완전 덮어쓰기 (표본 충분)
+    const weight = Math.min(1.0, bucket.count / 30); // 30건 이상 = 100% 적용
+    const adjusted = myProb * (1 - weight) + bucket.actWr * weight;
+    const clamped  = Math.min(Math.max(adjusted, 5), 95);
+    return {
+      adjustedProb: Math.round(clamped * 10) / 10,
+      source: 'BUCKET',
+      delta: Math.round((clamped - myProb) * 10) / 10,
+      bucketCount: bucket.count
+    };
+  }
+
+  // corrFactor 기반 보정 (bucket 없을 때)
+  const cf = Math.min(corrFactor || ss.activeCorrFactor || 1.0, 1.0);
+  if (cf < 0.999) {
+    const adjusted = Math.min(Math.max(myProb * cf, 5), 95);
+    return {
+      adjustedProb: Math.round(adjusted * 10) / 10,
+      source: 'CORR',
+      delta: Math.round((adjusted - myProb) * 10) / 10,
+      bucketCount: bucket ? bucket.count : 0
+    };
+  }
+
+  return { adjustedProb: myProb, source: 'RAW', delta: 0, bucketCount: 0 };
+}
+
+/**
+ * getBetDecisionLive({ myProb, odds, recentEce, totalEce, sampleSize })
+ * 현재 입력 기준으로 베팅 허용 여부 + kellyFactor 반환
+ * @returns { allow, kellyFactor, reason, label, labelColor, desc, confidenceLevel }
+ */
+function getBetDecisionLive({ myProb, odds, recentEce, totalEce, sampleSize }) {
+  const ss = window._SS;
+  // _SS에서 최신 ECE/표본 가져오기 (인자 우선)
+  const rEce    = recentEce  ?? ss?.recentEce  ?? null;
+  const tEce    = totalEce   ?? ss?.ece         ?? null;
+  const sample  = sampleSize ?? (() => {
+    if (!myProb || !ss?.calibBuckets) return ss?.predBets?.length || 0;
+    const EDGES = [0,10,20,30,40,50,60,70,80,90,101];
+    const idx   = EDGES.findIndex((e,i) => i < EDGES.length-1 && myProb >= e && myProb < EDGES[i+1]);
+    const mid   = idx >= 0 ? EDGES[idx] + 5 : null;
+    const row   = mid !== null ? ss.calibBuckets.find(r => r.mid === mid) : null;
+    return row ? row.count : (ss?.predBets?.length || 0);
+  })();
+
+  // ── 판단 트리 ────────────────────────────────────────────
+  // 1. recentEce 차단 (최우선)
+  if (rEce !== null && rEce > 15) {
+    return { allow: false, kellyFactor: 0, reason: 'RECENT_ECE_BLOCK',
+             label: 'BLOCK', labelColor: 'var(--red)', confidenceLevel: 'LOW',
+             desc: `최근 ECE ${rEce.toFixed(1)}% → 베팅 차단` };
+  }
+  if (rEce !== null && rEce > 10) {
+    return { allow: true, kellyFactor: 0.2, reason: 'RECENT_ECE_HIGH',
+             label: 'REDUCE', labelColor: 'var(--red)', confidenceLevel: 'LOW',
+             desc: `최근 ECE ${rEce.toFixed(1)}% → Kelly 0.2배` };
+  }
+  // 2. 전체 ECE
+  if (tEce !== null && tEce > 15) {
+    return { allow: true, kellyFactor: 0.2, reason: 'HIGH_ECE',
+             label: 'REDUCE', labelColor: 'var(--red)', confidenceLevel: 'LOW',
+             desc: `ECE ${tEce.toFixed(1)}% → Kelly 0.2배` };
+  }
+  if (tEce !== null && tEce > 8) {
+    return { allow: true, kellyFactor: 0.4, reason: 'MID_ECE',
+             label: 'REDUCE', labelColor: '#ff9800', confidenceLevel: 'MID',
+             desc: `ECE ${tEce.toFixed(1)}% → Kelly 0.4배` };
+  }
+  // 3. 표본 수
+  if (sample < 10) {
+    return { allow: true, kellyFactor: 0.3, reason: 'LOW_SAMPLE',
+             label: 'REDUCE', labelColor: '#ff9800', confidenceLevel: 'LOW',
+             desc: `구간 표본 ${sample}건 → Kelly 0.3배` };
+  }
+  if (sample < 30) {
+    return { allow: true, kellyFactor: 0.6, reason: 'MID_SAMPLE',
+             label: 'REDUCE', labelColor: 'var(--gold)', confidenceLevel: 'MID',
+             desc: `구간 표본 ${sample}건 → Kelly 0.6배` };
+  }
+
+  return { allow: true, kellyFactor: 1.0, reason: 'OK',
+           label: 'OK', labelColor: 'var(--green)', confidenceLevel: 'HIGH',
+           desc: 'ECE·표본 조건 충족' };
+}
+
+// ============================================================
+// ▶ 단위 변환 헬퍼 (v7.2 — 단위 혼용 방지)
+//   저장: % (0~100)  계산: frac (0~1)  출력: %
+//   직접 /100 또는 *100 코드 금지 — 반드시 이 함수 사용
+// ============================================================
+
+/**
+ * toProb(pct) — 퍼센트 → 소수 (계산용)
+ * @param {number} pct  0~100
+ * @returns {number}    0~1
+ */
+function toProb(pct) {
+  if (!Number.isFinite(pct)) return 0;
+  return pct / 100;
+}
+
+/**
+ * toPct(prob, decimals) — 소수 → 퍼센트 (저장/표시용)
+ * @param {number} prob      0~1
+ * @param {number} decimals  소수점 자릿수 (기본 1)
+ * @returns {number}         0~100
+ */
+function toPct(prob, decimals = 1) {
+  if (!Number.isFinite(prob)) return 0;
+  const factor = 10 ** decimals;
+  return Math.round(prob * 100 * factor) / factor;
+}
+
+/**
+ * getDecisionSnapshot(myProb, odds)
+ * 현재 입력에 대한 완전한 Decision 스냅샷 반환
+ * 저장 시 bet.decision에 기록
+ *
+ * 단위 규칙:
+ *   myProb          — % 정수  (사용자 입력 그대로)
+ *   adjustedProb    — % 소수 1자리 (저장/표시용)
+ *   rawAdjustedProbFrac — 0~1 고정밀 소수 (계산용, 재사용 금지)
+ *   recentEce/totalEce  — %
+ */
+function getDecisionSnapshot(myProb, odds) {
+  const ss = window._SS;
+
+  // adjustedProb 계산 (Live — _SS는 데이터 공급만)
+  const adjResult = getAdjustedProbLive({
+    myProb,
+    buckets:    ss?.calibBuckets,
+    corrFactor: ss?.corrFactor,
+    totalN:     ss?.n
+  });
+
+  // Decision Gate (Live)
+  const decision = getBetDecisionLive({ myProb, odds });
+
+  // rawAdjustedProbFrac: 고정밀 계산값 (저장 전 반올림 금지)
+  // adjResult.adjustedProb는 이미 % 단위이므로 toProb()로 변환
+  const rawAdjustedProbFrac = toProb(adjResult.adjustedProb);
+
+  return {
+    // 판단
+    factor:           decision.kellyFactor,
+    reason:           decision.reason,
+    label:            decision.label,
+    allow:            decision.allow,
+    confidenceLevel:  decision.confidenceLevel,
+    // 확률 (단위 명시)
+    myProb:           myProb,                          // % 정수
+    adjustedProb:     adjResult.adjustedProb,          // % 소수 1자리
+    rawAdjustedProbFrac: rawAdjustedProbFrac,          // 0~1 고정밀
+    // 보정 메타
+    adjustSource:     adjResult.source,                // 'BUCKET'|'CORR'|'RAW'
+    adjustDelta:      adjResult.delta,                 // % 차이 (소수 1자리)
+    bucketCount:      adjResult.bucketCount,
+    // ECE (단위: %)
+    recentEce:        ss?.recentEce  ?? null,
+    totalEce:         ss?.ece        ?? null,
+    corrFactor:       ss?.corrFactor ?? null,
+    sampleN:          ss?.predBets?.length ?? 0,
+    // 타임스탬프
+    ts:               Date.now()
+  };
+}
+
 // ============================================================
 function _syncScopeUI() {
   const scope   = getCurrentScope();

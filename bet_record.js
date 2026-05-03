@@ -152,6 +152,7 @@ function renderDecisionBlock({ isMulti, ev, kelly, rawP, safeP, verdict, folderC
     WAIT:    { color: 'var(--gold)',   bg: 'rgba(255,215,0,0.08)', icon: '⏳', label: 'WAIT' },
     PASS:    { color: 'var(--red)',    bg: 'rgba(255,59,92,0.10)', icon: '🚫', label: 'PASS' },
     STOP:    { color: 'var(--red)',    bg: 'rgba(255,59,92,0.10)', icon: '🛑', label: 'STOP' },
+    BLOCK:   { color: 'var(--red)',    bg: 'rgba(255,59,92,0.14)', icon: '🚫', label: 'BLOCK' },
   };
   const v = vMap[verdict] || vMap['WAIT'];
 
@@ -162,7 +163,7 @@ function renderDecisionBlock({ isMulti, ev, kelly, rawP, safeP, verdict, folderC
   // Kelly 금액 표시
   const kellyStr = base <= 0
     ? '<span style="color:var(--text3);font-size:11px;">시드 설정 필요</span>'
-    : verdict === 'PASS'
+    : (verdict === 'PASS' || verdict === 'BLOCK')
       ? '<span style="color:var(--red);font-weight:700;">₩0</span>'
       : `<span style="color:var(--gold);font-weight:900;font-family:'JetBrains Mono',monospace;font-size:16px;">₩${kelly.toLocaleString()}</span>`;
 
@@ -295,7 +296,7 @@ function updateLossRatio() {
     const evMyProb = parseFloat(document.getElementById('r-myprob-direct').value) || 0;
     if (evOdds >= 1 && evMyProb > 0) {
       guide.style.display = 'block';
-      const p   = evMyProb / 100;
+      const p   = typeof toProb === 'function' ? toProb(evMyProb) : evMyProb / 100;
       const ev  = p * (evOdds - 1) - (1 - p);
       // 1. 구간 보정 → 2. 전체 과신 억제
       const pCalib  = typeof getCalibrated === 'function' ? getCalibrated(p) : p;
@@ -332,27 +333,105 @@ function updateLossRatio() {
   const _owProb   = parseFloat(document.getElementById('r-myprob-direct')?.value) || 0;
   const _owMode   = document.getElementById('r-betmode')?.value || 'single';
   if (_owMode === 'single' && _owOdds > 1 && _owProb > 0) {
-    const _owP      = _owProb / 100;
-    const pCalib    = typeof getCalibrated === 'function' ? getCalibrated(_owP) : _owP;
-    const acf       = getActiveCorrFactor();
-    const pAdj      = Math.max(0, pCalib * Math.min(acf, 1.0));
 
-    // [3] Kelly fraction (음수 방어)
+    // ── [1] Stateless Live 계산 (_SS는 데이터 공급만) ────────
+    const _SS = window._SS;
+    const adjResult = (typeof getAdjustedProbLive === 'function')
+      ? getAdjustedProbLive({
+          myProb:     _owProb,
+          buckets:    _SS?.calibBuckets,
+          corrFactor: _SS?.corrFactor,
+          totalN:     _SS?.n
+        })
+      : { adjustedProb: _owProb, source: 'RAW', delta: 0, bucketCount: 0 };
+
+    const decision = (typeof getBetDecisionLive === 'function')
+      ? getBetDecisionLive({
+          myProb:    _owProb,
+          odds:      _owOdds,
+          recentEce: _SS?.recentEce,
+          totalEce:  _SS?.ece,
+        })
+      : { allow: true, kellyFactor: 1.0, reason: 'OK', label: 'OK',
+          labelColor: 'var(--green)', desc: '', confidenceLevel: 'HIGH' };
+
+    // adjustedProb % → frac (계산 전용 — 저장 금지)
+    const pAdj = Math.max(0, Math.min(
+      typeof toProb === 'function' ? toProb(adjResult.adjustedProb) : adjResult.adjustedProb / 100,
+      0.99
+    ));
+
+    // [3] Kelly fraction
     const kellyFracRaw = (_owOdds * pAdj - 1) / (_owOdds - 1);
     const kellyFrac    = Math.max(0, kellyFracRaw);
 
-    // [4] EV
+    // [4] EV (adjustedProb 기준)
     const ev = pAdj * (_owOdds - 1) - (1 - pAdj);
 
-    // [5] 금액
+    // [5] 금액 — Decision Gate kellyFactor 적용
     const base       = (appSettings.kellySeed || 0) / 12;
     const multiplier = getKellyMultiplier();
-    const finalBet   = Math.max(0, Math.floor(base * kellyFrac * multiplier));
+    const rawBet     = Math.max(0, Math.floor(base * kellyFrac * multiplier));
+    const finalBet   = decision.allow ? Math.floor(rawBet * decision.kellyFactor) : 0;
 
-    // [8] verdict (EV<=0 or kelly=0 → PASS)
-    const verdict = ev <= 0 || finalBet <= 0
-      ? 'PASS'
-      : (window._SS?.verdict || 'WAIT');
+    // ── [2] adjustedProb 설명 UI (보정 이유 포함) ───────────
+    const adjProbEl   = document.getElementById('r-adjusted-prob');
+    const adjProbWrap = document.getElementById('r-adjusted-prob-wrap');
+    if (adjProbEl && adjProbWrap) {
+      const changed = Math.abs(adjResult.delta) > 0.3;
+      if (changed) {
+        adjProbWrap.style.display = 'block';
+        const deltaColor  = adjResult.delta < 0 ? 'var(--red)' : 'var(--green)';
+        const deltaSign   = adjResult.delta > 0 ? '+' : '';
+        const sourceLabel = adjResult.source === 'BUCKET'
+          ? `구간 실적 기반 (${adjResult.bucketCount}건)`
+          : adjResult.source === 'CORR' ? '전체 과신 보정' : '';
+        const ss = window._SS;
+        let reasonText = sourceLabel;
+        if (ss?.recentEce > 8)  reasonText = `최근 ECE ${ss.recentEce.toFixed(1)}% 상승`;
+        else if (ss?.ece > 8)   reasonText = `ECE ${ss.ece.toFixed(1)}% — 분수 보정`;
+
+        adjProbEl.innerHTML =
+          `<span style="color:var(--text3);text-decoration:line-through;font-size:11px;">${_owProb.toFixed(1)}%</span>` +
+          ` → <span style="color:${deltaColor};font-weight:700;">${adjResult.adjustedProb.toFixed(1)}%</span>` +
+          ` <span style="color:${deltaColor};font-size:11px;">(${deltaSign}${adjResult.delta.toFixed(1)}%)</span>` +
+          (reasonText ? ` <span style="font-size:10px;color:var(--text3);margin-left:4px;">${reasonText}</span>` : '');
+      } else {
+        adjProbWrap.style.display = 'none';
+      }
+    }
+
+    // ── [2] Decision Gate UI ─────────────────────────────────
+    const decGateEl = document.getElementById('r-decision-gate');
+    if (decGateEl) {
+      decGateEl.style.display = 'block';
+      if (!decision.allow) {
+        decGateEl.style.background = 'rgba(255,59,92,0.10)';
+        decGateEl.style.border = '1px solid rgba(255,59,92,0.4)';
+        decGateEl.innerHTML =
+          `<span style="color:var(--red);font-weight:700;">🚫 베팅 차단</span>` +
+          ` <span style="color:var(--text3);font-size:11px;">${decision.desc}</span>`;
+      } else if (decision.kellyFactor < 1.0) {
+        decGateEl.style.background = 'rgba(255,152,0,0.08)';
+        decGateEl.style.border = '1px solid rgba(255,152,0,0.3)';
+        decGateEl.innerHTML =
+          `<span style="color:${decision.labelColor};font-weight:700;">⚠️ ${decision.label}</span>` +
+          ` <span style="color:var(--text3);font-size:11px;">${decision.desc}</span>` +
+          ` <span style="font-size:10px;color:var(--gold);margin-left:6px;">신뢰도: ${decision.confidenceLevel}</span>`;
+      } else {
+        decGateEl.style.background = 'rgba(0,230,118,0.06)';
+        decGateEl.style.border = '1px solid rgba(0,230,118,0.2)';
+        decGateEl.innerHTML =
+          `<span style="color:var(--green);font-weight:700;">✅ OK</span>` +
+          ` <span style="color:var(--text3);font-size:11px;">${decision.desc || 'ECE·표본 조건 충족'}</span>` +
+          ` <span style="font-size:10px;color:var(--green);margin-left:6px;">신뢰도: HIGH</span>`;
+      }
+    }
+
+    // [8] verdict
+    const verdict = !decision.allow
+      ? 'BLOCK'
+      : (ev <= 0 || finalBet <= 0 ? 'PASS' : (window._SS?.verdict || 'WAIT'));
 
     renderDecisionBlock({
       isMulti:     false,
@@ -813,12 +892,13 @@ function _addBetCore() {
   const _mp = betData.myProb, _od = betData.betmanOdds;
 
   // adjustedProb: hidden 필드에서 읽거나 실시간 계산
-  const _adjProbEl = document.getElementById('r-adjusted-prob');
+  const _adjProbEl = document.getElementById('r-adjusted-prob-val');
   const _adjProbPct = _adjProbEl && parseFloat(_adjProbEl.value) > 0
     ? parseFloat(_adjProbEl.value)
     : (typeof getCLVAdjustedProb === 'function' && _mp ? getCLVAdjustedProb(_mp) : _mp);
-  const _adjProb = _adjProbPct / 100;
-  const _rawProb = _mp / 100;
+  // toProb() 헬퍼 사용 — 직접 /100 금지 (단위 혼용 방지)
+  const _adjProb = typeof toProb === 'function' ? toProb(_adjProbPct) : _adjProbPct / 100;
+  const _rawProb = typeof toProb === 'function' ? toProb(_mp)         : _mp / 100;
 
   // ── 저장 구조 ──────────────────────────────────────────────
   // ev     → rawProb 기반 (기존 그대로, 과거 데이터 호환)
@@ -829,6 +909,38 @@ function _addBetCore() {
   betData.ev    = (_mp && _od && _od >= 1) ? (_rawProb * (_od-1)) - (1 - _rawProb) : null;
   betData.evRaw = betData.ev; // 명시적 참조용 (동일값)
   betData.adjustedProb = _adjProbPct; // 보정 확률 % 저장
+
+  // ── [3] Decision 로그 저장 ────────────────────────────────
+  // 사후 분석을 위해 저장 시점의 Decision 스냅샷 기록
+  // 단위: myProb(% 정수), adjustedProb(% 소수1자리), rawAdjustedProbFrac(0~1)
+  // null-safe: 읽기 시 항상 bet.decision || {} 패턴 사용
+  if (_mp && _od && typeof getDecisionSnapshot === 'function') {
+    betData.decision = getDecisionSnapshot(_mp, _od);
+  } else {
+    // fallback: 기본 구조 저장 (getDecisionSnapshot 미로드 시 호환)
+    const _ss = window._SS;
+    const _adjProbPctFallback = _adjProbPct ?? _mp;
+    betData.decision = {
+      factor:              1.0,
+      reason:              'LEGACY',
+      label:               'OK',
+      allow:               true,
+      confidenceLevel:     'UNKNOWN',
+      myProb:              _mp,                        // % 정수
+      adjustedProb:        _adjProbPctFallback,        // % 소수 1자리
+      rawAdjustedProbFrac: typeof toProb === 'function'
+                             ? toProb(_adjProbPctFallback)
+                             : _adjProbPctFallback / 100, // 0~1
+      adjustSource:        'RAW',
+      adjustDelta:         0,
+      bucketCount:         0,
+      recentEce:           _ss?.recentEce  ?? null,   // %
+      totalEce:            _ss?.ece        ?? null,   // %
+      corrFactor:          _ss?.corrFactor ?? null,
+      sampleN:             _ss?.predBets?.length ?? 0,
+      ts:                  Date.now()
+    };
+  }
 
   // evCalibrated + calibProb
   if (_mp && _od && _od >= 1) {
@@ -970,12 +1082,12 @@ function syncMyProb() {
   if (val > 0 && typeof getAdjustedProb === 'function') {
     const adj = getCLVAdjustedProb(val);
     const adjRounded = Math.round(adj * 10) / 10;
-    document.getElementById('r-adjusted-prob').value = adjRounded;
+    document.getElementById('r-adjusted-prob-val').value = adjRounded;
 
     // 힌트 UI 업데이트
     _renderAdjProbHint(val, adjRounded);
   } else {
-    document.getElementById('r-adjusted-prob').value = val || '';
+    document.getElementById('r-adjusted-prob-val').value = val || '';
     const hint = document.getElementById('calib-hint');
     if (hint) hint.style.display = 'none';
   }
@@ -2291,6 +2403,32 @@ function renderTablePage() {
 
     // 다폴더 상세 행 생성
     let detailRow = '';
+    // ── Decision 로그 뱃지 (null-safe: 과거 베팅 호환) ───────
+    const dec = b.decision || {};  // 기존 데이터에 decision 없으면 빈 객체
+    const decFactor  = dec.factor  ?? 1.0;
+    const decAllow   = dec.allow   ?? true;
+    const decReason  = dec.reason  ?? 'LEGACY';
+    const decAdjProb = dec.adjustedProb ?? b.myProb;   // % 단위
+    const decAdjDelta = dec.adjustDelta ?? 0;
+    const decRecentEce = dec.recentEce ?? null;
+
+    const decBadge = (dec.reason && dec.reason !== 'LEGACY')
+      ? (() => {
+          const color = decAllow === false ? 'var(--red)'
+            : decFactor < 0.5 ? 'var(--red)'
+            : decFactor < 1.0 ? '#ff9800'
+            : 'var(--green)';
+          const icon  = decAllow === false ? '🚫' : decFactor < 1.0 ? '⚠️' : '✅';
+          const adjStr = decAdjDelta && Math.abs(decAdjDelta) > 0.3
+            ? ` <span style="color:${decAdjDelta < 0 ? 'var(--red)' : 'var(--green)'};font-size:9px;">(${decAdjDelta > 0 ? '+' : ''}${decAdjDelta.toFixed(1)}%보정)</span>`
+            : '';
+          const eceStr = decRecentEce != null ? decRecentEce.toFixed(1) + '%' : 'N/A';
+          return `<span title="Decision: ${decReason} | Kelly×${decFactor} | recentEce:${eceStr}"
+            style="font-size:9px;padding:1px 5px;border-radius:8px;background:${color}22;color:${color};border:1px solid ${color}44;margin-left:4px;white-space:nowrap;">
+            ${icon} ×${decFactor}${adjStr}</span>`;
+        })()
+      : '';
+
     if (b.mode === 'multi' && b.folderOdds && b.folderOdds.length > 0) {
       const sports  = (b.sport || '').split(', ');
       const types   = (b.type  || '').split(', ');
@@ -2326,7 +2464,7 @@ function renderTablePage() {
         <td style="font-size:10px;color:var(--text3);">${rowNum}</td>
         <td style="font-size:11px;">${b.date || '—'}</td>
         <td>${modeBadge}</td>
-        <td style="font-size:10px;color:var(--text3);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${b.game && b.game !== '-' ? b.game : ''}">${b.game && b.game !== '-' ? b.game : '—'}</td>
+        <td style="font-size:10px;color:var(--text3);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${b.game && b.game !== '-' ? b.game : ''}">${b.game && b.game !== '-' ? b.game : '—'}${decBadge}</td>
         <td class="mono">${b.betmanOdds || '—'}</td>
         <td>${resultBadge}</td>
         <td style="color:${profitColor};font-family:'JetBrains Mono',monospace;">${profit >= 0 ? '+' : ''}₩${Math.round(profit).toLocaleString()}</td>

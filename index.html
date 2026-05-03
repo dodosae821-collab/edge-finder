@@ -778,6 +778,11 @@ if ('serviceWorker' in navigator) {
             </div>
             <!-- 보정 힌트 -->
             <div id="calib-hint" style="display:none;margin-top:6px;padding:8px 10px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:6px;font-size:11px;"></div>
+            <!-- 보정 확률 표시 (신규) -->
+            <div id="r-adjusted-prob-wrap" style="display:none;margin-top:5px;padding:6px 10px;background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);border-radius:6px;font-size:11px;">
+              <span style="font-size:9px;color:var(--text3);letter-spacing:1px;">📐 보정 확률</span>
+              <span id="r-adjusted-prob" style="margin-left:8px;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--text2);font-size:13px;"></span>
+            </div>
           </div>
         </div>
 
@@ -851,6 +856,8 @@ if ('serviceWorker' in navigator) {
         <div id="r-preview" style="margin-bottom:8px;font-size:11px;color:var(--text3);">배당과 금액을 입력하면 예상 수익이 표시됩니다.</div>
 
         <!-- ⚡ 원웨이 판단 카드 -->
+        <!-- Decision Gate 상태 표시 (신규) -->
+        <div id="r-decision-gate" style="display:none;margin-bottom:8px;padding:7px 12px;border-radius:8px;font-size:11px;font-weight:600;"></div>
         <div id="oneway-kelly-card" style="display:none;margin-bottom:10px;"></div>
 
         <!-- ⑧ 결과 -->
@@ -908,7 +915,7 @@ if ('serviceWorker' in navigator) {
         <input type="hidden" id="r-sport" value="">
         <input type="hidden" id="r-type" value="">
         <input type="hidden" id="r-myprob" value="">
-        <input type="hidden" id="r-adjusted-prob" value="">
+        <input type="hidden" id="r-adjusted-prob-val" value="">
       </div>
 
       <div class="card">
@@ -4127,6 +4134,8 @@ if ('serviceWorker' in navigator) {
 <script src="./core.js"></script>
 <script src="./simulator.js"></script>
 <script src="./verify.js"></script>
+<script src="./decision_analysis.js"></script>
+<script src="./decision_ui.js"></script>
 <script src="./bet_record.js"></script>
 <script src="./tags_ui.js"></script>
 <script src="./journal.js"></script>
@@ -4188,5 +4197,8 @@ document.addEventListener('DOMContentLoaded', function () {
         보정 승률(노랑)이 실제 적중률에 더 가까우면 보정 모델이 효과적.
       </div>
     </div>
+
+    <!-- Decision Analysis 검증 -->
+    <div id="decision-analysis-root"></div>
   </div>
 

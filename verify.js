@@ -90,6 +90,11 @@ function renderVerifyPage() {
         </div>
         <div style="font-size:10px;color:var(--text3);margin-top:6px;">${resolved.length} / ${VERIFY_MIN}</div>
       </div>`;
+    // Decision Analysis — 데이터 부족과 무관하게 항상 실행
+    if (typeof runDecisionAnalysisUI === 'function') {
+      const allBets = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+      runDecisionAnalysisUI(allBets);
+    }
     return;
   }
   if (statusEl) statusEl.innerHTML = '';
@@ -99,10 +104,49 @@ function renderVerifyPage() {
   const bins     = buildCalibBins(predBets);
   const eceBias  = calcEceBias(bins);
 
+  const verifySummaryEl = document.getElementById('verify-summary');
+
   renderVerifySummary(resolved, eceBias);
   renderChart1_EvVsRoi(resolved);
   renderChart2_FolderVsRoi(resolved);
-  renderChart3_CalibEffect(bins); // bins 재사용
+  renderChart3_CalibEffect(bins);
+  renderEceBanner(verifySummaryEl);
+
+  // Decision Analysis — 모든 렌더 완료 후 1회 실행
+  if (typeof runDecisionAnalysisUI === 'function') {
+    const allBets = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+    runDecisionAnalysisUI(allBets);
+  }
+}
+
+// ============================================================
+// ECE 배너 (Decision Gate 연동)
+// ============================================================
+function renderEceBanner(verifySummaryEl) {
+  if (!verifySummaryEl || !window._SS) return;
+  const rEce = window._SS.recentEce;
+  const dec  = window._SS.betDecision;
+  if (rEce === null || !dec) return;
+
+  const existing = document.getElementById('recent-ece-banner');
+  if (existing) existing.remove();
+
+  const banner = document.createElement('div');
+  banner.id = 'recent-ece-banner';
+  banner.style.cssText = `
+    margin-bottom:12px;padding:10px 14px;border-radius:8px;
+    background:${dec.kellyFactor < 1 ? 'rgba(255,152,0,0.08)' : 'rgba(0,230,118,0.07)'};
+    border:1px solid ${dec.labelColor}44;
+    display:flex;justify-content:space-between;align-items:center;
+  `;
+  banner.innerHTML = `
+    <div>
+      <span style="font-size:11px;font-weight:700;color:${dec.labelColor};">${dec.allow ? '⚠️' : '🚫'} 최근 ECE (최근 20건): ${rEce.toFixed(1)}%</span>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px;">${dec.desc}</div>
+    </div>
+    <span style="font-size:12px;font-weight:800;color:${dec.labelColor};padding:4px 10px;border-radius:6px;background:${dec.labelColor}22;">${dec.label}</span>
+  `;
+  verifySummaryEl.insertBefore(banner, verifySummaryEl.firstChild);
 }
 
 // ============================================================
