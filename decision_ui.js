@@ -433,7 +433,7 @@ function renderDecisionAnalysis(bets) {
   `;
   refreshBtn.innerHTML = '🔄 분석 새로고침';
   refreshBtn.onclick = () => {
-    renderDecisionAnalysis(Array.isArray(window.bets) ? window.bets : []);
+    renderDecisionAnalysis(getBets());
   };
 
   toolbar.appendChild(scopeLabel);

@@ -291,11 +291,10 @@ async function gdriveSync() {
       const cloudData = await dlRes.json();
 
       // 병합 (id 기준 중복 제거, 최신 우선)
-      const localBets = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+      const localBets = getBets();
       const cloudBets = cloudData.bets || [];
       const merged = mergeByKey([...localBets, ...cloudBets], 'id');
-      bets = merged;
-      localStorage.setItem('edge_bets', JSON.stringify(bets));
+      saveBets(merged);
 
       // 설정 병합 (로컬 우선)
       if (cloudData.settings && !localStorage.getItem('edge_settings')) {
@@ -348,7 +347,7 @@ async function gdriveSync() {
 
 async function gdriveUpload() {
   const payload = {
-    bets: JSON.parse(localStorage.getItem('edge_bets') || '[]'),
+    bets: getBets(),
     settings: JSON.parse(localStorage.getItem('edge_settings') || '{}'),
     diaries: JSON.parse(localStorage.getItem('edge_diaries') || '{}'),
     plans: JSON.parse(localStorage.getItem('edge_plans') || '[]'),
@@ -704,8 +703,8 @@ function decSaveToRecord(){
     profit:0,savedAt:new Date().toISOString(),emotion:'냉정',violations:[],
     folderMemos:[],folderOdds:[],folderProbs:[],folderSports:[],folderTypes:[]
   };
-  bets.push(record);
-  localStorage.setItem('edge_bets',JSON.stringify(bets));
+  const nextBets = [...getBets(), record];
+  saveBets(nextBets);
   updateAll();
   alert(`✅ "${match}" 저장 완료!\n\n베팅 기록 탭에서 금액을 입력하고\n경기 후 결과를 업데이트해주세요.`);
   const rt=document.querySelector('nav .tab[onclick*="record"]');

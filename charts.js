@@ -201,8 +201,9 @@ function calcKelly() {
   const _maxBetPct = appSettings.maxBetPct || 5;
   const bankrollForMax = getCurrentBankroll() || appSettings.startFund || seed;
   const maxUnit = Math.floor(bankrollForMax * _maxBetPct / 100);
-  const unitRaw = Math.floor(seed / 12 * _totalMult);
-  const unit = Math.min(unitRaw, maxUnit);  // 상한선 적용
+  // Kelly 값은 state.js(calcSystemState)에서만 계산 — read-only 참조
+  if (!_SS) { console.warn('[charts] _SS missing — kellyUnit unavailable'); }
+  const unit = _SS?.kellyUnit ?? 0;
 
   // ── 1/12 기반 하이브리드 Kelly 계산 ──────────────────────────
   // base = activeRound.seed / 12  (회차 시드 고정 기준값, 변경 금지)
@@ -334,9 +335,6 @@ function calcKelly() {
   }
   if (_SS) { _SS.hybridKelly = hybridKelly; }
 
-  // _SS에 kellyUnit 동기화
-  if (_SS) { _SS.kellyUnit = unit; }
-
   const unitEl = document.getElementById('kelly-unit');
   if (unitEl) {
     unitEl.textContent = '₩' + unit.toLocaleString();
@@ -375,7 +373,9 @@ function calcKelly() {
   // 사이클 배지
   const eceNote2 = (_SS && _SS.ece !== null && appSettings.kellyGradeAdj) ? ` · ECE ${_SS.ece.toFixed(1)}% ×${_eceMult.toFixed(2)}` : '';
   const gradeNote = (_totalMult < 1 && _grade) ? ` · ${_grade.letter}등급 ×${_totalMult.toFixed(2)}${eceNote2}` : '';
-  const capNote   = unit < unitRaw ? ` · 상한선 ₩${maxUnit.toLocaleString()} 적용` : '';
+  const capNote   = (_SS && typeof _SS.maxUnit === 'number' && unit < _SS.maxUnit)
+    ? ` · 상한선 ₩${_SS.maxUnit.toLocaleString()} 적용`
+    : '';
   if (cycleBadgeEl) cycleBadgeEl.textContent = `${cycleNum}사이클 ${roundNum}번째 · ${remain}회 남음`;
   if (nextNoteEl)   nextNoteEl.textContent   = `${cycleNum}사이클 ${roundNum}번째 베팅 · ${remain}회 남음${gradeNote}${capNote}`;
 

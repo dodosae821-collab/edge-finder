@@ -848,11 +848,11 @@ function generateRoundReview(roundData) {
   // 이번 회차 베팅 목록 추출
   const s = new Date(startDate); s.setHours(0,0,0,0);
   const e = new Date(endDate);   e.setHours(23,59,59,999);
-  const roundBets = window.bets ? window.bets.filter(b => {
+  const roundBets = getBets().filter(b => {
     if (!b.date) return false;
     const d = new Date(b.date); d.setHours(12,0,0,0);
     return d >= s && d < new Date(endDate);
-  }) : [];
+  });
   const resolved = roundBets.filter(b => b.result !== 'PENDING');
 
   // 감정별 성과

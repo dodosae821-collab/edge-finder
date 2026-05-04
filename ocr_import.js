@@ -259,7 +259,7 @@ function strSimilarity(a, b) {
 
 // 기존 bets에서 팀명 목록 추출
 function getKnownTeams() {
-  const bets = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+  const bets = getBets();
   const teams = new Set();
   bets.forEach(b => {
     if (b.game && b.game !== '-') {
@@ -713,7 +713,7 @@ function oddsMatches(ocrOdds, betOdds) {
 }
 
 function matchBetToOcr(parsed, imageDate, ocrConf) {
-  const bets = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+  const bets = getBets();
   const pendingBets = bets.filter(b => b.result === 'PENDING');
 
   // 날짜 필터
@@ -935,17 +935,17 @@ function matchBetToOcr(parsed, imageDate, ocrConf) {
 
 // ── 결과 적용 ──────────────────────────────────────────────────
 function applyOcrResult(matchedItem, overrideScore) {
-  const bets = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+  const currentBets = [...getBets()];
   const { matchedBet, parsed, direction } = matchedItem;
   if (!matchedBet) return false;
 
   // 투표 용지는 score가 없음 — overrideScore도 없으면 적용 불가
   const score = overrideScore || parsed.score;
   if (!score) return false;   // 스코어 없이 결과 판정 불가
-  const idx   = bets.findIndex(b => b.id === matchedBet.id);
+  const idx   = currentBets.findIndex(b => b.id === matchedBet.id);
   if (idx === -1) return false;
 
-  const bet  = bets[idx];
+  const bet  = currentBets[idx];
   const type = bet.type || 'winlose';
 
   // 홈/어웨이 방향 보정
@@ -973,7 +973,8 @@ function applyOcrResult(matchedItem, overrideScore) {
     : result === 'PUSH' ? 0
     : -bet.amount;
 
-  bets[idx] = {
+  const nextBets = [...currentBets];
+  nextBets[idx] = {
     ...bet,
     result,
     profit,
@@ -983,7 +984,7 @@ function applyOcrResult(matchedItem, overrideScore) {
     ocrConfidence: matchedItem.confidence,
   };
 
-  localStorage.setItem('edge_bets', JSON.stringify(bets));
+  saveBets(nextBets);
   return true;
 }
 
@@ -1623,10 +1624,10 @@ function applyCheckedOcrResults() {
     // applyOcrResult 내부에서 bets.findIndex(b => b.id === matchedBet.id)로
     // 재조회하므로 stale 문제는 없음.
     // 단, selectConflictBet이 list[idx].matchedBet을 직접 교체하므로
-    // 여기서 한 번 더 localStorage에서 신선한 bet 객체를 가져와 교체한다.
+    // getBets()에서 신선한 bet 객체를 가져와 교체한다.
+    // (saveBets() 호출 이후에는 getBets()가 항상 최신 상태를 반환)
     {
-      const freshBets = JSON.parse(localStorage.getItem('edge_bets') || '[]');
-      const freshBet  = freshBets.find(b => b.id === m.matchedBet.id);
+      const freshBet = getBets().find(b => b.id === m.matchedBet.id);
       if (freshBet) m.matchedBet = freshBet;  // stale 필드 방지
     }
 
@@ -1727,8 +1728,7 @@ function showConflictPicker(idx) {
 function selectConflictBet(idx, betId) {
   const list = window._ocrMatchedList;
   if (!list || !list[idx]) return;
-  const bets = JSON.parse(localStorage.getItem('edge_bets') || '[]');
-  const bet  = bets.find(b => b.id === betId);
+  const bet  = getBets().find(b => b.id === betId);
   if (bet) {
     list[idx].matchedBet   = bet;
     list[idx].status       = 'warn';   // ambiguous → warn으로 강등

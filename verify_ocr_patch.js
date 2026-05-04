@@ -11,7 +11,7 @@ function renderOcrConfidenceSummary() {
   const el = document.getElementById('verify-summary');
   if (!el) return;
 
-  const bets = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+  const bets = getBets();
   const ocrBets = bets.filter(b => b.ocrApplied && b.ocrConfidence != null);
   if (!ocrBets.length) return;
 

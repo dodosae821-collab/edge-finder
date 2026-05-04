@@ -520,17 +520,18 @@ function simApplyPending(key) {
   const bWin = ['both','only3','onlyB','ab','bc'].includes(key);
   const cWin = ['both','onlyC','ac','bc'].includes(key);
 
+  const simRecords = [];
   if (p.b2 > 0) {
-    bets.unshift({ id: String(Date.now())+'simA', date:new Date().toISOString().split('T')[0], game:p.memo||'-', sport:'', type:'승/패', mode:p.memo.includes('/')?'multi':'single', amount:p.b2, betmanOdds:p.o2, result:aWin?'WIN':'LOSE', profit:aWin?Math.round(p.b2*p.o2)-p.b2:-p.b2, memo:'[전략베팅 A]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
+    simRecords.push({ id: String(Date.now())+'simA', date:new Date().toISOString().split('T')[0], game:p.memo||'-', sport:'', type:'승/패', mode:p.memo.includes('/')?'multi':'single', amount:p.b2, betmanOdds:p.o2, result:aWin?'WIN':'LOSE', profit:aWin?Math.round(p.b2*p.o2)-p.b2:-p.b2, memo:'[전략베팅 A]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
   }
   if (p.b3 > 0) {
-    bets.unshift({ id: String(Date.now()+1)+'simB', date:new Date().toISOString().split('T')[0], game:p.memoB||'-', sport:'', type:'승/패', mode:p.memoB.includes('/')?'multi':'single', amount:p.b3, betmanOdds:p.o3, result:bWin?'WIN':'LOSE', profit:bWin?Math.round(p.b3*p.o3)-p.b3:-p.b3, memo:'[전략베팅 B]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
+    simRecords.push({ id: String(Date.now()+1)+'simB', date:new Date().toISOString().split('T')[0], game:p.memoB||'-', sport:'', type:'승/패', mode:p.memoB.includes('/')?'multi':'single', amount:p.b3, betmanOdds:p.o3, result:bWin?'WIN':'LOSE', profit:bWin?Math.round(p.b3*p.o3)-p.b3:-p.b3, memo:'[전략베팅 B]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
   }
   if ((p.b4||0) > 0) {
-    bets.unshift({ id: String(Date.now()+2)+'simC', date:new Date().toISOString().split('T')[0], game:p.memoC||'-', sport:'', type:'승/패', mode:(p.memoC||'').includes('/')?'multi':'single', amount:p.b4, betmanOdds:p.o4, result:cWin?'WIN':'LOSE', profit:cWin?Math.round(p.b4*p.o4)-p.b4:-p.b4, memo:'[전략베팅 C]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
+    simRecords.push({ id: String(Date.now()+2)+'simC', date:new Date().toISOString().split('T')[0], game:p.memoC||'-', sport:'', type:'승/패', mode:(p.memoC||'').includes('/')?'multi':'single', amount:p.b4, betmanOdds:p.o4, result:cWin?'WIN':'LOSE', profit:cWin?Math.round(p.b4*p.o4)-p.b4:-p.b4, memo:'[전략베팅 C]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
   }
-  if (p.b2 > 0 || p.b3 > 0 || (p.b4||0) > 0) {
-    localStorage.setItem('edge_bets', JSON.stringify(bets));
+  if (simRecords.length > 0) {
+    saveBets([...simRecords, ...getBets()]);  // unshift 동작 유지 (앞에 추가)
     _gdriveAutoSync && _gdriveAutoSync();
     updateAll();
     const isLoseKey = key === 'lose';

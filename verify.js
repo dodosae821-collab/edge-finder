@@ -74,7 +74,7 @@ function calcEceBias(bins) {
 function renderVerifyPage() {
   destroyVerifyCharts();
 
-  const bets     = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+  const bets     = getBets();
   const resolved = bets.filter(b => b.result === 'WIN' || b.result === 'LOSE');
   const statusEl = document.getElementById('verify-status');
 
@@ -92,7 +92,7 @@ function renderVerifyPage() {
       </div>`;
     // Decision Analysis — 데이터 부족과 무관하게 항상 실행
     if (typeof runDecisionAnalysisUI === 'function') {
-      const allBets = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+      const allBets = getBets();
       runDecisionAnalysisUI(allBets);
     }
     return;
@@ -114,7 +114,7 @@ function renderVerifyPage() {
 
   // Decision Analysis — 모든 렌더 완료 후 1회 실행
   if (typeof runDecisionAnalysisUI === 'function') {
-    const allBets = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+    const allBets = getBets();
     runDecisionAnalysisUI(allBets);
   }
 }

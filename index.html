@@ -4128,8 +4128,39 @@ if ('serviceWorker' in navigator) {
 </main>
 
 
+<!-- ── 스크립트 로드 순서 (의존성 순) ───────────────────────────
+  [Core Rules]
+  - state.js는 반드시 모든 스크립트보다 먼저 로드되어야 한다.
+  - edge_bets 접근은 getBets()/saveBets()로만 허용 (localStorage 직접 접근 금지)
+  - decision_analysis.js는 pure 유지 (DOM / storage 접근 금지)
+
+  [Load Order]
+  [1] app.js               — 용어집 (의존성 없음)
+  [2] kelly.js             — 순수 계산 (외부 의존성 없음)
+  [3] round.js             — rounds 데이터/로직 (kelly.js 이후, state.js 이전)
+  [4] scope.js             — scope 상태/필터 (round.js 이후, state.js 이전)
+  [5] state.js             — 핵심 엔진, getBets/saveBets 정의 (round.js, scope.js 의존)
+  [6] settings.js          — state.js 의존
+  [7] core.js              — state.js(calcSystemState), getBets 의존
+  [8] simulator.js         — state.js, saveBets 의존
+  [9] verify.js            — getBets, runDecisionAnalysisUI 의존
+  [10] decision_analysis.js — 의존성 없음 (pure)
+  [11] decision_ui.js      — decision_analysis.js, getBets 의존
+  [12~] 기타 모듈          — state.js 의존
+
+  [Constraints]
+  - <script async> 사용 금지 (로드 순서 보장 안 됨)
+  - <script defer>는 전부 동일하게 사용할 경우에만 허용
+  - 모든 getBets() 호출은 함수 내부에서만 실행 (top-level 호출 금지)
+  ──────────────────────────────────────────────────────────── -->
 <script src="./app.js"></script>
+<script src="./kelly.js"></script>
+<script src="./compute.js"></script>
+<script src="./decision_gate.js"></script>
+<script src="./round.js"></script>
+<script src="./scope.js"></script>
 <script src="./state.js"></script>
+<script src="./ui_tabs.js"></script>
 <script src="./settings.js"></script>
 <script src="./core.js"></script>
 <script src="./simulator.js"></script>

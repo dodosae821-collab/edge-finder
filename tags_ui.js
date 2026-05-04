@@ -162,9 +162,10 @@ function retroSave() {
     else results.push(null);
   }
   // 실제 bets 배열에서 찾아서 저장
-  const target = bets.find(bet => bet.id === b.id);
-  if (target) target.folderResults = results;
-  localStorage.setItem('edge_bets', JSON.stringify(bets));
+  const nextBets = getBets().map(bet =>
+    bet.id === b.id ? { ...bet, folderResults: results } : bet
+  );
+  saveBets(nextBets);
   _retroIdx++;
   renderRetroBet();
 }

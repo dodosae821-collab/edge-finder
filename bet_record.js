@@ -758,17 +758,8 @@ function clearEV() {
 }
 
 // ========== BET RECORD ==========
-// ── storage 키 단일 상수 — 파일 전체에서 이 상수만 참조 ──
-const STORAGE_KEY = 'edge_bets';
-
-/** bets 직렬화 헬퍼 — stringify 실패 시 명확한 에러 던짐 (세 케이스 공통) */
-function _serializeBets() {
-  try {
-    return JSON.stringify(bets);
-  } catch (e) {
-    throw new Error('[storage] serialization failed: ' + e.message);
-  }
-}
+// ── STORAGE_KEY — state.js에서 단일 정의, 여기서는 참조만 ──
+// const STORAGE_KEY = window.App.STORAGE_KEY; // 불필요 — saveBets가 처리
 
 // [F] 중복 실행 가드 — 이벤트 연타 방지 (모듈 스코프, HTML 수정 불필요)
 let _adding = false;
@@ -781,6 +772,64 @@ function addBet() {
   } finally {
     _adding = false;   // 예외 발생 시에도 반드시 해제
   }
+}
+
+// ── Gate UI 렌더 ─────────────────────────────────────────────
+function renderGateBanner(gate) {
+  const existing = document.getElementById('gate-banner');
+  if (existing) existing.remove();
+
+  const modeStyle = {
+    NORMAL:  { color: 'var(--green)',  bg: 'rgba(0,230,118,0.08)',  icon: '✅' },
+    WARNING: { color: '#ff9800',       bg: 'rgba(255,152,0,0.10)',  icon: '⚠️' },
+    DEFENSE: { color: 'var(--red)',    bg: 'rgba(255,59,92,0.10)',  icon: '🛡️' },
+    LOCK:    { color: 'var(--red)',    bg: 'rgba(255,59,92,0.15)',  icon: '🚫' },
+  };
+  const s = modeStyle[gate.mode] || modeStyle.NORMAL;
+
+  const banner = document.createElement('div');
+  banner.id = 'gate-banner';
+  banner.style.cssText = `
+    margin-bottom:10px;padding:10px 14px;border-radius:8px;
+    background:${s.bg};border:1px solid ${s.color}44;border-left:3px solid ${s.color};
+  `;
+
+  const reasonHtml = gate.reason.map(r =>
+    `<div style="font-size:10px;color:var(--text3);margin-top:2px;">· ${r}</div>`
+  ).join('');
+
+  const multiplierInfo = gate.mode !== 'NORMAL'
+    ? `<span style="font-size:10px;color:${s.color};margin-left:8px;">Kelly × ${gate.kellyMultiplier} · 최대 ${(gate.maxStakePct * 100).toFixed(0)}%</span>`
+    : '';
+
+  const overrideBtn = !gate.allowed
+    ? `<button onclick="showOverrideDialog()" style="
+        margin-top:8px;padding:5px 12px;font-size:11px;
+        background:rgba(255,59,92,0.15);border:1px solid var(--red);
+        border-radius:6px;color:var(--red);cursor:pointer;width:100%;
+      ">Override (이유 입력 후 진행)</button>`
+    : '';
+
+  banner.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-size:11px;font-weight:700;color:${s.color};">${s.icon} ${gate.mode}${multiplierInfo}</span>
+    </div>
+    ${reasonHtml}
+    ${overrideBtn}
+  `;
+
+  const formTop = document.getElementById('oneway-kelly-card') || document.getElementById('r-amount')?.closest('.card');
+  if (formTop && formTop.parentNode) {
+    formTop.parentNode.insertBefore(banner, formTop);
+  }
+}
+
+function showOverrideDialog() {
+  const reason = prompt('LOCK 상태입니다. Override 이유를 입력하세요 (기록에 남습니다):');
+  if (reason === null) return; // 취소
+  if (!reason.trim()) { alert('이유를 입력해야 Override 가능합니다.'); return; }
+  window._pendingOverrideReason = reason.trim();
+  alert('Override 이유가 저장되었습니다. 베팅 추가 버튼을 다시 눌러 진행하세요.');
 }
 
 function _addBetCore() {
@@ -799,6 +848,30 @@ function _addBetCore() {
   const amount = parseFloat(document.getElementById('r-amount').value) || 0;
   const odds   = parseFloat(document.getElementById('r-betman-odds').value) || 0;
   if (!amount || !odds) { alert('베팅 금액과 배당률을 입력하세요.'); return; }
+
+  // ── Decision Gate 평가 ────────────────────────────────────
+  let _gateResult = null;
+  if (typeof evaluateDecisionGate === 'function' && typeof computeCalibration === 'function') {
+    try {
+      const _bets        = getBets();
+      const _metrics     = typeof computeJudgeMetrics === 'function' ? computeJudgeMetrics(_bets, 'all') : {};
+      const _calibration = computeCalibration(_bets);
+      const _ctx         = buildDecisionContext({ metrics: _metrics, calibration: _calibration });
+      const _config      = typeof getGateConfig === 'function' ? getGateConfig(typeof appSettings !== 'undefined' ? appSettings : {}) : {};
+      _gateResult        = evaluateDecisionGate(_ctx, _config);
+
+      // 배너 렌더
+      renderGateBanner(_gateResult);
+
+      // LOCK 상태: override 없으면 차단
+      if (!_gateResult.allowed && !window._pendingOverrideReason) {
+        return;
+      }
+    } catch (e) {
+      console.warn('[gate] 평가 실패 — 통과 처리:', e);
+    }
+  }
+  // ─────────────────────────────────────────────────────────
 
   const result = document.getElementById('r-result').value;
 
@@ -959,25 +1032,34 @@ function _addBetCore() {
   // [E] 원자성 보장 — committed true 이후에만 UI 실행
   let committed = false;
 
+  // ── Gate 스냅샷 + Override 주입 ──────────────────────────
+  if (_gateResult && typeof attachGateSnapshot === 'function') {
+    const overrideReason = window._pendingOverrideReason;
+    if (overrideReason) {
+      Object.assign(betData, applyOverride(betData, overrideReason, _gateResult));
+      window._pendingOverrideReason = null;
+    } else {
+      Object.assign(betData, attachGateSnapshot(betData, _gateResult));
+    }
+  }
+  // ─────────────────────────────────────────────────────────
+
   if (editId) {
     // 수정 모드 — 기존 기록 덮어쓰기 (remaining 재차감 없음)
-    const idx = bets.findIndex(b => String(b.id) === String(editId));
+    const idx = getBets().findIndex(b => String(b.id) === String(editId));
     if (idx !== -1) {
-      const oldAmount = bets[idx].amount || 0;
-      bets[idx] = { ...bets[idx], ...betData };
+      const oldAmount = getBets()[idx].amount || 0;
+      const next = getBets().map((b, i) =>
+        i === idx ? { ...b, ...betData } : b
+      );
       const diff = betData.amount - oldAmount;
       if (diff !== 0 && typeof applyRoundBet === 'function') {
         if (diff > 0) applyRoundBet(diff);
         else if (typeof refundRoundBet === 'function') refundRoundBet(-diff);
       }
+      saveBets(next, { refresh: false });
     }
     try {
-      const serialized = _serializeBets();
-      localStorage.setItem(STORAGE_KEY, serialized);
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved || saved.length !== serialized.length || saved !== serialized) {
-        throw new Error('[storage] write verification failed');
-      }
       committed = true;
     } catch (e) { throw e; }
 
@@ -997,14 +1079,7 @@ function _addBetCore() {
       if (window.__DEV__) console.log('[ROUND] bet1', { before: _dbg1Before, delta: amount1, after: getActiveRound()?.remaining });
       applyRoundBet?.(amount2);
       if (window.__DEV__) console.log('[ROUND] bet2', { before: _dbg2Before, delta: amount2, after: getActiveRound()?.remaining });
-      bets.push(bet1);
-      bets.push(bet2);
-      const serialized = _serializeBets();
-      localStorage.setItem(STORAGE_KEY, serialized);
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved || saved.length !== serialized.length || saved !== serialized) {
-        throw new Error('[storage] write verification failed');
-      }
+      saveBets([...getBets(), bet1, bet2], { refresh: false });
       committed = true;
     } catch (e) {
       refundRoundBet?.(amount1);  // 롤백
@@ -1020,19 +1095,13 @@ function _addBetCore() {
     // [G] 디버그 로그 (DEV 전용) — 로직은 단일 경로, 로그만 조건부
     const _dbgBefore = window.__DEV__ ? getActiveRound()?.remaining : null;
     try {
-      // [B][E] applyRoundBet → push → storage 원자 실행
+      // [B][E] applyRoundBet → saveBets → 원자 실행
       applyRoundBet?.(amount);
       if (window.__DEV__) {
         const _dbgAfter = getActiveRound()?.remaining;
         console.log('[ROUND]', { before: _dbgBefore, delta: amount, after: _dbgAfter });
       }
-      bets.push(bet);
-      const serialized = _serializeBets();
-      localStorage.setItem(STORAGE_KEY, serialized);
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved || saved.length !== serialized.length || saved !== serialized) {
-        throw new Error('[storage] write verification failed');
-      }
+      saveBets([...getBets(), bet], { refresh: false });
       committed = true;
     } catch (e) {
       refundRoundBet?.(amount);   // 롤백
@@ -1682,13 +1751,14 @@ function toggleFolderMemoRow(id) {
 }
 
 function resolvebet(id, result) {
-  const bet = bets.find(b => String(b.id) === String(id));
-  if (!bet) return;
-  bet.result = result;
-  bet.profit = result === 'WIN'
-    ? bet.amount * (bet.betmanOdds - 1)
-    : -bet.amount;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(bets));
+  const target = getBets().find(b => String(b.id) === String(id));
+  if (!target) return;
+  const next = getBets().map(b =>
+    String(b.id) === String(id)
+      ? { ...b, result, profit: result === 'WIN' ? b.amount * (b.betmanOdds - 1) : -b.amount }
+      : b
+  );
+  saveBets(next, { refresh: false });
   updateAll();
   renderTable();
 }
@@ -1705,8 +1775,7 @@ function deleteBet(id) {
   ) {
     refundRoundBet(_delTarget.amount || 0);
   }
-  bets = bets.filter(b => String(b.id) !== String(id));
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(bets));
+  saveBets(getBets().filter(b => String(b.id) !== String(id)), { refresh: false });
   updateAll();
   renderTable();
 }
@@ -2086,8 +2155,7 @@ function duplicateBet(id) {
 function clearAll() {
   if (!confirm('⚠️ 경고: 모든 베팅 기록이 영구 삭제됩니다.\n\n복구가 불가능합니다. 정말 삭제하시겠습니까?')) return;
   if (!confirm('마지막 확인입니다.\n전체 베팅 기록 ' + bets.length + '건을 삭제합니다.')) return;
-  bets = [];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(bets));
+  saveBets([], { refresh: false });
   // 필터 초기화
   const fs = document.getElementById('filter-sport');   if (fs) fs.value = 'ALL';
   const fr = document.getElementById('filter-result');  if (fr) fr.value = 'ALL';
@@ -2211,12 +2279,11 @@ function restoreData(e) {
       const data = JSON.parse(ev.target.result);
       if (!data.bets || !Array.isArray(data.bets)) { alert('올바른 백업 파일이 아닙니다.'); return; }
       if (!confirm(`백업 파일에서 ${data.bets.length}개의 기록을 불러옵니다. 기존 데이터가 덮어쓰기 됩니다. 계속하시겠습니까?`)) return;
-      bets = data.bets;
+      saveBets(data.bets, { refresh: false });
       if (data.settings) { appSettings = data.settings; localStorage.setItem('edge_settings', JSON.stringify(appSettings)); }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(bets));
       loadSettingsDisplay();
       updateAll();
-      alert(`✅ ${bets.length}개의 베팅 기록을 성공적으로 불러왔습니다.`);
+      alert(`✅ ${getBets().length}개의 베팅 기록을 성공적으로 불러왔습니다.`);
     } catch(err) { alert('파일 읽기 실패: ' + err.message); }
   };
   reader.readAsText(file);
@@ -2228,22 +2295,23 @@ function handleCSV(e) {
   const reader = new FileReader();
   reader.onload = (ev) => {
     const lines = ev.target.result.split('\n').slice(1);
-    lines.forEach(line => {
-      const [date,game,sport,type,bOdds,pOdds,amount,result] = line.split(',');
-      if (!game) return;
-      const bet = {
-        id: Date.now() + Math.random(),
-        date: date?.trim(), game: game?.trim(), sport: sport?.trim() || 'NBA',
-        type: type?.trim() || 'UNDER', isValue: false,
-        betmanOdds: parseFloat(bOdds) || 1.85,
-        gap: 0, amount: parseFloat(amount) || 0,
-        result: result?.trim()?.toUpperCase() || 'PENDING', memo: ''
-      };
-      bet.profit = bet.result === 'WIN' ? bet.amount * (bet.betmanOdds - 1) :
-                   bet.result === 'LOSE' ? -bet.amount : 0;
-      bets.push(bet);
-    });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(bets));
+    const newBets = lines
+      .filter(line => line.split(',')[1])
+      .map(line => {
+        const [date,game,sport,type,bOdds,pOdds,amount,result] = line.split(',');
+        const bet = {
+          id: Date.now() + Math.random(),
+          date: date?.trim(), game: game?.trim(), sport: sport?.trim() || 'NBA',
+          type: type?.trim() || 'UNDER', isValue: false,
+          betmanOdds: parseFloat(bOdds) || 1.85,
+          gap: 0, amount: parseFloat(amount) || 0,
+          result: result?.trim()?.toUpperCase() || 'PENDING', memo: ''
+        };
+        bet.profit = bet.result === 'WIN' ? bet.amount * (bet.betmanOdds - 1) :
+                     bet.result === 'LOSE' ? -bet.amount : 0;
+        return bet;
+      });
+    saveBets([...getBets(), ...newBets], { refresh: false });
     updateAll();
     alert(`CSV 로드 완료!`);
   };
@@ -3065,7 +3133,7 @@ function setFolderResult(idx, result) {
 }
 
 function confirmFolderResults() {
-  const bet = bets.find(b => b.id === _folderResultBetId);
+  const bet = getBets().find(b => b.id === _folderResultBetId);
   if (!bet) return;
   const folderCount = bet.folderOdds ? bet.folderOdds.length : 0;
   const results = [];
@@ -3076,10 +3144,12 @@ function confirmFolderResults() {
     else if (winBtn && winBtn.style.color === 'var(--green)') results.push('WIN');
     else results.push(null); // 미선택
   }
-  bet.folderResults = results;
-  bet.result = 'LOSE';
-  bet.profit = -bet.amount;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(bets));
+  const next = getBets().map(b =>
+    b.id === _folderResultBetId
+      ? { ...b, folderResults: results, result: 'LOSE', profit: -b.amount }
+      : b
+  );
+  saveBets(next, { refresh: false });
   closeFolderResultModal();
   updateAll();
   renderTable();

@@ -686,7 +686,7 @@ function updateFundCards() {
 // ── 레이어 1: 안전 파싱 ──────────────────────────────────────────────────────
 function _loadBets() {
   try {
-    const raw = JSON.parse(localStorage.getItem('edge_bets') || '[]');
+    const raw = getBets();
     if (!Array.isArray(raw)) return [];
     // projectId 누락 보정 (기존 데이터 호환)
     return raw.map(b => ({ projectId: b.projectId || 'default', ...b }));
@@ -704,8 +704,7 @@ function _resetBets(shouldReset) {
     if (!shouldReset(b)) return b;
     return { ...b, amount: 0, profit: 0 };
   });
-  localStorage.setItem('edge_bets', JSON.stringify(newBets));
-  window.dispatchEvent(new Event('storage'));
+  saveBets(newBets);
   return newBets.filter(shouldReset).length; // 실제 초기화된 건수 반환
 }
 
