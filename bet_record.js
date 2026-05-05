@@ -138,12 +138,12 @@ function applyMultiProbSafetyFilter({ p, odds, folderCount }) {
 }
 
 // renderDecisionBlock — 순수 view-only (계산 금지, 전달값만 렌더)
-// params: { isMulti, ev, kelly, rawP, safeP, verdict, folderCount }
-function renderDecisionBlock({ isMulti, ev, kelly, rawP, safeP, verdict, folderCount }) {
+// params: { isMulti, ev, kelly, rawP, safeP, verdict, folderCount, sizing }
+function renderDecisionBlock({ isMulti, ev, kelly, rawP, safeP, verdict, folderCount, sizing }) {
   const el = document.getElementById('oneway-kelly-card');
   if (!el) return;
 
-  const base = (appSettings.kellySeed || 0) / 12;
+  const base = (appSettings.kellySeed || appSettings.bankroll || 0) / 12;
 
   // 색상/아이콘 맵
   const vMap = {
@@ -160,19 +160,55 @@ function renderDecisionBlock({ isMulti, ev, kelly, rawP, safeP, verdict, folderC
   const evColor = ev > 0.05 ? 'var(--green)' : ev > 0 ? 'var(--gold)' : 'var(--red)';
   const evStr   = (ev >= 0 ? '+' : '') + (ev * 100).toFixed(1) + '%';
 
-  // Kelly 금액 표시
-  const kellyStr = base <= 0
-    ? '<span style="color:var(--text3);font-size:11px;">시드 설정 필요</span>'
-    : (verdict === 'PASS' || verdict === 'BLOCK')
-      ? '<span style="color:var(--red);font-weight:700;">₩0</span>'
-      : `<span style="color:var(--gold);font-weight:900;font-family:'JetBrains Mono',monospace;font-size:16px;">₩${kelly.toLocaleString()}</span>`;
+  // ── Gate sizing 표시 (메인) ──────────────────────────────
+  let gateSizingHtml = '';
+  if (sizing) {
+    if (!sizing.sizingEnabled) {
+      // bankroll 미설정
+      gateSizingHtml = `
+        <div style="margin-top:8px;padding:6px 10px;background:rgba(136,146,164,0.08);border-radius:6px;font-size:10px;color:var(--text3);">
+          ⚙️ ${sizing.reason[0] || 'Bankroll 설정 필요'} — 설정 탭에서 뱅크롤을 입력하면 권장 금액이 표시됩니다.
+        </div>`;
+    } else {
+      const finalStr   = sizing.finalStake > 0 ? '₩' + sizing.finalStake.toLocaleString() : '₩0';
+      const kellyStr2  = sizing.kellySuggestion != null
+        ? '₩' + sizing.kellySuggestion.toLocaleString()
+        : '—';
+      const multLabel  = sizing.gateMultiplier < 1
+        ? ` <span style="color:var(--red);font-size:9px;">(×${sizing.gateMultiplier})</span>`
+        : '';
+      gateSizingHtml = `
+        <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div style="padding:7px 8px;background:var(--bg2);border-radius:6px;text-align:center;">
+            <div style="font-size:9px;color:var(--text3);margin-bottom:3px;letter-spacing:1px;">권장 베팅 (Gate)${multLabel}</div>
+            <div style="font-size:15px;font-weight:900;color:var(--green);font-family:'JetBrains Mono',monospace;">${finalStr}</div>
+          </div>
+          <div style="padding:7px 8px;background:var(--bg2);border-radius:6px;text-align:center;">
+            <div style="font-size:9px;color:var(--text3);margin-bottom:3px;letter-spacing:1px;">Kelly 참고</div>
+            <div style="font-size:13px;font-weight:700;color:var(--gold);font-family:'JetBrains Mono',monospace;">${kellyStr2}</div>
+          </div>
+        </div>`;
+    }
+  } else {
+    // sizing 없을 때 기존 Kelly 단독 표시 (fallback)
+    const kellyStr = base <= 0
+      ? '<span style="color:var(--text3);font-size:11px;">시드 설정 필요</span>'
+      : (verdict === 'PASS' || verdict === 'BLOCK')
+        ? '<span style="color:var(--red);font-weight:700;">₩0</span>'
+        : `<span style="color:var(--gold);font-weight:900;font-family:'JetBrains Mono',monospace;font-size:16px;">₩${kelly.toLocaleString()}</span>`;
+    gateSizingHtml = `
+      <div style="margin-top:8px;padding:8px;background:var(--bg2);border-radius:6px;text-align:center;">
+        <div style="font-size:9px;color:var(--text3);margin-bottom:4px;letter-spacing:1px;">KELLY (이번 베팅)</div>
+        <div>${kellyStr}</div>
+      </div>`;
+  }
 
   // 변동성 태그 (다폴)
   const varianceTag = isMulti
     ? (folderCount === 2 ? '변동성 ↑' : folderCount === 3 ? '고변동' : '초고변동')
     : '';
 
-  // 적중확률 표시 (다폴: 2단계)
+  // 적중확률 표시 (다폴)
   const probHtml = isMulti ? `
       <div style="margin-top:8px;padding:6px 8px;background:var(--bg2);border-radius:6px;font-size:11px;">
         <span style="color:var(--text3);font-size:9px;letter-spacing:1px;">적중확률</span>
@@ -187,20 +223,15 @@ function renderDecisionBlock({ isMulti, ev, kelly, rawP, safeP, verdict, folderC
   el.style.display = 'block';
   el.innerHTML = `
     <div style="padding:10px 14px;background:${v.bg};border:1px solid ${v.color}44;border-left:3px solid ${v.color};border-radius:8px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
         <span style="font-size:10px;color:var(--text3);letter-spacing:1px;font-weight:700;">⚡ 원웨이 판단${isMulti ? ` · ${folderCount}폴더` : ''}</span>
         <span style="font-size:12px;font-weight:800;color:${v.color};">${v.icon} ${v.label}${isMulti && varianceTag ? ` <span style="font-size:10px;font-weight:400;">(${varianceTag})</span>` : ''}</span>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <div style="padding:8px;background:var(--bg2);border-radius:6px;text-align:center;">
-          <div style="font-size:9px;color:var(--text3);margin-bottom:4px;letter-spacing:1px;">KELLY (이번 베팅)</div>
-          <div>${kellyStr}</div>
-        </div>
-        <div style="padding:8px;background:var(--bg2);border-radius:6px;text-align:center;">
-          <div style="font-size:9px;color:var(--text3);margin-bottom:4px;letter-spacing:1px;">EV</div>
-          <div style="font-size:13px;font-weight:700;color:${evColor};">${evStr}</div>
-        </div>
+      <div style="padding:6px 8px;background:var(--bg2);border-radius:6px;text-align:center;">
+        <div style="font-size:9px;color:var(--text3);margin-bottom:2px;letter-spacing:1px;">EV</div>
+        <div style="font-size:13px;font-weight:700;color:${evColor};">${evStr}</div>
       </div>
+      ${gateSizingHtml}
       ${probHtml}
     </div>`;
 }
@@ -433,6 +464,27 @@ function updateLossRatio() {
       ? 'BLOCK'
       : (ev <= 0 || finalBet <= 0 ? 'PASS' : (window._SS?.verdict || 'WAIT'));
 
+    // ── Gate sizing 계산 (Kelly 격하 — 참고값으로만) ──────────
+    let sizing = null;
+    if (typeof computeSizing === 'function' && typeof evaluateDecisionGate === 'function') {
+      try {
+        const _bets    = getBets();
+        const _metrics = typeof computeJudgeMetrics === 'function' ? computeJudgeMetrics(_bets, 'all') : {};
+        const _calib   = typeof computeCalibration  === 'function' ? computeCalibration(_bets) : {};
+        const _ctx     = buildDecisionContext({ metrics: _metrics, calibration: _calib, bets: _bets });
+        const _cfg     = getGateConfig(typeof appSettings !== 'undefined' ? appSettings : {});
+        const _gate    = evaluateDecisionGate(_ctx, _cfg);
+        const _bankroll = appSettings?.bankroll || appSettings?.kellySeed || null;
+        sizing = computeSizing(
+          { bankroll: _bankroll, kellyRawFrac: kellyFrac },
+          _gate,
+          _cfg
+        );
+      } catch (e) {
+        console.warn('[sizing] 계산 실패:', e);
+      }
+    }
+
     renderDecisionBlock({
       isMulti:     false,
       ev,
@@ -440,7 +492,8 @@ function updateLossRatio() {
       rawP:        pAdj,
       safeP:       pAdj,
       verdict,
-      folderCount: 1
+      folderCount: 1,
+      sizing,
     });
   } else if (_owMode === 'single') {
     clearDecisionBlock();
@@ -826,10 +879,31 @@ function renderGateBanner(gate) {
 
 function showOverrideDialog() {
   const reason = prompt('LOCK 상태입니다. Override 이유를 입력하세요 (기록에 남습니다):');
-  if (reason === null) return; // 취소
+  if (reason === null) return;
   if (!reason.trim()) { alert('이유를 입력해야 Override 가능합니다.'); return; }
   window._pendingOverrideReason = reason.trim();
   alert('Override 이유가 저장되었습니다. 베팅 추가 버튼을 다시 눌러 진행하세요.');
+}
+
+// ── recomputeGate — 폼 현재값 기준 gate 재평가 ──────────────
+// storage 이벤트(멀티탭) 또는 외부 트리거 시 호출
+function recomputeGate() {
+  try {
+    if (typeof evaluateDecisionGate !== 'function') return;
+    const bets        = getBets();
+    const metrics     = typeof computeJudgeMetrics === 'function' ? computeJudgeMetrics(bets, 'all') : {};
+    const calibration = typeof computeCalibration  === 'function' ? computeCalibration(bets) : {};
+    const ctx         = buildDecisionContext({ metrics, calibration, bets });
+    const config      = typeof getGateConfig === 'function'
+      ? getGateConfig(typeof appSettings !== 'undefined' ? appSettings : {})
+      : {};
+    const gate        = evaluateDecisionGate(ctx, config);
+    window._lastGateResult  = gate;
+    window._lastGateContext = ctx;
+    renderGateBanner(gate);
+  } catch (e) {
+    console.warn('[recomputeGate] 실패:', e);
+  }
 }
 
 function _addBetCore() {
@@ -850,15 +924,21 @@ function _addBetCore() {
   if (!amount || !odds) { alert('베팅 금액과 배당률을 입력하세요.'); return; }
 
   // ── Decision Gate 평가 ────────────────────────────────────
-  let _gateResult = null;
+  let _gateResult  = null;
+  let _gateContext = null;
   if (typeof evaluateDecisionGate === 'function' && typeof computeCalibration === 'function') {
     try {
       const _bets        = getBets();
       const _metrics     = typeof computeJudgeMetrics === 'function' ? computeJudgeMetrics(_bets, 'all') : {};
       const _calibration = computeCalibration(_bets);
-      const _ctx         = buildDecisionContext({ metrics: _metrics, calibration: _calibration });
+      const _ctx         = buildDecisionContext({ metrics: _metrics, calibration: _calibration, bets: _bets });
       const _config      = typeof getGateConfig === 'function' ? getGateConfig(typeof appSettings !== 'undefined' ? appSettings : {}) : {};
       _gateResult        = evaluateDecisionGate(_ctx, _config);
+      _gateContext       = _ctx;
+
+      // 전역 캐시 (recomputeGate / storage 이벤트 공유)
+      window._lastGateResult  = _gateResult;
+      window._lastGateContext = _gateContext;
 
       // 배너 렌더
       renderGateBanner(_gateResult);
@@ -1036,10 +1116,10 @@ function _addBetCore() {
   if (_gateResult && typeof attachGateSnapshot === 'function') {
     const overrideReason = window._pendingOverrideReason;
     if (overrideReason) {
-      Object.assign(betData, applyOverride(betData, overrideReason, _gateResult));
+      Object.assign(betData, applyOverride(betData, overrideReason, _gateResult, _gateContext));
       window._pendingOverrideReason = null;
     } else {
-      Object.assign(betData, attachGateSnapshot(betData, _gateResult));
+      Object.assign(betData, attachGateSnapshot(betData, _gateResult, _gateContext));
     }
   }
   // ─────────────────────────────────────────────────────────
@@ -2278,12 +2358,41 @@ function restoreData(e) {
     try {
       const data = JSON.parse(ev.target.result);
       if (!data.bets || !Array.isArray(data.bets)) { alert('올바른 백업 파일이 아닙니다.'); return; }
-      if (!confirm(`백업 파일에서 ${data.bets.length}개의 기록을 불러옵니다. 기존 데이터가 덮어쓰기 됩니다. 계속하시겠습니까?`)) return;
-      saveBets(data.bets, { refresh: false });
-      if (data.settings) { appSettings = data.settings; localStorage.setItem('edge_settings', JSON.stringify(appSettings)); }
-      loadSettingsDisplay();
+
+      const existingBets = getBets();
+      const existingIds = new Set(existingBets.map(b => String(b.id)));
+
+      // 중복 제거: 기존에 없는 id의 기록만 추가
+      const newBets = data.bets.filter(b => !existingIds.has(String(b.id)));
+      const duplicateCount = data.bets.length - newBets.length;
+
+      const mergeMode = existingBets.length > 0
+        ? confirm(
+            `기존 기록 ${existingBets.length}개가 있습니다.\n\n` +
+            `[확인] 기존 기록에 ${newBets.length}개 추가 (누적)\n` +
+            `[취소] 기존 기록 덮어쓰기 (${data.bets.length}개로 교체)\n` +
+            (duplicateCount > 0 ? `\n※ 중복 ${duplicateCount}개는 자동 제외됩니다.` : '')
+          )
+        : false;
+
+      if (mergeMode) {
+        // 누적 모드: 기존 + 신규
+        saveBets([...existingBets, ...newBets], { refresh: false });
+      } else {
+        if (!confirm(`기존 데이터가 덮어쓰기 됩니다. 계속하시겠습니까?`)) return;
+        saveBets(data.bets, { refresh: false });
+        if (data.settings) { appSettings = data.settings; localStorage.setItem('edge_settings', JSON.stringify(appSettings)); }
+        loadSettingsDisplay();
+      }
+
       updateAll();
-      alert(`✅ ${getBets().length}개의 베팅 기록을 성공적으로 불러왔습니다.`);
+      const total = getBets().length;
+      if (mergeMode) {
+        alert(`✅ ${newBets.length}개의 기록이 추가되었습니다. (전체 ${total}개)` +
+          (duplicateCount > 0 ? `\n중복 ${duplicateCount}개는 건너뛰었습니다.` : ''));
+      } else {
+        alert(`✅ ${total}개의 베팅 기록을 성공적으로 불러왔습니다.`);
+      }
     } catch(err) { alert('파일 읽기 실패: ' + err.message); }
   };
   reader.readAsText(file);

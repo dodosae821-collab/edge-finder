@@ -85,10 +85,17 @@ function _getState() {
   return _state;
 }
 
-// ── 멀티탭 캐시 무효화 ──────────────────────────────────────
+// ── 멀티탭 캐시 무효화 + gate 재평가 ────────────────────────
 window.addEventListener('storage', (e) => {
-  if (e.key === STORAGE_KEY) {
+  if (e.key !== STORAGE_KEY) return;
+  try {
     _state = null;
+    const formVisible = document.getElementById('r-amount') !== null;
+    if (formVisible && typeof recomputeGate === 'function') {
+      recomputeGate();
+    }
+  } catch (err) {
+    console.warn('[state] storage 이벤트 처리 실패:', err);
   }
 });
 

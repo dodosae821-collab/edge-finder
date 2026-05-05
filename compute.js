@@ -588,6 +588,13 @@ function computeCalibration(bets, calibStep) {
   var resolved  = bets.filter(function(b) { return b.result === 'WIN' || b.result === 'LOSE'; });
   var predBets  = resolved.filter(function(b) { return b.myProb != null && b.myProb > 0; });
 
+  // ── 최소 샘플 가드 ────────────────────────────────────────
+  // 샘플 부족 시 ECE 계산 생략 (노이즈 방지 — gate에서 calibInsufficient 처리)
+  var MIN_CALIB_SAMPLES = 30;
+  if (predBets.length < MIN_CALIB_SAMPLES) {
+    return { eceRaw: null, eceCalib: null, biasRaw: null, biasCalib: null, bins: [], predCount: predBets.length };
+  }
+
   // ── bin 집계 ─────────────────────────────────────────────
   var bins = [];
   for (var lo = 0; lo < 100; lo += step) {
