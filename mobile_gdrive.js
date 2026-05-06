@@ -37,17 +37,19 @@ const MOBILE_NAV_CONFIG = {
         { id: 'analysis3', label: '판단력', page: 'analysis3' },
       ],
       analyze: [
-        { id: 'analyze',   label: '분석',  page: 'analyze' },
-        { id: 'predict',   label: '예측',  page: 'predict' },
+        { id: 'analyze',   label: '분석',    page: 'analyze' },
+        { id: 'predict',   label: '예측',    page: 'predict' },
+        { id: 'verify',    label: '🔬 검증', page: 'verify'  },
       ]
     }
   },
   status: {
     subtabs: [
-      { id: 'simulator', label: '💰 자금관리',  page: 'simulator' },
-      { id: 'goal',      label: '🎯 목표 추적', page: 'goal' },
-      { id: 'judgeall',  label: '📋 종합판단',  page: 'judgeall' },
-      { id: 'ai-advice', label: '🤖 AI 조언',   page: 'ai-advice' },
+      { id: 'simulator',    label: '💰 자금관리',    page: 'simulator' },
+      { id: 'goal',         label: '🎯 목표 추적',   page: 'goal' },
+      { id: 'round-report', label: '📋 회차 리포트', page: 'round-report' },
+      { id: 'judgeall',     label: '📋 종합판단',    page: 'judgeall' },
+      { id: 'ai-advice',    label: '🤖 AI 조언',     page: 'ai-advice' },
     ],
     default: 'simulator'
   },
@@ -220,13 +222,14 @@ function initMobileNav() {
 
 // ========== GOOGLE DRIVE SYNC ==========
 
-const GDRIVE_CLIENT_ID = '508931566986-q7mkmphshar8j4vca2n674guond19d9c.apps.googleusercontent.com';
+const GDRIVE_CLIENT_ID = '508931566986-q7mkmphshar8j4vca2n674guond19d9c.apps.googleusercontent.com'; // public client id — secured via Google Cloud Console authorized origins (no client secret in this flow)
 const GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const GDRIVE_FILE_NAME = 'edge_finder_data.json';
 
 let _gdriveToken = null;
 let _gdriveFileId = null;
 let _gdriveSyncing = false;
+let _gdriveRemoteVersion = null;
 
 function gdriveSetStatus(icon, label, color) {
   const i = document.getElementById('gdrive-icon');
@@ -264,6 +267,19 @@ function gdriveLogin() {
   client.requestAccessToken();
 }
 
+function _handleFetchError(res) {
+  if (res.status === 401) {
+    if (_gdriveToken !== null) {
+      _gdriveToken = null;
+      gdriveSetStatus('🔑', '재인증 필요', 'var(--red)');
+    }
+    throw Object.assign(new Error('Unauthorized'), { code: 'GDRIVE_401' });
+  }
+  if (!res.ok) {
+    throw new Error(`GDRIVE_HTTP_${res.status}`);
+  }
+}
+
 async function gdriveSync() {
   if (_gdriveSyncing) return;
   _gdriveSyncing = true;
@@ -276,6 +292,7 @@ async function gdriveSync() {
         `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='${GDRIVE_FILE_NAME}'&fields=files(id,name,modifiedTime)`,
         { headers: { Authorization: 'Bearer ' + _gdriveToken } }
       );
+      _handleFetchError(searchRes);
       const searchData = await searchRes.json();
       if (searchData.files && searchData.files.length > 0) {
         _gdriveFileId = searchData.files[0].id;
@@ -288,7 +305,9 @@ async function gdriveSync() {
         `https://www.googleapis.com/drive/v3/files/${_gdriveFileId}?alt=media`,
         { headers: { Authorization: 'Bearer ' + _gdriveToken } }
       );
+      _handleFetchError(dlRes);
       const cloudData = await dlRes.json();
+      _gdriveRemoteVersion = cloudData.version || null;
 
       // 병합 (id 기준 중복 제거, 최신 우선)
       const localBets = getBets();
@@ -326,10 +345,10 @@ async function gdriveSync() {
       }
 
       // 드라이브에 최신 데이터 업로드
-      await gdriveUpload();
+      await gdriveUpload({ baseVersion: _gdriveRemoteVersion });
     } else {
       // 파일 없음 → 새로 생성
-      await gdriveUpload();
+      await gdriveUpload({ baseVersion: _gdriveRemoteVersion });
     }
 
     updateAll();
@@ -337,15 +356,33 @@ async function gdriveSync() {
     setTimeout(() => gdriveSetStatus('☁️✅', '드라이브', 'var(--green)'), 2000);
 
   } catch (e) {
-    console.error('GDrive sync error:', e);
-    gdriveSetStatus('⚠️', '오류', 'var(--red)');
-    setTimeout(() => gdriveSetStatus('☁️', '드라이브', ''), 3000);
+    if (e.code === 'GDRIVE_401') {
+      console.warn('[gdrive] 토큰 만료 — 재로그인 필요');
+    } else {
+      console.error('GDrive sync error:', e);
+      gdriveSetStatus('⚠️', '오류', 'var(--red)');
+      setTimeout(() => gdriveSetStatus('☁️', '드라이브', ''), 3000);
+    }
   } finally {
     _gdriveSyncing = false;
   }
 }
 
-async function gdriveUpload() {
+async function gdriveUpload({ baseVersion } = {}) {
+  // 충돌 체크: 기존 파일이 있고 비교 기준이 있을 때만
+  if (_gdriveFileId && baseVersion) {
+    const latestRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${_gdriveFileId}?alt=media`,
+      { headers: { Authorization: 'Bearer ' + _gdriveToken } }
+    );
+    _handleFetchError(latestRes);
+    const latestData = await latestRes.json();
+    if (latestData.version > baseVersion) {
+      gdriveSetStatus('⚠️', '충돌—탭 눌러 재동기화', 'var(--red)');
+      return;
+    }
+  }
+
   const payload = {
     bets: getBets(),
     settings: JSON.parse(localStorage.getItem('edge_settings') || '{}'),
@@ -354,7 +391,8 @@ async function gdriveUpload() {
     simState: JSON.parse(localStorage.getItem('edge_sim_state') || 'null'),
     simGoal: localStorage.getItem('edge_sim_goal') || null,
     simPending: JSON.parse(localStorage.getItem('edge_sim_pending') || 'null'),
-    syncedAt: new Date().toISOString()
+    syncedAt: new Date().toISOString(),
+    version: Date.now()
   };
   const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
 
@@ -363,10 +401,12 @@ async function gdriveUpload() {
     const form = new FormData();
     form.append('metadata', new Blob([JSON.stringify({ name: GDRIVE_FILE_NAME })], { type: 'application/json' }));
     form.append('file', blob);
-    await fetch(
+    const patchRes = await fetch(
       `https://www.googleapis.com/upload/drive/v3/files/${_gdriveFileId}?uploadType=multipart`,
       { method: 'PATCH', headers: { Authorization: 'Bearer ' + _gdriveToken }, body: form }
     );
+    _handleFetchError(patchRes);
+    _gdriveRemoteVersion = payload.version;
   } else {
     // 신규 생성
     const form = new FormData();
@@ -376,8 +416,10 @@ async function gdriveUpload() {
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
       { method: 'POST', headers: { Authorization: 'Bearer ' + _gdriveToken }, body: form }
     );
+    _handleFetchError(res);
     const data = await res.json();
     _gdriveFileId = data.id;
+    _gdriveRemoteVersion = payload.version;
   }
 }
 
@@ -398,10 +440,34 @@ function mergeByKey(arr, key) {
 
 // 베팅 저장 시 자동 드라이브 업로드
 const _origSetItem = localStorage.setItem.bind(localStorage);
+let _gdriveSyncTimer = null;
+
 const _gdriveAutoSync = () => {
-  if (_gdriveToken && !_gdriveSyncing) {
-    setTimeout(() => gdriveUpload().catch(() => {}), 500);
-  }
+  if (!_gdriveToken || _gdriveSyncing) return;
+  _gdriveSyncing = true;
+  gdriveUpload({ baseVersion: _gdriveRemoteVersion })
+    .catch((e) => {
+      if (e.code === 'GDRIVE_401') {
+        console.warn('[gdrive] 토큰 만료 — 재로그인 필요');
+      } else {
+        console.error('GDrive auto-sync error:', e);
+        gdriveSetStatus('⚠️', '오류', 'var(--red)');
+        setTimeout(() => gdriveSetStatus('☁️', '드라이브', ''), 3000);
+      }
+    })
+    .finally(() => { _gdriveSyncing = false; });
+};
+
+localStorage.setItem = function(key, value) {
+  _origSetItem.call(localStorage, key, value);
+
+  if (key !== 'edge_bets') return;
+  if (_gdriveSyncing) return;
+
+  clearTimeout(_gdriveSyncTimer);
+  _gdriveSyncTimer = setTimeout(() => {
+    _gdriveAutoSync();
+  }, 1000);
 };
 
 // ========== DECISION ENGINE ==========

@@ -89,7 +89,7 @@ function computeSimulation(bets, config) {
   var evPerBet = (winRate * (avgOdds - 1) - (1 - winRate)) * avgAmt;
 
   var simMult   = simGrade ? simGrade.mult : 1.0;
-  var useRecent = simGrade && (simGrade.letter === 'C' || simGrade.letter === 'D');
+  var useRecent = Boolean(simGrade && (simGrade.letter === 'C' || simGrade.letter === 'D'));
   var simPool   = useRecent ? resolved.slice(-30) : resolved;
 
   var RUNS  = 1000;
@@ -520,6 +520,44 @@ function computeRoundHistory(bets, history, now) {
 }
 
 
+// ── computeBaseStats ─────────────────────────────────────────
+/**
+ * bets 배열만으로 계산 가능한 기초 통계 (입력 NaN과 무관)
+ * computeRiskMetrics 조기 반환 시에도 항상 유효한 값 보장
+ * @param   {Array}  bets — getBets() 결과
+ * @param   {number} avgAmt — 평균 베팅금 (시뮬레이터에서 전달)
+ * @returns {{ stddev: number, avgAmtRounded: number, resolvedCount: number }}
+ */
+function computeBaseStats(bets, avgAmt) {
+  // resolvedCount: PENDING 제외 기준 (시스템 전체 일관성 유지)
+  // stddev:        유효 profit(Number.isFinite) 기준 — 두 기준은 의도적으로 분리
+  var resolved = bets.filter(function(b) { return b.result !== 'PENDING'; });
+
+  // Number() 변환 후 유한수만 사용 — 문자열/undefined/NaN/VOID 등 전부 차단
+  var profits = resolved
+    .map(function(b) { return Number(b.profit); })
+    .filter(Number.isFinite);
+
+  // 샘플 0건 또는 1건 → 분산 의미 없음, stddev=0 고정
+  if (profits.length <= 1) {
+    return {
+      stddev:        0,
+      avgAmtRounded: Math.round(Number.isFinite(avgAmt) ? avgAmt : 0),
+      resolvedCount: resolved.length
+    };
+  }
+
+  var mean = profits.reduce(function(s, v) { return s + v; }, 0) / profits.length;
+  var variance = profits.reduce(function(s, v) { return s + Math.pow(v - mean, 2); }, 0) / profits.length;
+
+  return {
+    stddev:        Math.sqrt(variance),
+    avgAmtRounded: Math.round(Number.isFinite(avgAmt) ? avgAmt : 0),
+    resolvedCount: resolved.length
+  };
+}
+
+
 // ── computeRiskMetrics ───────────────────────────────────────
 /**
  * 리스크 패널 계산
@@ -530,39 +568,55 @@ function computeRoundHistory(bets, history, now) {
  * @param   {number} start   — sim.start (현재 뱅크롤)
  * @returns {{
  *   kelly, halfKelly, optAmt,
- *   kellyOk,        — boolean: avgAmt <= optAmt * 1.2
- *   riskLevel,      — 'high' | 'mid' | 'low'
- *   stddev,
- *   avgAmtRounded,
- *   resolvedCount
+ *   kellyOk,        — boolean | null (입력 불능 시 null)
+ *   riskLevel,      — 'high' | 'mid' | 'low' | null
+ *   stddev,         — 항상 유효 (기초 통계)
+ *   avgAmtRounded,  — 항상 유효 (기초 통계)
+ *   resolvedCount   — 항상 유효
  * }}
  */
 function computeRiskMetrics(bets, winRate, avgOdds, avgAmt, start) {
   var resolved = bets.filter(function(b) { return b.result !== 'PENDING'; });
 
+  // ── 기초 통계 (입력 NaN 무관 — 항상 먼저 계산) ───────────
+  var base = computeBaseStats(bets, avgAmt);
+
+  // ── 입력 검증 — 의사결정 값은 유한수일 때만 계산 ─────────
+  var inputsValid = Number.isFinite(winRate)
+    && Number.isFinite(avgOdds)
+    && Number.isFinite(avgAmt)
+    && Number.isFinite(start);
+
+  if (!inputsValid) {
+    return {
+      kelly:         null,
+      halfKelly:     null,
+      optAmt:        null,
+      kellyOk:       null,
+      riskLevel:     null,
+      stddev:        base.stddev,
+      avgAmtRounded: base.avgAmtRounded,
+      resolvedCount: base.resolvedCount
+    };
+  }
+
+  // ── 의사결정 값 계산 ──────────────────────────────────────
   var kelly     = Math.max(0, (winRate * (avgOdds - 1) - (1 - winRate)) / (avgOdds - 1));
   var halfKelly = kelly / 2;
   var optAmt    = Math.round(start * halfKelly / 1000) * 1000;
   var kellyOk   = avgAmt <= optAmt * 1.2;
-
   var riskLevel = winRate < 0.45 ? 'high' : winRate < 0.50 ? 'mid' : 'low';
 
-  var profits  = resolved.map(function(b) { return b.profit; });
-  var mean     = profits.length > 0 ? profits.reduce(function(s, v) { return s + v; }, 0) / profits.length : 0;
-  var variance = profits.length > 0
-    ? profits.reduce(function(s, v) { return s + Math.pow(v - mean, 2); }, 0) / profits.length
-    : 0;
-  var stddev = Math.sqrt(variance);
-
+  // ── 출력 안전망 — 정상 경로에서도 NaN 차단 ───────────────
   return {
-    kelly:         kelly,
-    halfKelly:     halfKelly,
-    optAmt:        optAmt,
+    kelly:         Number.isFinite(kelly)     ? kelly     : null,
+    halfKelly:     Number.isFinite(halfKelly) ? halfKelly : null,
+    optAmt:        Number.isFinite(optAmt)    ? optAmt    : null,
     kellyOk:       kellyOk,
     riskLevel:     riskLevel,
-    stddev:        stddev,
-    avgAmtRounded: Math.round(avgAmt),
-    resolvedCount: resolved.length
+    stddev:        base.stddev,
+    avgAmtRounded: base.avgAmtRounded,
+    resolvedCount: base.resolvedCount
   };
 }
 
@@ -643,6 +697,449 @@ function computeCalibration(bets, calibStep) {
 }
 
 
+// ── computeSystemState ───────────────────────────────────────
+/**
+ * 중앙 계산 엔진 — 순수 함수
+ * 전역 접근 0건. 모든 입력은 파라미터로 수신.
+ *
+ * @param {Array}  scopedBets  현재 scope 기반 KPI 계산용 베팅 배열
+ * @param {Array}  allBets     전체 히스토리 (Kelly, 학습용)
+ * @param {object} settings
+ *   kelly: { seed, bankroll, maxBetPct, kellyGradeAdj, prevMultiplier }
+ *   target: { fund }
+ *   scope, scopeProject, activeRound  ← getCurrentScope/Project/getActiveRound 결과 주입
+ *
+ * @returns {object}  window._SS 와 동일한 구조 + _nextMultiplier
+ */
+function computeSystemState(scopedBets, allBets, settings, context = {}) {
+  // scopedBets: 현재 scope 기반 KPI 계산
+  // allBets: 전체 히스토리 (Kelly, 학습용)
+  // context: 읽기 전용 메타 (scope, project, activeRound) — 계산 로직에 사용 금지
+
+  const resolved  = scopedBets.filter(b => b.result !== 'PENDING');
+  const wins      = resolved.filter(b => b.result === 'WIN');
+  const n         = resolved.length;
+
+  // ── 1. 기초 통계 ──────────────────────────────────────────
+  const winRate     = n > 0 ? wins.length / n : 0;
+  const totalProfit = resolved.reduce((s,b) => s + (b.profit||0), 0);
+  const totalInvest = resolved.reduce((s,b) => s + (b.amount||0), 0);
+  const roi         = totalInvest > 0 ? totalProfit / totalInvest * 100 : 0;
+  const avgOdds     = n > 0 ? resolved.reduce((s,b) => s + (b.betmanOdds||1.9), 0) / n : 1.9;
+  const avgAmt      = n > 0 ? totalInvest / n : 0;
+
+  // 최근 10건
+  const rec10    = resolved.slice(-10);
+  const rec10wr  = rec10.length ? rec10.filter(b=>b.result==='WIN').length / rec10.length : winRate;
+  const rec10roi = rec10.length ? rec10.reduce((s,b)=>s+b.profit,0) / (rec10.reduce((s,b)=>s+b.amount,0)||1) * 100 : roi;
+
+  // 최근 5건 컨디션
+  const rec5    = resolved.slice(-5);
+  const rec5net = rec5.reduce((s,b)=>s+b.profit,0);
+
+  // 연속 스트릭
+  let streak = 0, streakType = '';
+  for (let i = resolved.length-1; i >= 0; i--) {
+    const r = resolved[i].result;
+    if (i === resolved.length-1) { streakType = r; streak = 1; }
+    else if (r === streakType) streak++;
+    else break;
+  }
+
+  // 손익비
+  const profBets  = resolved.filter(b=>b.profit>0);
+  const lossBets  = resolved.filter(b=>b.profit<0);
+  const avgProfit = profBets.length ? profBets.reduce((s,b)=>s+b.profit,0)/profBets.length : 0;
+  const avgLoss   = lossBets.length ? Math.abs(lossBets.reduce((s,b)=>s+b.profit,0)/lossBets.length) : 1;
+  const plRatio   = avgLoss > 0 ? avgProfit / avgLoss : 0;
+
+  // ── 2. 보정도(ECE) + 과신 보정계수 ───────────────────────
+  const predBets = resolved.filter(b => b.myProb && b.betmanOdds);
+  const CALIB_BUCKETS = [
+    {min:0,  max:10, mid:5 }, {min:10, max:20, mid:15},
+    {min:20, max:30, mid:25}, {min:30, max:40, mid:35},
+    {min:40, max:50, mid:45}, {min:50, max:60, mid:55},
+    {min:60, max:70, mid:65}, {min:70, max:80, mid:75},
+    {min:80, max:90, mid:85}, {min:90, max:101,mid:95}
+  ];
+  const calibRows = CALIB_BUCKETS.map(bk => {
+    const g = predBets.filter(x => x.myProb >= bk.min && x.myProb < bk.max);
+    if (g.length < 3) return null;
+    const avgProb = g.reduce((s,x)=>s+x.myProb,0)/g.length;
+    const actWr   = g.filter(x=>x.result==='WIN').length/g.length*100;
+    return { mid:bk.mid, avgProb, actWr, count:g.length, diff: actWr - avgProb };
+  }).filter(Boolean);
+
+  const calibTotal = calibRows.reduce((s,r)=>s+r.count,0);
+  const ece = calibRows.length > 0
+    ? calibRows.reduce((s,r) => s + (r.diff < 0 ? Math.abs(r.diff) : Math.abs(r.diff)*0.2)*r.count, 0) / calibTotal
+    : null;
+
+  const corrFactor = calibRows.length > 0
+    ? calibRows.reduce((s,r) => s + (r.actWr/r.avgProb)*r.count, 0) / calibTotal
+    : 1.0;
+
+  const rawEdge = predBets.length > 0
+    ? predBets.reduce((s,b) => s + (b.myProb - 100/b.betmanOdds), 0) / predBets.length
+    : null;
+  const corrEdge = (rawEdge !== null && corrFactor > 0)
+    ? predBets.reduce((s,b) => s + (b.myProb*corrFactor - 100/b.betmanOdds), 0) / predBets.length
+    : null;
+
+  // ── 2b. Recent ECE (최근 N건 기준) ──────────────────────────
+  const RECENT_ECE_N = 20;
+  const recentPredBets = predBets.slice(-RECENT_ECE_N);
+  let recentEce = null;
+  if (recentPredBets.length >= 5) {
+    const recentCalibRows = CALIB_BUCKETS.map(bk => {
+      const g = recentPredBets.filter(x => x.myProb >= bk.min && x.myProb < bk.max);
+      if (g.length < 2) return null;
+      const avgProb = g.reduce((s,x)=>s+x.myProb,0)/g.length;
+      const actWr   = g.filter(x=>x.result==='WIN').length/g.length*100;
+      return { avgProb, actWr, count:g.length, diff: actWr - avgProb };
+    }).filter(Boolean);
+    if (recentCalibRows.length > 0) {
+      const recentTotal = recentCalibRows.reduce((s,r)=>s+r.count,0);
+      recentEce = recentCalibRows.reduce((s,r) =>
+        s + (r.diff < 0 ? Math.abs(r.diff) : Math.abs(r.diff)*0.2)*r.count, 0
+      ) / recentTotal;
+    }
+  }
+
+  // ── 2c. adjustedProb 계산 헬퍼 (bucket 기반 우선) ───────────
+  function _calcAdjustedProb(myProbPct) {
+    if (!myProbPct || myProbPct <= 0) return myProbPct;
+    const bucket = calibRows.find(r => {
+      const bk = CALIB_BUCKETS.find(b => b.mid === r.mid);
+      return bk && myProbPct >= bk.min && myProbPct < bk.max;
+    });
+    if (bucket && bucket.count >= 5) {
+      return bucket.actWr;
+    }
+    const cf = Math.min(corrFactor, 1.0);
+    return myProbPct * cf;
+  }
+
+  // ── 2d. Decision Gate ────────────────────────────────────────
+  function _getBetDecision(myProbPct) {
+    const sampleSize = myProbPct
+      ? (() => {
+          const bk = CALIB_BUCKETS.find(b => myProbPct >= b.min && myProbPct < b.max);
+          const row = bk ? calibRows.find(r => r.mid === bk.mid) : null;
+          return row ? row.count : predBets.length;
+        })()
+      : predBets.length;
+
+    if (recentEce !== null && recentEce > 15) {
+      return { allow: false, kellyFactor: 0, reason: 'RECENT_ECE_BLOCK',
+               label: 'BLOCK', labelColor: 'var(--red)',
+               desc: `최근 ECE ${recentEce.toFixed(1)}% → 베팅 차단` };
+    }
+    if (recentEce !== null && recentEce > 10) {
+      return { allow: true, kellyFactor: 0.2, reason: 'RECENT_ECE_HIGH',
+               label: 'REDUCE', labelColor: 'var(--red)',
+               desc: `최근 ECE ${recentEce.toFixed(1)}% → Kelly 0.2배` };
+    }
+    if (ece !== null && ece > 15) {
+      return { allow: true, kellyFactor: 0.2, reason: 'HIGH_ECE',
+               label: 'REDUCE', labelColor: 'var(--red)',
+               desc: `ECE ${ece.toFixed(1)}% → Kelly 0.2배` };
+    }
+    if (ece !== null && ece > 8) {
+      return { allow: true, kellyFactor: 0.4, reason: 'MID_ECE',
+               label: 'REDUCE', labelColor: '#ff9800',
+               desc: `ECE ${ece.toFixed(1)}% → Kelly 0.4배` };
+    }
+    if (sampleSize < 10) {
+      return { allow: true, kellyFactor: 0.3, reason: 'LOW_SAMPLE',
+               label: 'REDUCE', labelColor: '#ff9800',
+               desc: `구간 표본 ${sampleSize}건 → Kelly 0.3배` };
+    }
+    if (sampleSize < 30) {
+      return { allow: true, kellyFactor: 0.6, reason: 'MID_SAMPLE',
+               label: 'REDUCE', labelColor: 'var(--gold)',
+               desc: `구간 표본 ${sampleSize}건 → Kelly 0.6배` };
+    }
+    return { allow: true, kellyFactor: 1.0, reason: 'OK',
+             label: 'OK', labelColor: 'var(--green)',
+             desc: 'ECE·표본 조건 충족' };
+  }
+
+  const betDecision = _getBetDecision(null);
+
+  const withPred = resolved.filter(b => b.myProb != null && b.myProb > 0);
+  const avgBias  = withPred.length > 0
+    ? withPred.reduce((s,b) => s + (b.myProb - (b.result==='WIN'?100:0)), 0) / withPred.length
+    : 0;
+
+  // ── 3. 예측력 등급 (ECE 완전 통합) ────────────────────────
+  let grade = null;
+  if (predBets.length >= 5) {
+    const useEdge  = corrEdge !== null ? corrEdge : rawEdge || 0;
+    const edgeSc   = Math.min(100, Math.max(0, (useEdge + 5) / 20 * 100));
+    const calibSc  = ece !== null ? Math.max(0, 100 - ece * 2) : 50;
+    const edges    = predBets.map(b => b.myProb - 100/b.betmanOdds);
+    const edgeMean = edges.reduce((s,v)=>s+v,0)/edges.length;
+    const edgeStd  = Math.sqrt(edges.reduce((s,v)=>s+(v-edgeMean)**2,0)/edges.length);
+    const consSc   = Math.max(0, Math.min(100, 100 - edgeStd * 3));
+    const rec10p    = predBets.slice(-10);
+    const recEdge   = rec10p.length > 0
+      ? rec10p.reduce((s,b) => s + (b.myProb*corrFactor - 100/b.betmanOdds), 0) / rec10p.length
+      : useEdge;
+    const formSc    = Math.min(100, Math.max(0, (recEdge + 5) / 20 * 100));
+    const totalSc = edgeSc*0.35 + calibSc*0.30 + consSc*0.20 + formSc*0.15;
+    const letter = totalSc >= 85 ? 'S' : totalSc >= 70 ? 'A' : totalSc >= 55 ? 'B' : totalSc >= 40 ? 'C' : 'D';
+    const color  = letter==='S'?'#ffd700':letter==='A'?'#00e676':letter==='B'?'var(--accent)':letter==='C'?'#ff9800':'var(--red)';
+    const gradeMult  = letter==='S'||letter==='A'?1.0:letter==='B'?0.8:letter==='C'?0.6:0.4;
+    const eceMult    = ece===null?1.0:ece<=5?1.0:ece<=10?0.75:ece<=15?0.5:0.25;
+    const kellyMult  = gradeMult * eceMult;
+    grade = { letter, color, totalScore:Math.round(totalSc),
+              edgeSc:Math.round(edgeSc), calibSc:Math.round(calibSc),
+              consSc:Math.round(consSc), formSc:Math.round(formSc),
+              mult: kellyMult, gradeMult, eceMult,
+              rawEdge, corrEdge, corrFactor, recEdge };
+  }
+
+  // ── 4. 켈리 권장금 (kelly.js 위임) ──────────────────────
+  // gradeAdj는 내부 계산 결과(grade)에 의존 — settings로 주입 불가
+  const seed       = settings.kelly.seed;
+  const bankroll   = settings.kelly.bankroll;
+  const gradeAdj   = settings.kelly.kellyGradeAdj && grade ? grade.mult : 1.0;
+
+  // allResolvedBets: allBets 전체 히스토리 기반 (scopedBets 아님)
+  const allResolvedBets = allBets.filter(b => b.result === 'WIN' || b.result === 'LOSE');
+
+  const _kellyResult = computeKellyUnit({
+    seed,
+    bankroll,
+    maxBetPct:       settings.kelly.maxBetPct || 5,
+    gradeAdj,
+    kellyGradeAdj:   !!settings.kelly.kellyGradeAdj,
+    decisionFactor:  betDecision.kellyFactor,
+    allResolvedBets,
+    prevMultiplier:  settings.kelly.prevMultiplier,
+  });
+
+  const kellyUnit          = _kellyResult.kellyUnit;
+  const maxUnit            = _kellyResult.maxUnit;
+  const adaptiveMultiplier = _kellyResult.adaptiveMultiplier;
+  const rec30roi           = _kellyResult.rec30roi;
+
+  // ── 5. 목표 달성 시뮬레이션 (보정된 켈리 반영) ────────────
+  const goalTarget = settings.target.fund || 0;
+  let goalSim = null;
+  if (goalTarget > 0 && bankroll > 0 && n >= 5) {
+    const RUNS  = 500;
+    const STEPS = Math.max(n, 30);
+    const profitPool = resolved.map(b => b.profit);
+    const adjPool = corrFactor < 1
+      ? profitPool.map(p => p > 0 ? p * corrFactor : p)
+      : profitPool;
+
+    let reached = 0, totalSteps = 0;
+    const s0 = (n * 7919) >>> 0;
+    let sr = s0;
+    const rng = () => { sr = ((sr*1664525)+1013904223)>>>0; return sr/4294967296; };
+
+    for (let r = 0; r < RUNS; r++) {
+      let bal = 0; let done = false;
+      for (let i = 0; i < STEPS; i++) {
+        bal += adjPool[Math.floor(rng()*adjPool.length)];
+        if (!done && bankroll + bal >= goalTarget) { reached++; totalSteps += i+1; done = true; }
+        if (bankroll + bal <= 0) break;
+      }
+    }
+    const goalProb = reached / RUNS * 100;
+    const ago4w    = new Date(Date.now() - 28*24*3600*1000);
+    const weeklyN  = scopedBets.filter(b=>b.date&&new Date(b.date)>=ago4w).length / 4 || 5;
+    const avgSteps = reached > 0 ? totalSteps / reached : null;
+    const weeksEst = avgSteps ? Math.ceil(avgSteps / weeklyN) : null;
+
+    goalSim = { prob: goalProb, weeksEst, weeklyN, remaining: goalTarget - bankroll };
+  }
+
+  // ── 6. 종합 판단 점수 (7개 신호) ─────────────────────────
+  const breakeven  = 1 / avgOdds;
+  const scoreProfitSig = Math.min(100, Math.max(0, roi * 5 + 50));
+  const scoreEdgeSig   = Math.min(100, Math.max(0, (winRate - breakeven) * 400 + 50));
+  const scoreRiskSig   = Math.min(100, Math.max(0, plRatio * 25 + 20));
+  const scoreFormSig   = Math.min(100, Math.max(0, (rec5net>0?70:30) + Math.min(30, Math.abs(rec5net)/(avgAmt||1)*20*(rec5net>0?1:-1))));
+  const scoreBiasSig   = Math.min(100, Math.max(0, 80 - Math.abs(avgBias)*3));
+  const scoreSampleSig = Math.min(100, n * 2);
+  const scoreCalibSig  = grade ? grade.calibSc : (n > 0 ? 50 : 0);
+  const sigScores = [scoreProfitSig, scoreEdgeSig, scoreRiskSig, scoreFormSig, scoreBiasSig, scoreSampleSig, scoreCalibSig];
+  const overallScore = sigScores.reduce((s,v)=>s+v,0) / sigScores.length;
+
+  // ── 7. 최종 베팅 판단 ─────────────────────────────────────
+  const warnings = [];
+  const stops    = [];
+
+  if (ece !== null && ece > 15)   stops.push(`보정 오차 ${ece.toFixed(1)}% — 켈리 신뢰 불가`);
+  if (recentEce !== null && recentEce > 15) stops.push(`최근 ECE ${recentEce.toFixed(1)}% — 베팅 차단`);
+  if (streak >= 5 && streakType==='LOSE') stops.push(`${streak}연패 진행 중 — 감정적 베팅 위험`);
+  if (grade && grade.letter === 'D') stops.push(`예측력 D등급 — 베팅 규모 최소화`);
+  if (avgBias > 20)  warnings.push(`낙관 편향 ${avgBias.toFixed(1)}%p — myProb 재검토`);
+  if (ece !== null && ece > 8 && ece <= 15) warnings.push(`보정 오차 ${ece.toFixed(1)}% — 분수 켈리 적용`);
+  if (recentEce !== null && recentEce > 10 && recentEce <= 15) warnings.push(`최근 ECE ${recentEce.toFixed(1)}% — Kelly 0.2배 축소 중`);
+  if (rec10roi < -15) warnings.push(`최근 10건 ROI ${rec10roi.toFixed(1)}% — 슬럼프 가능성`);
+  if (streak >= 3 && streakType==='LOSE') warnings.push(`${streak}연패 — 분석 강화 권장`);
+
+  const verdict = stops.length > 0  ? 'STOP'
+                : warnings.length > 0 ? 'CAUTION'
+                : n < 10             ? 'WAIT'
+                : 'GO';
+
+  const verdictInfo = {
+    GO:      { label:'베팅 가능',    color:'var(--green)', icon:'🟢', desc:'현재 지표 정상. 켈리 기준 유지.' },
+    CAUTION: { label:'주의 베팅',    color:'#ff9800',      icon:'🟡', desc: warnings[0] || '일부 지표 주의.' },
+    STOP:    { label:'베팅 보류',    color:'var(--red)',   icon:'🔴', desc: stops[0]    || '주요 지표 경고.' },
+    WAIT:    { label:'데이터 축적 중', color:'var(--text3)', icon:'⚪', desc:`${10-n}건 더 쌓이면 판단 가능.` }
+  }[verdict];
+
+  // ── 결과 객체 반환 ────────────────────────────────────────
+  return {
+    // raw
+    resolved, wins, n,
+    // 기초
+    winRate, totalProfit, totalInvest, roi, avgOdds, avgAmt,
+    rec10, rec10wr, rec10roi, rec5, rec5net,
+    streak, streakType, plRatio, avgBias,
+    // 보정도
+    predBets, calibRows, ece, corrFactor,
+    activeCorrFactor: getCalibCorrFactor(corrFactor, n),
+    rawEdge, corrEdge,
+    // Decision Layer
+    recentEce,
+    betDecision,
+    calibBuckets: calibRows,
+    // 등급
+    grade,
+    // 켈리
+    seed, bankroll, kellyUnit, gradeAdj, maxUnit,
+    rec30roi, multiplier: adaptiveMultiplier,
+    // 목표
+    goalTarget, goalSim,
+    // 종합판단
+    sigScores, overallScore,
+    labels: ['수익성','예측 엣지','리스크 관리','현재 컨디션','편향 없음','데이터 신뢰도','보정도'],
+    icons:  ['💰','🎯','🛡','🌡','👁','📦','📐'],
+    verdict, verdictInfo, warnings, stops,
+    // scope 메타 (context에서 매핑 — 내부명 → 외부 window._SS 구조 유지)
+    scope:        context.scope         || null,
+    scopeProject: context.project       || null,
+    scopedTotal:  scopedBets.length,
+    activeRound:  context.activeRound   || null,
+    // 타임스탬프
+    _ts: Date.now(),
+    // 히스테리시스 상태 — 어댑터가 window.App.kellyPrevMultiplier에 저장
+    _nextMultiplier: _kellyResult.nextMultiplier,
+  };
+}
+
+
+// ── computeAdjProbHint ────────────────────────────────────────
+// _renderAdjProbHint의 순수 계산 레이어
+// 입력: raw(원본 확률%), adj(보정 확률%), n(데이터 건수)
+// 출력: { waiting, n, diff, diffStr, color, label, strength } | { waiting: true, n, needed }
+function computeAdjProbHint(raw, adj, n) {
+  if (n < 30) {
+    return { waiting: true, n, needed: 30 - n };
+  }
+  const diff     = adj - raw;
+  const diffStr  = (diff >= 0 ? '+' : '') + diff.toFixed(1);
+  const color    = diff < -2 ? 'var(--red)' : diff > 2 ? 'var(--green)' : 'var(--accent)';
+  const label    = diff < -2 ? '⚠️ 과신 보정' : diff > 2 ? '📈 과소추정 보정' : '✅ 소폭 보정';
+  const strength = n < 50 ? `50% 강도 (${n}건)` : `100% 강도 (${n}건)`;
+  return { waiting: false, n, diff, diffStr, color, label, strength, raw, adj };
+}
+
+
+// ── computeDashboardKPI ──────────────────────────────────────
+// updateDashboardKPI의 순수 계산 레이어
+// 입력: ss (computeSystemState 결과 객체), resolveds (SS.resolved)
+// 출력: 대시보드 표시에 필요한 모든 수치
+function computeDashboardKPI(ss) {
+  if (!ss) return null;
+  const totalBets     = ss.n;
+  const winRate       = ss.winRate * 100;
+  const totalProfit   = ss.totalProfit;
+  const totalInvested = ss.totalInvest;
+  const roi           = ss.roi;
+  const avgOdds       = ss.avgOdds;
+
+  const valueBets    = ss.resolved.filter(b => b.isValue);
+  const valueWins    = valueBets.filter(b => b.result === 'WIN');
+  const valueWinRate = valueBets.length > 0 ? (valueWins.length / valueBets.length * 100) : 0;
+  const oddsCount    = ss.resolved.filter(b => b.betmanOdds > 0).length;
+
+  return {
+    totalBets, winRate, totalProfit, totalInvested, roi, avgOdds,
+    valueWinRate, oddsCount,
+  };
+}
+
+
+// ── computeStatsDisplay ──────────────────────────────────────
+// stats.js 상단 통계 카드의 순수 계산 레이어
+// 입력: ss (computeSystemState 결과), resolved (결과 확정 베팅 배열)
+// 출력: winRate, roi, plRatio 수치 + 메타
+function computeStatsDisplay(ss, resolved) {
+  const wins = ss ? ss.wins : resolved.filter(b => b.result === 'WIN');
+  const winRate       = ss ? ss.winRate       : wins.length / (resolved.length || 1);
+  const totalProfit   = ss ? ss.totalProfit   : resolved.reduce((s, b) => s + b.profit, 0);
+  const totalInvested = ss ? ss.totalInvest   : resolved.reduce((s, b) => s + b.amount, 0);
+  const roi           = ss ? ss.roi           : (totalInvested > 0 ? totalProfit / totalInvested * 100 : 0);
+
+  let plRatio;
+  if (ss && ss.plRatio > 0) {
+    plRatio = ss.plRatio;
+  } else {
+    const wb = resolved.filter(b => b.result === 'WIN');
+    const lb = resolved.filter(b => b.result === 'LOSE');
+    const aw = wb.length > 0 ? wb.reduce((s, b) => s + b.profit, 0) / wb.length : 0;
+    const al = lb.length > 0 ? Math.abs(lb.reduce((s, b) => s + b.profit, 0) / lb.length) : 0;
+    plRatio  = (al > 0 && wb.length > 0) ? aw / al : null;
+  }
+
+  return {
+    wins, winRate, totalProfit, totalInvested, roi,
+    winsCount: Array.isArray(wins) ? wins.length : wins,
+    resolvedCount: resolved.length,
+    plRatio,
+  };
+}
+
+
+// ── computeRecentRows ────────────────────────────────────────
+// renderRecentTable의 순수 계산 레이어
+// 입력:
+//   resolved    — 결과 확정 베팅 배열 (SS.resolved 또는 폴백 배열)
+//   pendingBets — PENDING 상태 베팅 배열
+//   limit       — 최대 반환 건수 (기본 8)
+// 출력: 최신순 정렬 후 limit건 슬라이스된 배열
+// 규칙:
+//   - profit이 NaN/null/undefined → 0으로 정규화
+//   - date 동일(빈 문자열 포함) 시 원래 순서 유지 (안정 정렬)
+//   - resolved + pendingBets 합산 후 정렬
+function computeRecentRows(resolved, pendingBets, limit = 8) {
+  const _resolved = Array.isArray(resolved)    ? resolved    : [];
+  const _pending  = Array.isArray(pendingBets) ? pendingBets : [];
+
+  const merged = [..._resolved, ..._pending].map((b, i) => ({
+    ...b,
+    profit: (typeof b.profit === 'number' && isFinite(b.profit)) ? b.profit : 0,
+    _idx: i,  // 안정 정렬용 원본 인덱스
+  }));
+
+  merged.sort((a, b) => {
+    const dateCmp = (b.date || '').localeCompare(a.date || '');
+    return dateCmp !== 0 ? dateCmp : a._idx - b._idx;
+  });
+
+  return merged.slice(0, limit).map(({ _idx, ...rest }) => rest);
+}
+
+
 // ── 자기 무결성 체크 ─────────────────────────────────────────
 console.assert(typeof computeAnalyzeMetrics === 'function', '[compute.js] computeAnalyzeMetrics not defined');
 console.assert(typeof computeSimulation     === 'function', '[compute.js] computeSimulation not defined');
@@ -650,3 +1147,8 @@ console.assert(typeof computeJudgeMetrics   === 'function', '[compute.js] comput
 console.assert(typeof computeRoundHistory   === 'function', '[compute.js] computeRoundHistory not defined');
 console.assert(typeof computeRiskMetrics    === 'function', '[compute.js] computeRiskMetrics not defined');
 console.assert(typeof computeCalibration    === 'function', '[compute.js] computeCalibration not defined');
+console.assert(typeof computeSystemState    === 'function', '[compute.js] computeSystemState not defined');
+console.assert(typeof computeAdjProbHint    === 'function', '[compute.js] computeAdjProbHint not defined');
+console.assert(typeof computeDashboardKPI   === 'function', '[compute.js] computeDashboardKPI not defined');
+console.assert(typeof computeStatsDisplay   === 'function', '[compute.js] computeStatsDisplay not defined');
+console.assert(typeof computeRecentRows     === 'function', '[compute.js] computeRecentRows not defined');

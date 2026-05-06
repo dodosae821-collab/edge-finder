@@ -146,8 +146,9 @@ function toggleKellyGradeAdj() {
 
 // 예측력 등급 계산 (updatePredPowerPanel 로직 공유)
 function calcPredGrade() {
-  // 엔진 결과 우선 사용
-  if (window._SS && window._SS.grade !== undefined) return window._SS.grade;
+  // 엔진 결과 우선 사용 — window._SS는 이 래퍼에서만 읽음
+  const ss = window._SS;
+  if (ss && ss.grade !== undefined) return ss.grade;
   // 엔진 없으면 직접 계산 (폴백) — scope 필터 적용
   const _sb = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
   const resolved = _sb.filter(b => b.result !== 'PENDING');
@@ -192,8 +193,8 @@ function calcKelly() {
     return;
   }
 
-  // ── 엔진 연동: 등급/ECE 보정 배율 ──
-  const _SS = window._SS;
+  // ── 엔진 연동: 등급/ECE 보정 배율 — window._SS는 여기서만 읽음 ──
+  const _SS        = window._SS;
   const _grade     = appSettings.kellyGradeAdj ? (_SS ? _SS.grade : calcPredGrade()) : null;
   const _gradeMult = _grade ? _grade.gradeMult || _grade.mult : 1.0;
   const _eceMult   = (_SS && _SS.grade) ? _SS.grade.eceMult : 1.0;
@@ -225,7 +226,7 @@ function calcKelly() {
   const _rawProbPct = _rawProbEl ? parseFloat(_rawProbEl.value) : _adjProbPct;
 
   if (_adjProbPct > 0 && _adjOdds >= 1 && unit > 0) {
-    const ss = window._SS;
+    const ss = _SS;  // 위에서 이미 읽은 _SS 재사용
 
     // 1. base = 회차 시드 ÷ 12 (고정 기준값)
     const activeRound = (typeof getActiveRound === 'function') ? getActiveRound() : null;

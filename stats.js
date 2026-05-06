@@ -17,39 +17,29 @@ function updateStatsAnalysis() {
     return;
   }
 
-  // ── 엔진 연동 ──
-  const _SS = window._SS;
+  // ── 엔진 연동 — 순수 계산은 compute.js에 위임 ──
+  const _SS  = window._SS;
+  const _std = computeStatsDisplay(_SS, resolved);
+  const { wins, winRate: totalWr, roi, totalProfit, totalInvested, winsCount, plRatio: rrRatio } = _std;
 
   // ── 통계1 상단 카드 ──
-  // 승률 — 엔진 우선
-  const wins = _SS ? _SS.wins : resolved.filter(b => b.result === 'WIN');
-  const totalWr = _SS ? _SS.winRate : wins.length / resolved.length;
+  // 승률
   const wrEl = document.getElementById('sa-total-wr');
   if (wrEl) {
     wrEl.textContent = (totalWr * 100).toFixed(1) + '%';
     wrEl.style.color = totalWr >= 0.5 ? 'var(--green)' : 'var(--red)';
   }
   const wrLabelEl = document.getElementById('sa-total-wr-label');
-  if (wrLabelEl) wrLabelEl.textContent = `${resolved.length}건 중 ${wins.length}적중`;
+  if (wrLabelEl) wrLabelEl.textContent = `${resolved.length}건 중 ${winsCount}적중`;
 
-  // ROI — 엔진 우선
-  const totalProfit   = _SS ? _SS.totalProfit   : resolved.reduce((s, b) => s + b.profit, 0);
-  const totalInvested = _SS ? _SS.totalInvest   : resolved.reduce((s, b) => s + b.amount, 0);
-  const roi = _SS ? _SS.roi : (totalInvested > 0 ? totalProfit / totalInvested * 100 : 0);
+  // ROI
   const roiEl = document.getElementById('sa-total-roi');
   if (roiEl) {
     roiEl.textContent = (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%';
     roiEl.style.color = roi >= 0 ? 'var(--green)' : 'var(--red)';
   }
 
-  // 손익비 — 엔진 우선
-  const rrRatio = _SS ? (_SS.plRatio > 0 ? _SS.plRatio : null) : (() => {
-    const wb = resolved.filter(b => b.result === 'WIN');
-    const lb = resolved.filter(b => b.result === 'LOSE');
-    const aw = wb.length > 0 ? wb.reduce((s,b)=>s+b.profit,0)/wb.length : 0;
-    const al = lb.length > 0 ? Math.abs(lb.reduce((s,b)=>s+b.profit,0)/lb.length) : 0;
-    return al > 0 ? aw / al : null;
-  })();
+  // 손익비
   const rrEl = document.getElementById('sa-rr-ratio');
   if (rrEl) {
     rrEl.textContent = rrRatio !== null ? rrRatio.toFixed(2) : '—';

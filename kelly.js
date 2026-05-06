@@ -54,10 +54,11 @@ function getAdaptiveMultiplier(roi, sampleSize) {
 //   kellyGradeAdj   {boolean} 등급 보정 설정 ON/OFF
 //   decisionFactor  {number}  Decision Gate kellyFactor (0~1)
 //   allResolvedBets {Array}   WIN/LOSE 확정 베팅 전체 배열
+//   prevMultiplier  {number}  이전 세션 multiplier (히스테리시스용, 호출자 주입)
 //
 // @returns {object}
 //   { kellyUnit, maxUnit, baseKelly, adaptiveMultiplier,
-//     safeGradeAdj, rec30roi }
+//     safeGradeAdj, rec30roi, nextMultiplier }
 function computeKellyUnit({
   seed,
   bankroll,
@@ -66,6 +67,7 @@ function computeKellyUnit({
   kellyGradeAdj,
   decisionFactor,
   allResolvedBets,
+  prevMultiplier,
 }) {
   const MIN_BET = 1000;
 
@@ -99,30 +101,35 @@ function computeKellyUnit({
   // 극단값 방어 ±20 클램프
   const rec30roiClamped = Math.max(-20, Math.min(20, rec30roi));
 
-  // multiplier 계산
+  // ── Adaptive Multiplier 파이프라인 ───────────────────────
+  // 순서 고정 필수: 기본 → 손실 방어 → clamp → 히스테리시스 → 최종 clamp
+
+  // 1) 기본
   let adaptiveMultiplier = getAdaptiveMultiplier(rec30roiClamped, recent.length);
 
-  // prevMultiplier 안정화 — NaN / Infinity / undefined 방어
-  const _prevMult = Number.isFinite(window._prevMultiplier)
-    ? window._prevMultiplier
-    : 1;
-
-  // 히스테리시스 — 변화폭 0.05 미만이면 이전 값 유지
-  if (Math.abs(_prevMult - adaptiveMultiplier) < 0.05) {
-    adaptiveMultiplier = _prevMult;
-  }
-
-  window._prevMultiplier = adaptiveMultiplier;
-
-  // 손실 방어 — 최근 10건 중 손실 7건 이상이면 강제 축소
+  // 2) 손실 방어 — 최근 10건 중 손실 7건 이상이면 강제 축소
   const recent10 = recent.slice(0, 10);
   const recentLossCount = recent10.filter(b => b.profit < 0).length;
   if (recentLossCount >= 7) {
     adaptiveMultiplier *= 0.7;
   }
 
-  // 안전 clamp (0.5 ~ 1.2)
+  // 3) clamp (0.5 ~ 1.2)
   adaptiveMultiplier = Math.max(0.5, Math.min(1.2, adaptiveMultiplier));
+
+  // 4) 히스테리시스 — 최종 결과에만 적용 (손실 방어가 묻히지 않도록)
+  //    주입된 prevMultiplier 방어: NaN / Infinity / undefined → 1.0 폴백
+  const safePrev = Number.isFinite(prevMultiplier) ? prevMultiplier : 1.0;
+  //    샘플 5건 미만이면 스킵 (초반 고정 현상 방지)
+  if (recent.length >= 5 && Math.abs(adaptiveMultiplier - safePrev) < 0.05) {
+    adaptiveMultiplier = safePrev;
+  }
+
+  // 5) 최종 clamp — 히스테리시스 이후 범위 보장
+  adaptiveMultiplier = Math.max(0.5, Math.min(1.2, adaptiveMultiplier));
+
+  // nextMultiplier: 호출자가 상태에 저장, 다음 호출 시 prevMultiplier로 주입
+  const nextMultiplier = adaptiveMultiplier;
 
   // ── Kelly v2 계산 블록 ────────────────────────────────────
   // 구조: raw(float) → floor → MIN_BET(조건부) → maxUnit(상한)
@@ -162,6 +169,7 @@ function computeKellyUnit({
     adaptiveMultiplier,
     safeGradeAdj,
     rec30roi,
+    nextMultiplier,
   };
 }
 
