@@ -426,106 +426,108 @@ function updateStatsAnalysis() {
     document.getElementById('pred-avg-myprob').textContent = '—';
     document.getElementById('pred-avg-implied').textContent = '—';
     document.getElementById('pred-table').innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">예상 승률을 입력한 베팅 기록이 없습니다</td></tr>`;
-    return;
+    // return 제거 — predBets 없어도 아래 요일별/배당구간/월별 차트는 계속 실행해야 함
   }
 
-  // +EV 예측(내 승률 > 내재확률)이면서 실제 적중한 비율
-  const posEdgeBets = predBets.filter(b => b.myProb > (1 / b.betmanOdds * 100));
-  const posEdgeWins = posEdgeBets.filter(b => b.result === 'WIN').length;
-  const hitRate = posEdgeBets.length > 0 ? (posEdgeWins / posEdgeBets.length * 100).toFixed(1) : '—';
+  if (predBets.length > 0) {
+    // +EV 예측(내 승률 > 내재확률)이면서 실제 적중한 비율
+    const posEdgeBets = predBets.filter(b => b.myProb > (1 / b.betmanOdds * 100));
+    const posEdgeWins = posEdgeBets.filter(b => b.result === 'WIN').length;
+    const hitRate = posEdgeBets.length > 0 ? (posEdgeWins / posEdgeBets.length * 100).toFixed(1) : '—';
 
-  const avgMyProb   = (predBets.reduce((s, b) => s + b.myProb, 0) / predBets.length).toFixed(1);
-  const avgImplied  = (predBets.reduce((s, b) => s + (1 / b.betmanOdds * 100), 0) / predBets.length).toFixed(1);
+    const avgMyProb   = (predBets.reduce((s, b) => s + b.myProb, 0) / predBets.length).toFixed(1);
+    const avgImplied  = (predBets.reduce((s, b) => s + (1 / b.betmanOdds * 100), 0) / predBets.length).toFixed(1);
 
-  document.getElementById('pred-hit-rate').textContent    = hitRate !== '—' ? hitRate + '%' : '—';
-  document.getElementById('pred-avg-myprob').textContent  = avgMyProb + '%';
-  document.getElementById('pred-avg-implied').textContent = avgImplied + '%';
+    document.getElementById('pred-hit-rate').textContent    = hitRate !== '—' ? hitRate + '%' : '—';
+    document.getElementById('pred-avg-myprob').textContent  = avgMyProb + '%';
+    document.getElementById('pred-avg-implied').textContent = avgImplied + '%';
 
-  // 예측 기록 테이블 — 페이지네이션
-  predAllBets = predBets.slice().reverse(); // 최신순
-  predPage = 1;
-  renderPredPage();
+    // 예측 기록 테이블 — 페이지네이션
+    predAllBets = predBets.slice().reverse(); // 최신순
+    predPage = 1;
+    renderPredPage();
 
-  // 예측 정확도 차트 (내 예상 승률 vs 내재확률 비교)
-  if (charts.predAccuracy) charts.predAccuracy.destroy();
-  charts.predAccuracy = safeCreateChart('predAccuracyChart', {
-    type: 'line',
-    data: {
-      labels: predBets.map((_, i) => `${i+1}번`),
-      datasets: [
-        {
-          label: '내 예상 승률',
-          data: predBets.map(b => b.myProb),
-          borderColor: '#00e676',
-          backgroundColor: 'rgba(0,230,118,0.15)',
-          borderWidth: 3,
-          pointRadius: 6,
-          pointBackgroundColor: predBets.map(b => b.result === 'WIN' ? '#00e676' : b.result === 'LOSE' ? '#ff3b5c' : '#ffd700'),
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          tension: 0.3,
-          fill: false,
-        },
-        {
-          label: '북메이커 내재확률',
-          data: predBets.map(b => parseFloat((1/b.betmanOdds*100).toFixed(1))),
-          borderColor: '#ffd700',
-          backgroundColor: 'rgba(255,215,0,0.08)',
-          borderWidth: 2,
-          borderDash: [6, 3],
-          pointRadius: 4,
-          pointBackgroundColor: '#ffd700',
-          pointBorderColor: '#1a2740',
-          pointBorderWidth: 1,
-          tension: 0.3,
-          fill: false,
-        }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          labels: {
-            color: '#c8d6e8',
-            font: { size: 12, weight: '700' },
-            padding: 16,
-            usePointStyle: true,
-            pointStyleWidth: 12,
+    // 예측 정확도 차트 (내 예상 승률 vs 내재확률 비교)
+    if (charts.predAccuracy) charts.predAccuracy.destroy();
+    charts.predAccuracy = safeCreateChart('predAccuracyChart', {
+      type: 'line',
+      data: {
+        labels: predBets.map((_, i) => `${i+1}번`),
+        datasets: [
+          {
+            label: '내 예상 승률',
+            data: predBets.map(b => b.myProb),
+            borderColor: '#00e676',
+            backgroundColor: 'rgba(0,230,118,0.15)',
+            borderWidth: 3,
+            pointRadius: 6,
+            pointBackgroundColor: predBets.map(b => b.result === 'WIN' ? '#00e676' : b.result === 'LOSE' ? '#ff3b5c' : '#ffd700'),
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            tension: 0.3,
+            fill: false,
+          },
+          {
+            label: '북메이커 내재확률',
+            data: predBets.map(b => parseFloat((1/b.betmanOdds*100).toFixed(1))),
+            borderColor: '#ffd700',
+            backgroundColor: 'rgba(255,215,0,0.08)',
+            borderWidth: 2,
+            borderDash: [6, 3],
+            pointRadius: 4,
+            pointBackgroundColor: '#ffd700',
+            pointBorderColor: '#1a2740',
+            pointBorderWidth: 1,
+            tension: 0.3,
+            fill: false,
           }
-        },
-        tooltip: {
-          backgroundColor: 'rgba(10,20,40,0.95)',
-          titleColor: '#c8d6e8',
-          bodyColor: '#8892a4',
-          borderColor: 'rgba(0,229,255,0.3)',
-          borderWidth: 1,
-          callbacks: {
-            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`,
-            afterBody: (items) => {
-              const idx = items[0]?.dataIndex;
-              if (idx == null) return '';
-              const b = predBets[idx];
-              const edge = (b.myProb - (1/b.betmanOdds*100)).toFixed(1);
-              const result = b.result === 'WIN' ? '✅ 적중' : b.result === 'LOSE' ? '❌ 미적중' : '⏳ 미결';
-              return [`우위: ${parseFloat(edge)>=0?'+':''}${edge}%p`, `결과: ${result}`];
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: {
+              color: '#c8d6e8',
+              font: { size: 12, weight: '700' },
+              padding: 16,
+              usePointStyle: true,
+              pointStyleWidth: 12,
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(10,20,40,0.95)',
+            titleColor: '#c8d6e8',
+            bodyColor: '#8892a4',
+            borderColor: 'rgba(0,229,255,0.3)',
+            borderWidth: 1,
+            callbacks: {
+              label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`,
+              afterBody: (items) => {
+                const idx = items[0]?.dataIndex;
+                if (idx == null) return '';
+                const b = predBets[idx];
+                const edge = (b.myProb - (1/b.betmanOdds*100)).toFixed(1);
+                const result = b.result === 'WIN' ? '✅ 적중' : b.result === 'LOSE' ? '❌ 미적중' : '⏳ 미결';
+                return [`우위: ${parseFloat(edge)>=0?'+':''}${edge}%p`, `결과: ${result}`];
+              }
             }
           }
-        }
-      },
-      scales: {
-        x: {
-          ticks: { color: '#8892a4', font: { size: 11 } },
-          grid: { color: 'rgba(255,255,255,0.05)' }
         },
-        y: {
-          ticks: { color: '#8892a4', font: { size: 11 }, callback: v => v + '%' },
-          grid: { color: 'rgba(255,255,255,0.05)' },
-          min: 0, max: 100,
+        scales: {
+          x: {
+            ticks: { color: '#8892a4', font: { size: 11 } },
+            grid: { color: 'rgba(255,255,255,0.05)' }
+          },
+          y: {
+            ticks: { color: '#8892a4', font: { size: 11 }, callback: v => v + '%' },
+            grid: { color: 'rgba(255,255,255,0.05)' },
+            min: 0, max: 100,
+          }
         }
       }
-    }
-  });
+    });
+  }
 
   // ── 요일별 통계 ──
   const DOW_LABELS = ['일','월','화','수','목','금','토'];
