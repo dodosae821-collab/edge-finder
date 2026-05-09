@@ -610,7 +610,7 @@ function renderPredPage() {
 // ========== 피보나치 손실 만회 시스템 ==========
 
 function updateDashboardKPI() {
-  const SS  = window._SS;
+  const SS  = window.App._SS;
   const kpi = computeDashboardKPI(SS);
   if (!kpi) return;
 
@@ -655,7 +655,7 @@ function renderRecentTable() {
   if (!tbody) return;
 
   // window._SS는 이 래퍼에서만 읽음 — 순수 계산은 computeRecentRows에 위임
-  const SS          = window._SS;
+  const SS          = window.App._SS;
   const resolved    = SS ? SS.resolved : (typeof getBetsByScope === 'function' ? getBetsByScope().filter(b => b.result !== 'PENDING') : bets);
   const pendingBets = typeof getBetsByScope === 'function' ? getBetsByScope().filter(b => b.result === 'PENDING') : [];
   const recent      = computeRecentRows(resolved, pendingBets, 8);

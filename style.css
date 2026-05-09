@@ -13,6 +13,9 @@
     --text: #e8f0fe;
     --text2: #8892a4;
     --text3: #6b7a99;
+    /* semantic intent variables */
+    --positive: #00ff88;
+    --warn: #ff9800;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -957,11 +960,10 @@
     #jp-decision [style*="grid-template-columns:1fr 1fr 1fr 1fr"] { grid-template-columns: 1fr 1fr !important; }
 
     /* 베팅일지 탭 모바일 */
-    #page-journal [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
-    #jp-diary [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
-    #page-journal [style*="repeat(4,1fr)"] { grid-template-columns: repeat(2,1fr) !important; }
+    #page-journal .jnl-grid-2col { grid-template-columns: 1fr !important; }
+    #page-journal .jnl-grid-3col { grid-template-columns: repeat(2,1fr) !important; }
     /* 베팅일지 내부 탭버튼 가로스크롤 */
-    #page-journal > div > div[style*="display:flex"] { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch !important; scrollbar-width: none !important; padding-bottom: 0 !important; }
+    #page-journal .jnl-tab-nav { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch !important; scrollbar-width: none !important; padding-bottom: 0 !important; }
     #page-journal button[id^="jt-"] { flex-shrink: 0 !important; padding: 8px 10px !important; font-size: 11px !important; white-space: nowrap !important; }
 
     /* 분석 탭 테이블 잘림 방지 */
@@ -1022,10 +1024,10 @@
     #page-simulator [style*="repeat(3,1fr)"] { grid-template-columns: 1fr 1fr !important; }
 
     /* 목표추적 모바일 */
-    #page-goal [style*="repeat(6,1fr)"] { grid-template-columns: repeat(3,1fr) !important; }
-    #page-goal [style*="grid-template-columns:1fr 1fr 1fr"],
-    #page-goal [style*="repeat(3,1fr)"] { grid-template-columns: 1fr 1fr !important; }
-    #page-goal [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+    #page-goal .gp-grid-6col { grid-template-columns: repeat(3,1fr) !important; }
+    #page-goal .gp-grid-3col,
+    #page-goal .gp-grid-3col-alt { grid-template-columns: 1fr 1fr !important; }
+    #page-goal .gp-grid-2col { grid-template-columns: 1fr !important; }
 
     /* 분석 탭 모바일 */
     #page-analyze [style*="repeat(5,1fr)"],
@@ -1035,10 +1037,10 @@
     #page-analyze [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
 
     /* 예측 탭 모바일 */
-    #page-predict [style*="repeat(4,1fr)"],
-    #page-predict [style*="repeat(3,1fr)"] { grid-template-columns: repeat(2,1fr) !important; }
-    #page-predict [style*="grid-template-columns:1fr 1fr 1fr"] { grid-template-columns: 1fr !important; }
-    #page-predict [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+    #page-predict .gp-grid-4col,
+    #page-predict .gp-grid-3col { grid-template-columns: repeat(2,1fr) !important; }
+    #page-predict .gp-grid-3col-single { grid-template-columns: 1fr !important; }
+    #page-predict .gp-grid-2col { grid-template-columns: 1fr !important; }
 
     /* 예측력 탭 모바일 */
     #page-predpower [style*="grid-template-columns:auto 1fr"] { grid-template-columns: 1fr !important; }
@@ -1069,3 +1071,190 @@
     .mobile-subtab-bar { display: none !important; }
     .mobile-subtab2-bar { display: none !important; }
   }
+
+/* ============================================================
+   journal.js semantic classes
+   ============================================================ */
+
+/* 탭 네비게이션 컨테이너 */
+.jnl-tab-nav {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+/* 그리드 레이아웃 */
+.jnl-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.jnl-grid-3col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* 빈 상태 메시지 - renderPlanVsReal / renderRoundReviewList / renderDiaryList 공용
+   (3곳 모두 "데이터 없음" 안내라는 동일 의미) */
+.jnl-empty-state {
+  font-size: 12px;
+  color: var(--text3);
+  text-align: center;
+  padding: 16px;
+}
+
+/* 메트릭 카드 셀 - renderPlanVsReal 내 통계 칸 */
+.jnl-metric-cell {
+  padding: 10px;
+  background: var(--bg3);
+  border-radius: 6px;
+  text-align: center;
+}
+
+/* 메트릭 라벨 (xs) - 메트릭 카드 상단 레이블 */
+.jnl-metric-label {
+  font-size: 10px;
+  color: var(--text3);
+  margin-bottom: 4px;
+}
+
+/* 테이블 헤더/셀 - 통계 테이블 */
+.jnl-th {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text3);
+  text-align: center;
+}
+
+.jnl-th-left {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text3);
+  text-align: left;
+}
+
+/* 입력/셀렉트 소형 - renderPlanFolderRows */
+.jnl-input-sm {
+  padding: 6px 8px;
+  font-size: 11px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text2);
+}
+
+/* 불러오기/수정 버튼 - accent tint */
+.jnl-btn-accent {
+  padding: 4px 10px;
+  font-size: 10px;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 4px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.jnl-btn-accent-md {
+  padding: 6px 12px;
+  background: rgba(0, 229, 255, 0.12);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 6px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   goal_predict.js semantic classes
+   ============================================================ */
+
+/* 리스크/목표 지표 행 - updateGoalRisk */
+.gp-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background: var(--bg3);
+  border-radius: 6px;
+}
+
+/* 지표 행 컨테이너 (세로 스택) */
+.gp-stat-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 섹션 라벨 */
+.gp-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text2);
+  margin-bottom: 4px;
+}
+
+/* 테이블 셀 중앙정렬 */
+.gp-td-center {
+  padding: 7px 4px;
+  text-align: center;
+}
+
+/* 보조 텍스트 */
+.gp-text-muted {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+/* accent tint 인포 박스 - 예측 안내 */
+.gp-info-box {
+  background: rgba(0, 229, 255, 0.07);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+/* plan-mode 토글 버튼 */
+.jnl-mode-btn {
+  padding: 8px;
+  border-radius: 6px;
+  border: 2px solid var(--border);
+  background: var(--bg3);
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.jnl-mode-btn.is-active {
+  border-color: var(--accent);
+  background: rgba(0, 229, 255, 0.12);
+  color: var(--accent);
+}
+
+/* 키-값 행 (목표 예측 요약) */
+.gp-kv-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+/* KPI 카드 라벨 / 서브텍스트 — rrRenderKPI() */
+.jnl-kpi-label {
+  font-size: 10px;
+  color: var(--text3);
+  margin-bottom: 6px;
+}
+.jnl-kpi-sub {
+  font-size: 10px;
+  color: var(--text3);
+  margin-top: 4px;
+}
+
+/* gp-stat-row 내 레이블 */
+.gp-stat-label {
+  font-size: 11px;
+  color: var(--text3);
+}

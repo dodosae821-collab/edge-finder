@@ -111,7 +111,7 @@ function renderMobileSubtabs(section) {
   const visibleSubs = config.subtabs.filter(sub => {
     if (!sub.hidden) return true;
     // 설정에서 토글된 경우만 보여줌
-    const settings = JSON.parse(localStorage.getItem('edge_settings') || '{}');
+    const settings = Storage.getJSON(KEYS.SETTINGS, {});
     if (sub.id === 'journal' && settings.showJournal) return true;
     if (sub.id === 'value' && settings.showEVCalc) return true;
     return false;
@@ -256,7 +256,7 @@ function gdriveLogin() {
     callback: (resp) => {
       if (resp.error) {
         gdriveSetStatus('☁️', '드라이브', '');
-        alert('구글 로그인 실패: ' + resp.error);
+        showToast('구글 로그인 실패: ' + resp.error, 'error');
         return;
       }
       _gdriveToken = resp.access_token;
@@ -316,22 +316,22 @@ async function gdriveSync() {
       saveBets(merged);
 
       // 설정 병합 (로컬 우선)
-      if (cloudData.settings && !localStorage.getItem('edge_settings')) {
-        localStorage.setItem('edge_settings', JSON.stringify(cloudData.settings));
+      if (cloudData.settings && !Storage.get(KEYS.SETTINGS)) {
+        Storage.setJSON(KEYS.SETTINGS, cloudData.settings);
       }
 
       // 전략베팅 시뮬레이터 복원 (클라우드 우선)
       if (cloudData.simState) {
-        localStorage.setItem('edge_sim_state', JSON.stringify(cloudData.simState));
+        Storage.setJSON(KEYS.SIM_STATE, cloudData.simState);
         simState = cloudData.simState;
         simSnaps = [];
       }
       if (cloudData.simGoal) {
-        localStorage.setItem('edge_sim_goal', cloudData.simGoal);
+        Storage.set(KEYS.SIM_GOAL, cloudData.simGoal);
         SIM_GOAL = parseInt(cloudData.simGoal);
       }
       if (cloudData.simPending) {
-        localStorage.setItem('edge_sim_pending', JSON.stringify(cloudData.simPending));
+        Storage.setJSON(KEYS.SIM_PENDING, cloudData.simPending);
         simPending = cloudData.simPending;
       }
       // 전략베팅 시뮬레이터 UI 갱신 (경로 탭 포함)
@@ -385,12 +385,12 @@ async function gdriveUpload({ baseVersion } = {}) {
 
   const payload = {
     bets: getBets(),
-    settings: JSON.parse(localStorage.getItem('edge_settings') || '{}'),
-    diaries: JSON.parse(localStorage.getItem('edge_diaries') || '{}'),
-    plans: JSON.parse(localStorage.getItem('edge_plans') || '[]'),
-    simState: JSON.parse(localStorage.getItem('edge_sim_state') || 'null'),
-    simGoal: localStorage.getItem('edge_sim_goal') || null,
-    simPending: JSON.parse(localStorage.getItem('edge_sim_pending') || 'null'),
+    settings: Storage.getJSON(KEYS.SETTINGS, {}),
+    diaries: Storage.getJSON(KEYS.DIARIES, {}),
+    plans: Storage.getJSON(KEYS.PLANS, []),
+    simState: Storage.getJSON(KEYS.SIM_STATE, null),
+    simGoal: Storage.get(KEYS.SIM_GOAL) || null,
+    simPending: Storage.getJSON(KEYS.SIM_PENDING, null),
     syncedAt: new Date().toISOString(),
     version: Date.now()
   };
@@ -439,7 +439,7 @@ function mergeByKey(arr, key) {
 }
 
 // 베팅 저장 시 자동 드라이브 업로드
-const _origSetItem = localStorage.setItem.bind(localStorage);
+// Storage.addWriteHook으로 관찰 — monkey-patch 제거, observer로 전환
 let _gdriveSyncTimer = null;
 
 const _gdriveAutoSync = () => {
@@ -458,24 +458,38 @@ const _gdriveAutoSync = () => {
     .finally(() => { _gdriveSyncing = false; });
 };
 
-localStorage.setItem = function(key, value) {
-  _origSetItem.call(localStorage, key, value);
+// sync 대상 키 — 로컬 전용 키(edge_round_seed, edge_fib_base 등)는 제외
+const _GDRIVE_SYNC_KEYS = new Set([
+  KEYS.BETS,
+  KEYS.SETTINGS,
+  KEYS.PLANS,
+  KEYS.DIARIES,
+  KEYS.SIM_STATE,
+  KEYS.SIM_GOAL,
+  KEYS.SIM_PENDING,
+]);
 
-  if (key !== 'edge_bets') return;
-  if (_gdriveSyncing) return;
+if (window.Storage?.addWriteHook) {
+  Storage.addWriteHook((key) => {
+    if (!_GDRIVE_SYNC_KEYS.has(key)) return;
+    if (_gdriveSyncing) return;
 
-  clearTimeout(_gdriveSyncTimer);
-  _gdriveSyncTimer = setTimeout(() => {
-    _gdriveAutoSync();
-  }, 1000);
-};
+    clearTimeout(_gdriveSyncTimer);
+    _gdriveSyncTimer = setTimeout(() => {
+      _gdriveAutoSync();
+    }, 1000);
+  });
+} else {
+  console.warn('[gdrive] Storage.addWriteHook 없음 — auto-sync 비활성');
+}
+
 
 // ========== DECISION ENGINE ==========
 
 let _decTeam = 0;
 
 function initDecisionTab() {
-  const bankroll = typeof getCurrentBankroll === 'function' ? getCurrentBankroll() : (appSettings.kellySeed || appSettings.startFund || 0);
+  const bankroll = typeof getCurrentBankroll === 'function' ? getCurrentBankroll() : (getSettings().kellySeed || getSettings().startFund || 0);
   const el = document.getElementById('dec-bankroll-val');
   if (el) el.textContent = bankroll > 0 ? '₩' + Math.round(bankroll).toLocaleString() : '미설정';
   const resolved = bets.filter(b => b.result !== 'PENDING');
@@ -635,7 +649,7 @@ function decCalcFinal() {
   const b=selectedOdds-1;
   const kFull = b>0?((myProb*b-(1-myProb))/b):-1;
   const kHalf = Math.max(0,kFull/2);
-  const bankroll = typeof getCurrentBankroll==='function'?getCurrentBankroll():(appSettings.kellySeed||appSettings.startFund||0);
+  const bankroll = typeof getCurrentBankroll==='function'?getCurrentBankroll():(getSettings().kellySeed||getSettings().startFund||0);
   const kAmt = bankroll>0?Math.round(bankroll*kHalf/1000)*1000:0;
   const kPctEl=document.getElementById('dec-kelly-pct'),kAmtEl=document.getElementById('dec-kelly-amt'),kMsgEl=document.getElementById('dec-kelly-msg');
   if(kPctEl){kPctEl.textContent=kHalf>0?(kHalf*100).toFixed(1)+'%':'0%';kPctEl.style.color=kHalf>0.1?'var(--green)':kHalf>0?'var(--gold)':'var(--red)';}
@@ -739,12 +753,12 @@ function decShowVerdictPanel(show){
 
 function decSaveToRecord(){
   const match=document.getElementById('dec-match')?.value?.trim();
-  if(!match){alert('경기명을 입력해주세요.');return;}
-  if(!_decTeam){alert('1팀 / 2팀 베팅을 선택해주세요.');return;}
+  if(!match){showToast('경기명을 입력해주세요.', 'error');return;}
+  if(!_decTeam){showToast('1팀 / 2팀 베팅을 선택해주세요.', 'error');return;}
   const bt1=parseFloat(document.getElementById('dec-bt1')?.value);
   const bt2=parseFloat(document.getElementById('dec-bt2')?.value);
   const selectedOdds=_decTeam===1?bt1:bt2;
-  if(!selectedOdds){alert('배당을 입력해주세요.');return;}
+  if(!selectedOdds){showToast('배당을 입력해주세요.', 'error');return;}
   const myProbPct=parseFloat(document.getElementById('dec-myprob')?.value)||null;
   const p=(myProbPct||50)/100;
   const ev=myProbPct?p*(selectedOdds-1)-(1-p):null;
@@ -772,7 +786,7 @@ function decSaveToRecord(){
   const nextBets = [...getBets(), record];
   saveBets(nextBets);
   updateAll();
-  alert(`✅ "${match}" 저장 완료!\n\n베팅 기록 탭에서 금액을 입력하고\n경기 후 결과를 업데이트해주세요.`);
+  showToast(`✅ "${match}" 저장 완료!`, 'success');
   const rt=document.querySelector('nav .tab[onclick*="record"]');
   if(rt) switchTab('record',rt);
 }
@@ -795,7 +809,7 @@ let _dlSelectedDate = null;
 function renderDiaryListPage() {
   const listEl = document.getElementById('dl-list');
   if (!listEl) return;
-  const diaries = JSON.parse(localStorage.getItem('edge_diaries') || '{}');
+  const diaries = Storage.getJSON(KEYS.DIARIES, {});
   const entries = Object.entries(diaries).sort((a,b) => b[0].localeCompare(a[0]));
 
   const dlDate = document.getElementById('dl-date');
@@ -825,7 +839,7 @@ function renderDiaryListPage() {
 
 function diaryListSelect(date) {
   _dlSelectedDate = date;
-  const diaries = JSON.parse(localStorage.getItem('edge_diaries') || '{}');
+  const diaries = Storage.getJSON(KEYS.DIARIES, {});
   const detail = document.getElementById('dl-detail');
   const dateEl = document.getElementById('dl-detail-date');
   const textEl = document.getElementById('dl-detail-text');
@@ -855,9 +869,9 @@ function diaryListEdit() {
 function diaryListDelete() {
   if (!_dlSelectedDate) return;
   if (!confirm(`${_dlSelectedDate} 일지를 삭제할까요?`)) return;
-  const diaries = JSON.parse(localStorage.getItem('edge_diaries') || '{}');
+  const diaries = Storage.getJSON(KEYS.DIARIES, {});
   delete diaries[_dlSelectedDate];
-  localStorage.setItem('edge_diaries', JSON.stringify(diaries));
+  Storage.setJSON(KEYS.DIARIES, diaries);
   _dlSelectedDate = null;
   const detail = document.getElementById('dl-detail');
   if (detail) detail.style.display = 'none';
@@ -870,7 +884,7 @@ function updateKellyGradeBanner() {
   // 예측력 등급 기반 켈리 배율 배너 업데이트
   const el = document.getElementById('kelly-grade-banner');
   if (!el) return;
-  const _SS = window._SS;
+  const _SS = window.App._SS;
   if (!_SS || !_SS.grade) return;
   const grade = _SS.grade;
   const mult = grade.mult || 1;
@@ -952,7 +966,7 @@ function simSelectRound(idx) {
   simRender();
   simOnInput();
   simRenderRoadmap();
-  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); } catch(e) {}
+  try { Storage.setJSON(KEYS.SIM_STATE, simState); } catch(e) {}
 }
 
 // simRender 후 로드맵 자동 갱신 (DOMContentLoaded 이후에 패치 적용)

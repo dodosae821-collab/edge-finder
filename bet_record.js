@@ -190,9 +190,9 @@ function renderGateBanner(gate) {
 function showOverrideDialog() {
   const reason = prompt('LOCK 상태입니다. Override 이유를 입력하세요 (기록에 남습니다):');
   if (reason === null) return;
-  if (!reason.trim()) { alert('이유를 입력해야 Override 가능합니다.'); return; }
+  if (!reason.trim()) { showToast('이유를 입력해야 Override 가능합니다.', 'error'); return; }
   window._pendingOverrideReason = reason.trim();
-  alert('Override 이유가 저장되었습니다. 베팅 추가 버튼을 다시 눌러 진행하세요.');
+  showToast('Override 이유가 저장됐습니다. 베팅 추가 버튼을 다시 눌러주세요.', 'success');
 }
 
 // ── recomputeGate — 폼 현재값 기준 gate 재평가 ──────────────
@@ -205,7 +205,7 @@ function recomputeGate() {
     const calibration = typeof computeCalibration  === 'function' ? computeCalibration(bets) : {};
     const ctx         = buildDecisionContext({ metrics, calibration, bets });
     const config      = typeof getGateConfig === 'function'
-      ? getGateConfig(typeof appSettings !== 'undefined' ? appSettings : {})
+      ? getGateConfig(getSettings())
       : {};
     const gate        = evaluateDecisionGate(ctx, config);
     window._lastGateResult  = gate;
@@ -225,13 +225,13 @@ function _addBetCore() {
 
   // 단폴 모드일 때만 종목/형식 필수 체크 (다폴더는 폴더 행에서 각각 선택)
   if (mode === 'single') {
-    if (!sports.length) { alert('종목을 선택하세요.'); return; }
-    if (!types.length)  { alert('베팅 형식을 선택하세요.'); return; }
+    if (!sports.length) { showToast('종목을 선택하세요.', 'error'); return; }
+    if (!types.length)  { showToast('베팅 형식을 선택하세요.', 'error'); return; }
   }
 
   const amount = parseFloat(document.getElementById('r-amount').value) || 0;
   const odds   = parseFloat(document.getElementById('r-betman-odds').value) || 0;
-  if (!amount || !odds) { alert('베팅 금액과 배당률을 입력하세요.'); return; }
+  if (!amount || !odds) { showToast('베팅 금액과 배당률을 입력하세요.', 'error'); return; }
 
   // ── Decision Gate 평가 ────────────────────────────────────
   let _gateResult  = null;
@@ -242,7 +242,7 @@ function _addBetCore() {
       const _metrics     = typeof computeJudgeMetrics === 'function' ? computeJudgeMetrics(_bets, 'all') : {};
       const _calibration = computeCalibration(_bets);
       const _ctx         = buildDecisionContext({ metrics: _metrics, calibration: _calibration, bets: _bets });
-      const _config      = typeof getGateConfig === 'function' ? getGateConfig(typeof appSettings !== 'undefined' ? appSettings : {}) : {};
+      const _config      = typeof getGateConfig === 'function' ? getGateConfig(getSettings()) : {};
       _gateResult        = evaluateDecisionGate(_ctx, _config);
       _gateContext       = _ctx;
 
@@ -275,7 +275,7 @@ function _addBetCore() {
     if (isEv && isOpen) {
       singleMemo = memoInput ? memoInput.value.trim() : '';
       if (singleMemo.length < 5) {
-        alert('EV+ 베팅 근거를 5자 이상 입력하세요.');
+        showToast('EV+ 베팅 근거를 5자 이상 입력하세요.', 'error');
         if (memoInput) memoInput.focus();
         return;
       }
@@ -292,7 +292,7 @@ function _addBetCore() {
       const isOpen = memoWrap && memoWrap.style.display !== 'none';
       const memoVal = memoInput ? memoInput.value.trim() : '';
       if (isOpen && memoVal.length < 5) {
-        alert(`F${i+1} 베팅 근거를 5자 이상 입력하세요.`);
+        showToast(`F${i+1} 베팅 근거를 5자 이상 입력하세요.`, 'error');
         memoInput.focus();
         return;
       }
@@ -356,7 +356,7 @@ function _addBetCore() {
 
   // ── odds 유효성 차단 — parseFloat(...)||0 경로 포함 완전 차단 ──
   if (!_od || _od <= 1) {
-    if (typeof showToast === 'function') showToast('배당은 1 초과만 가능합니다');
+    showToast('배당은 1 초과만 가능합니다', 'error');
     return;
   }
 
@@ -387,7 +387,7 @@ function _addBetCore() {
     betData.decision = getDecisionSnapshot(_mp, _od);
   } else {
     // fallback: 기본 구조 저장 (getDecisionSnapshot 미로드 시 호환)
-    const _ss = window._SS;
+    const _ss = window.App._SS;
     const _adjProbPctFallback = _adjProbPct ?? _mp;
     betData.decision = {
       factor:              1.0,
@@ -560,7 +560,7 @@ function deleteBet(id) {
 
 
 // ========== 베팅 템플릿 ==========
-let betTemplates = JSON.parse(localStorage.getItem('edge_templates') || '[]');
+let betTemplates = Storage.getJSON(KEYS.TEMPLATES, []);
 
 function saveBetTemplate() {
   const mode   = document.getElementById('r-mode')?.value || 'single';
@@ -568,13 +568,13 @@ function saveBetTemplate() {
   const types  = [...document.querySelectorAll('#type-btns .sel-btn.active')].map(b => b.dataset.val);
   const fc     = document.getElementById('r-folder-count')?.value || '2';
 
-  if (!sports.length || !types.length) { alert('종목과 형식을 선택한 후 저장하세요.'); return; }
+  if (!sports.length || !types.length) { showToast('종목과 형식을 선택한 후 저장하세요.', 'error'); return; }
 
   const label = prompt('템플릿 이름을 입력하세요', `${sports.join('+')} ${types.join('+')}${mode === 'multi' ? ` ${fc}폴` : ''}`);
   if (!label) return;
 
   betTemplates.push({ id: Date.now(), label, mode, sports, types, folderCount: fc });
-  localStorage.setItem('edge_templates', JSON.stringify(betTemplates));
+  Storage.setJSON(KEYS.TEMPLATES, betTemplates);
   renderTemplateList();
 }
 
@@ -601,7 +601,7 @@ function loadBetTemplate(id) {
 
 function deleteBetTemplate(id) {
   betTemplates = betTemplates.filter(t => t.id !== id);
-  localStorage.setItem('edge_templates', JSON.stringify(betTemplates));
+  Storage.setJSON(KEYS.TEMPLATES, betTemplates);
   renderTemplateList();
 }
 
@@ -1005,7 +1005,7 @@ function fibGoPage(dir) {
 }
 
 function fibGetBase() {
-  const saved = localStorage.getItem('edge_fib_base');
+  const saved = Storage.get(KEYS.FIB_BASE);
   return saved ? parseInt(saved) : 1000;
 }
 
@@ -1013,7 +1013,7 @@ function fibUpdateBase() {
   const input = document.getElementById('fib-base-input');
   const val = parseInt(input?.value);
   if (val && val >= 100) {
-    localStorage.setItem('edge_fib_base', val);
+    Storage.set(KEYS.FIB_BASE, val);
     updateFibonacci();
   } else if (input && !input.value) {
     // 입력 지워지면 저장값 기준으로 재표시
@@ -1150,34 +1150,14 @@ function updateFibonacci() {
 }
 
 function updateAll() {
-  // ── 중앙 엔진 먼저 실행 ──
-  try { calcSystemState(); } catch(e) { console.warn('calcSystemState error:', e); }
+  // TEMP: migration fallback — refreshAllUI 통합 중. refreshAllUI 단일 진입점으로 완전 이관 완료.
+  // 이 wrapper는 기존 호출처 호환성을 위해 유지. 직접 호출 제거 시 삭제 가능.
+  if (typeof refreshAllUI === 'function') { refreshAllUI(); return; }
 
-  updateFundCards();
-  const activePage = getActivePage();
-  if (activePage === 'analysis')  updateStatsAnalysis();
-  if (activePage === 'analysis2') updateStatsAnalysis();
-  if (activePage === 'analysis3') { updateStatsAnalysis(); updateEvBias(); updateEvMonthly(); updateEvCum(); }
-  if (activePage === 'analyze')   updateAnalyzeTab();
-  if (activePage === 'goal')      { updateRoundHistory(); updateGoalStats(); }
-  if (activePage === 'predict')   { updateGoalStats(); updatePredictTab(); }
-  if (activePage === 'simulator') { updateKellyHistory(); try { updateFibonacci(); } catch(e) { console.warn('updateFibonacci error:', e); } }
-  if (activePage === 'vault')     renderVault();
-  // 뱅크롤/베팅시드 자동 갱신 — 에러나도 renderTable까지 도달하도록 try-catch
-  try { updateGoalBankrollDisplay(); } catch(e) { console.warn('updateGoalBankrollDisplay', e); }
-  try { updateWeeklySeedStatus(); } catch(e) { console.warn('updateWeeklySeedStatus', e); }
-  try { updateDashboardRoundStats(); } catch(e) { console.warn('updateDashboardRoundStats', e); }
-  try { updateSimRoundSeedBanner(); } catch(e) { console.warn('updateSimRoundSeedBanner', e); }
-  try { updateGameSuggestions(); } catch(e) { console.warn('updateGameSuggestions', e); }
-  try { updateRetroBanner(); } catch(e) { console.warn('updateRetroBanner', e); }
-  try { updateSlumpBanner(); } catch(e) { console.warn('updateSlumpBanner', e); }
-  try { checkAutoRoundReset(); } catch(e) { console.warn('checkAutoRoundReset', e); }
-  try { loadSettingsDisplay(); } catch(e) { console.warn('loadSettingsDisplay', e); }
-  // KPI 카드 — _SS 단일 소스, scope 전환 연동
-  updateDashboardKPI();
+  // fallback: refreshAllUI 미로드 시 안전망 (정상 동작에선 도달하지 않음)
+  try { calcSystemState(); } catch(e) { console.warn('calcSystemState error:', e); }
   renderTable();
   renderRecentTable();
-  updateCharts();
 }
 
 // ── 대시보드 KPI 카드 갱신 — scope 전환 시에도 호출됨 ──
@@ -1189,7 +1169,7 @@ function updateGameSuggestions() {
 
 function getGameSuggestList() {
   const allBets = [...bets];
-  const vaultRaw = localStorage.getItem('edge_vault');
+  const vaultRaw = Storage.get(KEYS.VAULT);
   if (vaultRaw) { try { allBets.push(...JSON.parse(vaultRaw)); } catch(e) {} }
   return [...new Set(
     allBets.flatMap(b => (b.game && b.game !== '-')

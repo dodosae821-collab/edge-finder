@@ -123,9 +123,9 @@ function renderVerifyPage() {
 // ECE 배너 (Decision Gate 연동)
 // ============================================================
 function renderEceBanner(verifySummaryEl) {
-  if (!verifySummaryEl || !window._SS) return;
-  const rEce = window._SS.recentEce;
-  const dec  = window._SS.betDecision;
+  if (!verifySummaryEl || !window.App._SS) return;
+  const rEce = window.App._SS.recentEce;
+  const dec  = window.App._SS.betDecision;
   if (rEce === null || !dec) return;
 
   const existing = document.getElementById('recent-ece-banner');

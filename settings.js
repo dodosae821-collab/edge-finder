@@ -1,5 +1,30 @@
 // ========== SETTINGS ==========
-let appSettings = JSON.parse(localStorage.getItem('edge_settings') || '{}');
+// settings.js is the sole owner of appSettings.
+// External modules must access settings through getSettings() only.
+// Do not mutate the settings object outside this file.
+//
+// NOTE: getSettings() returns a live reference, not a snapshot.
+// This is intentional — callers always read the latest settings.
+// Immutability enforcement is deferred to a future refactor.
+//
+// NOTE: This is a load-order compatibility architecture (non-bundled).
+// getSettings() is a function, not window.getSettings, to avoid widening
+// the global namespace beyond what script-order already provides.
+let appSettings = Storage.getJSON(KEYS.SETTINGS, {});
+
+// ── Settings accessor (single read path for all external files) ──
+function getSettings() {
+  return appSettings;
+}
+
+// ── Settings restorer (restore.js 전용 — 백업 복원 시 전체 교체) ──
+// NOTE: This is the only sanctioned external write path for appSettings.
+// General-purpose mutation from outside this file is not permitted.
+function restoreSettings(settingsObj) {
+  appSettings = settingsObj;
+  Storage.setJSON(KEYS.SETTINGS, appSettings);
+}
+// ────────────────────────────────────────────────────────────────
 
 function saveSettings() {
   const startFund   = parseFloat(document.getElementById('settings-start-fund').value)  || 0;
@@ -17,9 +42,12 @@ function saveSettings() {
   appSettings = { startFund, targetFund, kellySeed, betRatio, dailyLimit, weeklyLimit,
     maxBetPct, kellyGradeAdj,
     roundType: appSettings.roundType || 'manual',
-    roundNbet: parseInt(document.getElementById('settings-round-nbet')?.value) || 12
+    roundNbet: parseInt(document.getElementById('settings-round-nbet')?.value) || 12,
+    currentFinSeason: Number.isInteger(appSettings.currentFinSeason) && appSettings.currentFinSeason >= 1
+      ? appSettings.currentFinSeason
+      : 1  // 기존 사용자 최초 접근 시 시즌 1로 초기화
   };
-  localStorage.setItem('edge_settings', JSON.stringify(appSettings));
+  Storage.setJSON(KEYS.SETTINGS, appSettings);
   loadSettingsDisplay();
   checkLossWarning();
   updateFundCards();
@@ -75,7 +103,7 @@ function loadSettingsDisplay() {
   if (nbetEl && appSettings.roundNbet) nbetEl.value = appSettings.roundNbet;
 
   // 고급 기능 토글 상태 복원
-  const s = JSON.parse(localStorage.getItem('edge_settings') || '{}');
+  const s = Storage.getJSON(KEYS.SETTINGS, {});
   const tjEl = document.getElementById('toggle-journal');
   const teEl = document.getElementById('toggle-ev');
   if (tjEl) tjEl.checked = !!s.showJournal;
@@ -107,7 +135,7 @@ function setTodayKST() {
 
 function setRoundType(type) {
   appSettings.roundType = type;
-  localStorage.setItem('edge_settings', JSON.stringify(appSettings));
+  Storage.setJSON(KEYS.SETTINGS, appSettings);
   renderRoundTypeButtons();
   checkAutoRoundReset();
 }
@@ -164,7 +192,7 @@ function checkAutoRoundReset() {
 function lockWeeklySeed() {
   const seed = getBetSeed() || getCurrentBankroll();
   if (!seed) {
-    alert('시작 자금과 베팅 자금 비율을 먼저 설정하세요.');
+    showToast('시작 자금과 베팅 자금 비율을 먼저 설정하세요.', 'error');
     return;
   }
   const dateInput = document.getElementById('round-seed-date');
@@ -208,7 +236,7 @@ function lockWeeklySeed() {
   // 10만원 단위 올림
   const rawSeed = Math.round(seed / 100) * 100;
   const locked = { seed: rawSeed, rawSeed: rawSeed, wasRounded: false, date: dateStr, lockedAt: new Date().toISOString() };
-  localStorage.setItem('edge_round_seed', JSON.stringify(locked));
+  Storage.setJSON(KEYS.ROUND_SEED, locked);
   sessionStorage.removeItem('round_seed_modal_shown');
 
   const msg = document.getElementById('round-seed-saved');
@@ -226,7 +254,7 @@ function lockWeeklySeed() {
 
 function unlockWeeklySeed() {
   if (!confirm('고정을 해제하면 켈리 계산이 실시간 뱅크롤 기준으로 돌아갑니다. 해제하시겠어요?')) return;
-  localStorage.removeItem('edge_round_seed');
+  Storage.remove(KEYS.ROUND_SEED);
   updateWeeklySeedStatus();
 }
 
@@ -249,10 +277,10 @@ function handleLockNewRound() {
   // 기존 edge_round_seed도 동기화 (하위 호환)
   const rawSeed = Math.round(seed / 100) * 100;
   const dateStr = getKSTDateStr();
-  localStorage.setItem('edge_round_seed', JSON.stringify({
+  Storage.setJSON(KEYS.ROUND_SEED, {
     seed: rawSeed, rawSeed, wasRounded: false,
     date: dateStr, lockedAt: new Date().toISOString()
-  }));
+  });
 
   if (input) input.value = '';
   const msg = document.getElementById('round-lock-saved-msg');
@@ -285,9 +313,7 @@ function onBetAmountRefunded(amount) {
 }
 
 function getLockedSeed() {
-  const raw = localStorage.getItem('edge_round_seed');
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
+  return Storage.getJSON(KEYS.ROUND_SEED, null);
 }
 
 function updateWeeklySeedStatus() {
@@ -624,7 +650,7 @@ function updateFundCards() {
   renderBankroll(document.getElementById('ev-bankroll-display'), false);
 
   const { startFund = 0, targetFund = 0 } = appSettings;
-  const _SS = window._SS;
+  const _SS = window.App._SS;
   const totalProfit  = _SS ? _SS.totalProfit : bets.filter(b => b.result !== 'PENDING').reduce((s, b) => s + b.profit, 0);
   const currentFund  = startFund + totalProfit;
   const targetProfit = targetFund - startFund;
@@ -671,117 +697,68 @@ function updateFundCards() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ── 금액 초기화 시스템 (3단계) ──────────────────────────────────────────────
+// ── 금액 시즌(Financial Season) 시스템 ──────────────────────────────────────
 //
-//  레이어 1: _loadBets()          — 안전 파싱 공통 유틸
-//  레이어 2: _resetBets(filter)   — 필터 함수 기반 핵심 리셋 엔진
-//  레이어 3: resetAmounts*()      — 범위별 리셋 (전체 / 프로젝트 / 기간)
-//  레이어 4: _confirmReset()      — 공통 confirm/prompt 안전장치
-//  레이어 5: confirmReset*()      — 각 버튼에서 호출하는 퍼블릭 함수
+//  기존 "금액 초기화 (amount/profit → 0)" 방식을 대체합니다.
+//  원본 데이터를 수정하지 않고, currentFinSeason을 증가시켜
+//  손익/ROI 계산 범위를 새 시즌 기록으로 전환합니다.
 //
-//  정책: amount · profit → 0. 나머지(result, odds, myProb 등) 전부 유지.
-//  용도: 프로젝트/전략/기간 단위 금액 재시작 → 적중률·예측력 데이터 보존.
+//  적중률/ECE/캘리브레이션 등 학습 지표는 전체 기록 기준으로 유지됩니다.
+//
+//  finSeason 의미:
+//    -1 : 시뮬레이터 기록 (항상 제외)
+//     0 : legacy 손상 기록 (amount=0 && profit=0, 항상 제외)
+//     N : 시즌 N 실제 기록 (N === currentFinSeason이면 손익 계산 포함)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ── 레이어 1: 안전 파싱 ──────────────────────────────────────────────────────
-function _loadBets() {
-  try {
-    const raw = getBets();
-    if (!Array.isArray(raw)) return [];
-    // projectId 누락 보정 (기존 데이터 호환)
-    return raw.map(b => ({ projectId: b.projectId || 'default', ...b }));
-  } catch (e) {
-    console.error('[reset] edge_bets 파싱 실패:', e);
-    return [];
-  }
-}
-
-// ── 레이어 2: 핵심 리셋 엔진 ─────────────────────────────────────────────────
-// shouldReset(bet) → true 인 항목만 amount/profit = 0 처리
-function _resetBets(shouldReset) {
-  const bets = _loadBets();
-  const newBets = bets.map(b => {
-    if (!shouldReset(b)) return b;
-    return { ...b, amount: 0, profit: 0 };
-  });
-  saveBets(newBets);
-  return newBets.filter(shouldReset).length; // 실제 초기화된 건수 반환
-}
-
-// ── 레이어 3: 범위별 리셋 ────────────────────────────────────────────────────
-
-/** 전체 금액 초기화 */
-function resetAmountsAll() {
-  return _resetBets(() => true);
-}
-
-/** 특정 프로젝트의 금액만 초기화 */
-function resetAmountsByProject(projectId) {
-  return _resetBets(b => (b.projectId || 'default') === projectId);
-}
-
-/** 최근 N일 이내 bet의 금액 초기화 (date 없는 항목은 제외) */
-function resetAmountsByDays(days) {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  return _resetBets(b => {
-    if (!b.date) return false;
-    return new Date(b.date) >= cutoff;
-  });
-}
-
-// ── 레이어 4: 공통 안전장치 ──────────────────────────────────────────────────
-// scopeLabel: 사용자에게 보여줄 초기화 범위 문구
-// execFn: 실제 실행할 리셋 함수 (호출 시 건수 반환)
-function _confirmReset(scopeLabel, execFn) {
-  const bets = _loadBets();
+/** 새 금액 시즌 시작 — 기존 데이터 보존, currentFinSeason만 증가 */
+function startNewFinSeason() {
+  const bets = getBets();
   if (!bets.length) {
-    alert('초기화할 데이터가 없습니다.');
+    showToast('베팅 기록이 없습니다.', 'info');
     return;
   }
 
+  const cur = Number.isInteger(appSettings.currentFinSeason) && appSettings.currentFinSeason >= 1
+    ? appSettings.currentFinSeason
+    : 1;
+  const next = cur + 1;
+
   const ok = confirm(
-    '⚠️ 금액(amount, profit)만 0으로 초기화됩니다.\n' +
-    '적중률, 배당, 예측 데이터는 유지됩니다.\n\n' +
-    '대상 범위: ' + scopeLabel + '\n\n' +
-    '계속 진행하시겠습니까?'
+    `💰 새 금액 시즌을 시작합니다.\n\n` +
+    `현재 시즌: ${cur}  →  새 시즌: ${next}\n\n` +
+    `✅ 유지되는 것:\n` +
+    `  · 전체 베팅 기록 (삭제 없음)\n` +
+    `  · 적중률 · 예측력 · ECE 등 학습 지표\n\n` +
+    `🔄 새로 시작되는 것:\n` +
+    `  · 손익(P&L) · ROI · 뱅크롤 추이\n\n` +
+    `계속 진행하시겠습니까?`
   );
   if (!ok) return;
 
-  const input = prompt('확인을 위해 RESET 입력');
-  if (input === null) { alert('취소되었습니다.'); return; }
-  if (input !== 'RESET') { alert('입력이 일치하지 않습니다.'); return; }
+  const input = prompt('확인을 위해 NEWSEASON 입력');
+  if (input === null) { return; }
+  if (input !== 'NEWSEASON') { showToast('입력이 일치하지 않습니다.', 'error'); return; }
 
-  const count = execFn();
-  alert('금액이 초기화되었습니다. (대상: ' + count + '건)');
-  location.reload();
+  // currentFinSeason 증가 후 저장
+  appSettings.currentFinSeason = next;
+  Storage.setJSON(KEYS.SETTINGS, appSettings);
+
+  // saveBets 호출 → normalize가 신규 기록부터 next 시즌 자동 부여
+  // 기존 기록은 이미 finSeason이 설정되어 있으므로 변경 없음
+  saveBets(getBets(), { refresh: true });
+
+  showToast(`✅ 시즌 ${next} 시작됐습니다.`, 'success');
 }
 
-// ── 레이어 5: 퍼블릭 confirm 함수 (버튼에서 직접 호출) ───────────────────────
-
-/** 전체 금액 초기화 */
-function confirmResetAll() {
-  _confirmReset('전체 베팅 기록', resetAmountsAll);
+// 하위 호환: 기존 금액 초기화 함수 호출 시 새 시즌 안내로 대체
+function confirmResetAmounts() {
+  showToast('⚠️ 금액 초기화 대신 "새 시즌 시작"을 사용하세요.', 'info');
 }
-
-/** 현재 프로젝트 금액 초기화 */
-function confirmResetProject() {
-  const project = getCurrentProject();
-  _confirmReset('프로젝트 [' + project + ']', function () {
-    return resetAmountsByProject(project);
-  });
-}
-
-/** 최근 N일 금액 초기화 */
-function confirmResetDays(days) {
-  _confirmReset('최근 ' + days + '일 이내', function () {
-    return resetAmountsByDays(days);
-  });
-}
-
-// 하위 호환: 이전 버전 confirmResetAmounts() 호출 대응
-function confirmResetAmounts() { confirmResetAll(); }
-function resetAmountsOnly()    { resetAmountsAll(); }
+function confirmResetAll()     { confirmResetAmounts(); }
+function confirmResetProject() { confirmResetAmounts(); }
+function confirmResetDays()    { confirmResetAmounts(); }
+function resetAmountsOnly()    { confirmResetAmounts(); }
 
 // ── Adaptive Kelly 모드 배너 ──────────────────────────────────────────────────
 function updateKellyGradeBanner() {
@@ -791,7 +768,7 @@ function updateKellyGradeBanner() {
   const multEl   = document.getElementById('kelly-grade-banner-mult');
   if (!banner) return;
 
-  const SS = window._SS;
+  const SS = window.App._SS;
   if (!SS) { banner.style.display = 'none'; return; }
 
   const m      = SS.multiplier ?? 1;
@@ -828,4 +805,167 @@ function updateKellyGradeBanner() {
     }
     multEl.title = `최근 30건 ROI: ${roi30 >= 0 ? '+' : ''}${roi30.toFixed(1)}%`;
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── 시즌 히스토리 ─────────────────────────────────────────────────────────────
+//
+//  read-only 열람 전용. 수정/편집 기능 없음.
+//  source of truth = bets (raw bets 직접 집계, _SS 미참조)
+//  window._seasonHistory = 파생 캐시 (재생성 구조, 단독 수정 경로 없음)
+//
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function renderSeasonHistory() {
+  const container = document.getElementById('season-history-container');
+  if (!container) return;
+
+  const allBets = getBets();
+  const curSeason = Number.isInteger(appSettings.currentFinSeason) && appSettings.currentFinSeason >= 1
+    ? appSettings.currentFinSeason
+    : 1;
+
+  // ── 1. 그룹핑 전 normalize (오염 데이터 방어) ──
+  // isSim(finSeason:-1) 제외, 나머지 비정상값 → 0(legacy)
+  const validBets = allBets.filter(b => {
+    const s = Number.isInteger(b.finSeason) ? b.finSeason : 0;
+    return s !== -1; // 시뮬 제외
+  });
+
+  // ── 2. finSeason별 그룹핑 ──
+  const groups = {};
+  validBets.forEach(b => {
+    const s = Number.isInteger(b.finSeason) ? b.finSeason : 0;
+    if (!groups[s]) groups[s] = [];
+    groups[s].push(b);
+  });
+
+  // ── 3. 시즌별 집계 함수 ──
+  function aggregateSeason(betsInSeason, seasonNum) {
+    // 금융 집계: amount>0 && isFinite(profit) 조건 (moneyResolved 동일 기준)
+    const resolved = betsInSeason.filter(b =>
+      (b.result === 'WIN' || b.result === 'LOSE') &&
+      b.amount > 0 &&
+      isFinite(b.profit)
+    );
+
+    const wins        = resolved.filter(b => b.result === 'WIN');
+    const count       = resolved.length;
+    const winRate     = count > 0 ? wins.length / count * 100 : 0;
+    const totalProfit = resolved.reduce((s, b) => s + (b.profit || 0), 0);
+    const totalInvest = resolved.reduce((s, b) => s + (b.amount || 0), 0);
+    const roi         = totalInvest > 0 ? totalProfit / totalInvest * 100 : 0;
+
+    // avgOdds: 단순 평균 (금액 가중 X — "그 시즌 베팅 스타일" 지표)
+    const oddsArr = resolved.map(b => b.betmanOdds).filter(o => o > 0 && isFinite(o));
+    const avgOdds = oddsArr.length > 0
+      ? oddsArr.reduce((s, o) => s + o, 0) / oddsArr.length
+      : null;
+
+    // from / to: createdAt 기준, fallback "Unknown"
+    const dates = betsInSeason
+      .map(b => b.createdAt || b.date)
+      .filter(Boolean)
+      .sort();
+    const from = dates.length > 0 ? dates[0].slice(0, 10) : 'Unknown';
+    const to   = dates.length > 0 ? dates[dates.length - 1].slice(0, 10) : 'Unknown';
+
+    return { season: seasonNum, from, to, count, winRate, totalProfit, totalInvest, roi, avgOdds };
+  }
+
+  // ── 4. season DESC 명시 정렬 ──
+  const seasonNums = Object.keys(groups)
+    .map(Number)
+    .filter(n => n >= 1)
+    .sort((a, b) => b - a); // DESC
+
+  const summaries = seasonNums.map(n => aggregateSeason(groups[n], n));
+
+  // legacy (finSeason:0) 별도 처리
+  const legacyBets  = groups[0] || [];
+  const legacyCount = legacyBets.filter(b =>
+    b.result === 'WIN' || b.result === 'LOSE'
+  ).length;
+
+  // ── 5. window._seasonHistory 파생 캐시 저장 ──
+  window._seasonHistory = summaries.slice(); // 복사본으로 저장
+  if (legacyCount > 0 || legacyBets.length > 0) {
+    window._seasonHistory.push({ legacy: true, count: legacyCount, totalCount: legacyBets.length });
+  }
+
+  // ── 6. 렌더 ──
+  if (summaries.length === 0 && legacyBets.length === 0) {
+    container.innerHTML = `<div style="font-size:11px;color:var(--text3);text-align:center;padding:16px 0;">베팅 기록이 없습니다.</div>`;
+    return;
+  }
+
+  const fmtPnl = v => {
+    const sign = v > 0 ? '+' : '';
+    return sign + '₩' + Math.round(Math.abs(v)).toLocaleString() + (v < 0 ? '' : '');
+  };
+  const fmtRoi = v => (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+
+  let html = '';
+
+  summaries.forEach(s => {
+    const isCurrent = s.season === curSeason;
+    const roiColor  = s.roi > 0 ? 'var(--green)' : s.roi < 0 ? 'var(--red)' : 'var(--text3)';
+    const pnlColor  = s.totalProfit > 0 ? 'var(--green)' : s.totalProfit < 0 ? 'var(--red)' : 'var(--text3)';
+
+    html += `
+      <div style="
+        padding:12px;
+        background:${isCurrent ? 'rgba(0,229,255,0.06)' : 'var(--bg3)'};
+        border:1px solid ${isCurrent ? 'rgba(0,229,255,0.3)' : 'var(--border)'};
+        border-radius:8px;
+        margin-bottom:8px;
+      ">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="font-size:12px;font-weight:700;color:${isCurrent ? 'var(--accent)' : 'var(--text2)'};">
+            시즌 ${s.season}
+          </span>
+          ${isCurrent ? '<span style="font-size:9px;font-weight:700;color:#000;background:var(--accent);padding:2px 6px;border-radius:4px;letter-spacing:0.5px;">CURRENT</span>' : ''}
+          <span style="margin-left:auto;font-size:10px;color:var(--text3);">${s.from} ~ ${isCurrent ? '진행 중' : s.to}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+          <div style="text-align:center;">
+            <div style="font-size:9px;color:var(--text3);margin-bottom:2px;">건수</div>
+            <div style="font-size:12px;font-weight:600;color:var(--text2);">${s.count}건</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:9px;color:var(--text3);margin-bottom:2px;">적중률</div>
+            <div style="font-size:12px;font-weight:600;color:var(--text2);">${s.count > 0 ? s.winRate.toFixed(1) + '%' : '—'}</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:9px;color:var(--text3);margin-bottom:2px;">ROI</div>
+            <div style="font-size:12px;font-weight:600;color:${roiColor};">${s.count > 0 ? fmtRoi(s.roi) : '—'}</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:9px;color:var(--text3);margin-bottom:2px;">손익</div>
+            <div style="font-size:12px;font-weight:600;color:${pnlColor};">${s.count > 0 ? fmtPnl(s.totalProfit) : '—'}</div>
+          </div>
+        </div>
+        ${s.avgOdds ? `<div style="margin-top:6px;font-size:10px;color:var(--text3);text-align:right;">평균 배당 ${s.avgOdds.toFixed(2)}</div>` : ''}
+      </div>`;
+  });
+
+  // legacy 섹션
+  if (legacyBets.length > 0) {
+    html += `
+      <div style="
+        padding:10px 12px;
+        background:var(--bg2);
+        border:1px solid var(--border);
+        border-radius:8px;
+        margin-bottom:8px;
+        opacity:0.7;
+      ">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;color:var(--text3);font-weight:600;">구버전 기록 (Legacy)</span>
+          <span style="margin-left:auto;font-size:10px;color:var(--text3);">${legacyBets.length}건 · 금액 데이터 없음</span>
+        </div>
+      </div>`;
+  }
+
+  container.innerHTML = html;
 }

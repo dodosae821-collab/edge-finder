@@ -147,7 +147,7 @@ function toggleKellyGradeAdj() {
 // 예측력 등급 계산 (updatePredPowerPanel 로직 공유)
 function calcPredGrade() {
   // 엔진 결과 우선 사용 — window._SS는 이 래퍼에서만 읽음
-  const ss = window._SS;
+  const ss = window.App._SS;
   if (ss && ss.grade !== undefined) return ss.grade;
   // 엔진 없으면 직접 계산 (폴백) — scope 필터 적용
   const _sb = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
@@ -173,12 +173,12 @@ function calcPredGrade() {
 
 function calcKelly() {
   // 베팅 시드 자동 계산 (비율 설정 시 우선, 없으면 kellySeed)
-  const seed = getBetSeed() || appSettings.kellySeed || 0;
+  const seed = getBetSeed() || getSettings().kellySeed || 0;
   const seedEl = document.getElementById('kelly-seed');
   if (seedEl) seedEl.value = seed;
   const displayEl = document.getElementById('kelly-seed-display');
   if (displayEl) {
-    const { betRatio = 0 } = appSettings;
+    const { betRatio = 0 } = getSettings();
     displayEl.textContent = seed > 0
       ? '₩' + Math.round(seed).toLocaleString() + (betRatio > 0 ? ` (뱅크롤 × ${betRatio}%)` : '')
       : '⚙️ 설정 탭에서 시드를 입력하세요';
@@ -194,13 +194,13 @@ function calcKelly() {
   }
 
   // ── 엔진 연동: 등급/ECE 보정 배율 — window._SS는 여기서만 읽음 ──
-  const _SS        = window._SS;
-  const _grade     = appSettings.kellyGradeAdj ? (_SS ? _SS.grade : calcPredGrade()) : null;
+  const _SS        = window.App._SS;
+  const _grade     = getSettings().kellyGradeAdj ? (_SS ? _SS.grade : calcPredGrade()) : null;
   const _gradeMult = _grade ? _grade.gradeMult || _grade.mult : 1.0;
   const _eceMult   = (_SS && _SS.grade) ? _SS.grade.eceMult : 1.0;
-  const _totalMult = appSettings.kellyGradeAdj ? (_grade ? _gradeMult * _eceMult : 1.0) : 1.0;
-  const _maxBetPct = appSettings.maxBetPct || 5;
-  const bankrollForMax = getCurrentBankroll() || appSettings.startFund || seed;
+  const _totalMult = getSettings().kellyGradeAdj ? (_grade ? _gradeMult * _eceMult : 1.0) : 1.0;
+  const _maxBetPct = getSettings().maxBetPct || 5;
+  const bankrollForMax = getCurrentBankroll() || getSettings().startFund || seed;
   const maxUnit = Math.floor(bankrollForMax * _maxBetPct / 100);
   // Kelly 값은 state.js(calcSystemState)에서만 계산 — read-only 참조
   if (!_SS) { console.warn('[charts] _SS missing — kellyUnit unavailable'); }
@@ -307,7 +307,7 @@ function calcKelly() {
       const evCalib = (p * b) - q;
       const evRaw   = (pRaw * b) - (1 - pRaw);
 
-      const bankroll = getCurrentBankroll() || appSettings.startFund || seed;
+      const bankroll = getCurrentBankroll() || getSettings().startFund || seed;
 
       hybridKelly = {
         skipped: false,
@@ -372,7 +372,7 @@ function calcKelly() {
   nextBetEl.style.display = 'block';
 
   // 사이클 배지
-  const eceNote2 = (_SS && _SS.ece !== null && appSettings.kellyGradeAdj) ? ` · ECE ${_SS.ece.toFixed(1)}% ×${_eceMult.toFixed(2)}` : '';
+  const eceNote2 = (_SS && _SS.ece !== null && getSettings().kellyGradeAdj) ? ` · ECE ${_SS.ece.toFixed(1)}% ×${_eceMult.toFixed(2)}` : '';
   const gradeNote = (_totalMult < 1 && _grade) ? ` · ${_grade.letter}등급 ×${_totalMult.toFixed(2)}${eceNote2}` : '';
   const capNote   = (_SS && typeof _SS.maxUnit === 'number' && unit < _SS.maxUnit)
     ? ` · 상한선 ₩${_SS.maxUnit.toLocaleString()} 적용`

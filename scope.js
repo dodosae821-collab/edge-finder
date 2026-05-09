@@ -16,20 +16,20 @@
 
 
 function getCurrentScope() {
-  return localStorage.getItem('edge_scope') || 'all';
+  return Storage.get(KEYS.SCOPE) || 'all';
 }
 
 function setCurrentScope(scope) {
-  localStorage.setItem('edge_scope', scope);
+  Storage.set(KEYS.SCOPE, scope);
 }
 
 function getCurrentProject() {
-  return localStorage.getItem('edge_current_project') || 'default';
+  return Storage.get(KEYS.CURRENT_PROJECT) || 'default';
 }
 
 function setCurrentProject(id) {
   if (!id || typeof id !== 'string') return;
-  localStorage.setItem('edge_current_project', id.trim() || 'default');
+  Storage.set(KEYS.CURRENT_PROJECT, id.trim() || 'default');
 }
 
 /** 현재 scope에 맞는 bets 배열 반환. 통계 계산 전에 항상 사용. */
@@ -68,3 +68,26 @@ function switchScope(scope) {
 console.assert(typeof getCurrentScope  === 'function', '[scope.js] getCurrentScope not defined');
 console.assert(typeof getBetsByScope   === 'function', '[scope.js] getBetsByScope not defined');
 console.assert(typeof switchScope      === 'function', '[scope.js] switchScope not defined');
+
+// ── [MIGRATION] App.services.scope namespace 등록 ────────────
+// 현재 전역 함수(getBetsByScope() 등 직접 호출)는 그대로 동작함.
+// 목표: 호출 경로를 window.App.services.scope.* 로 점진 이전.
+// 전역 선언 제거는 별도 PR에서 진행. (이 단계는 migration path 생성)
+//
+// NOTE: scope.js는 Storage, getBets, refreshAllUI에 의존하므로
+// App.compute/kelly/gate 와 달리 "service" 레이어로 분류.
+if (typeof window !== 'undefined') {
+  if (!window.App) window.App = {};
+  if (!window.App.services) window.App.services = {};
+  window.App.services.scope = {
+    getCurrentScope,
+    setCurrentScope,
+    getCurrentProject,
+    setCurrentProject,
+    getBetsByScope,
+    switchScope,
+  };
+  if (window.App.debug) {
+    console.debug('[bootstrap] App.services.scope attached', Object.keys(window.App.services.scope));
+  }
+}

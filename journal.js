@@ -18,7 +18,7 @@ async function runAIAdvice() {
   const msgTimer = setInterval(() => { if(loadingMsg) loadingMsg.textContent = msgs[mi++ % msgs.length]; }, 2000);
 
   try {
-    const SS = window._SS || {};
+    const SS = window.App._SS || {};
     const resolved = bets.filter(b => b.result !== 'PENDING');
     const recent10 = resolved.slice(-10);
 
@@ -163,18 +163,18 @@ const DIARY_TEMPLATES = {
 
 // 원칙 관리
 function getPrinciples() {
-  return JSON.parse(localStorage.getItem('edge_principles') || '[]');
+  return Storage.getJSON(KEYS.PRINCIPLES, []);
 }
 function savePrinciples(arr) {
-  localStorage.setItem('edge_principles', JSON.stringify(arr));
+  Storage.setJSON(KEYS.PRINCIPLES, arr);
 }
 function addPrinciple() {
   const input = document.getElementById('principle-input');
   const val = input.value.trim();
   if (!val) return;
   const arr = getPrinciples();
-  if (arr.length >= 10) { alert('원칙은 최대 10개까지 입력 가능합니다.'); return; }
-  if (arr.includes(val)) { alert('이미 있는 원칙입니다.'); return; }
+  if (arr.length >= 10) { showToast('원칙은 최대 10개까지 입력 가능합니다.', 'error'); return; }
+  if (arr.includes(val)) { showToast('이미 있는 원칙입니다.', 'error'); return; }
   arr.push(val);
   savePrinciples(arr);
   input.value = '';
@@ -249,10 +249,10 @@ let _journalTab = 'plan';
 function toggleFeatureVisibility() {
   const showJournal = document.getElementById('toggle-journal')?.checked || false;
   const showEVCalc  = document.getElementById('toggle-ev')?.checked || false;
-  const s = JSON.parse(localStorage.getItem('edge_settings') || '{}');
+  const s = Storage.getJSON(KEYS.SETTINGS, {});
   s.showJournal = showJournal;
   s.showEVCalc  = showEVCalc;
-  localStorage.setItem('edge_settings', JSON.stringify(s));
+  Storage.setJSON(KEYS.SETTINGS, s);
 
   // PC nav 베팅일지/EV 드롭다운 복원 or 숨기기
   const bettingWrap = document.getElementById('betting-dropdown-back');
@@ -304,9 +304,9 @@ function switchJournalTab(tab) {
     if (panel) panel.style.display = t === tab ? 'block' : 'none';
     if (btn) {
       const isDecision = t === 'decision';
-      const activeColor = isDecision ? '#00ff88' : 'var(--accent)';
+      const activeColor = isDecision ? 'var(--positive)' : 'var(--accent)';
       btn.style.borderBottom = t === tab ? `2px solid ${activeColor}` : '2px solid transparent';
-      btn.style.color = t === tab ? activeColor : (isDecision ? '#00ff8880' : 'var(--text3)');
+      btn.style.color = t === tab ? activeColor : (isDecision ? 'rgba(0,255,136,0.5)' : 'var(--text3)');
     }
   });
   // 분석 드롭다운 트리거 버튼 활성화
@@ -361,11 +361,11 @@ function renderEmotionStats() {
 
   el.innerHTML = `<table style="width:100%;border-collapse:collapse;">
     <thead><tr style="border-bottom:1px solid var(--border);">
-      <th style="padding:8px 12px;font-size:11px;color:var(--text3);text-align:left;">감정</th>
-      <th style="padding:8px 12px;font-size:11px;color:var(--text3);text-align:center;">베팅수</th>
-      <th style="padding:8px 12px;font-size:11px;color:var(--text3);text-align:center;">적중률</th>
-      <th style="padding:8px 12px;font-size:11px;color:var(--text3);text-align:center;">ROI</th>
-      <th style="padding:8px 12px;font-size:11px;color:var(--text3);text-align:center;">손익</th>
+      <th class="jnl-th-left">감정</th>
+      <th class="jnl-th">베팅수</th>
+      <th class="jnl-th">적중률</th>
+      <th class="jnl-th">ROI</th>
+      <th class="jnl-th">손익</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
@@ -423,9 +423,9 @@ function renderRuleStats() {
 
   tableEl.innerHTML = `<table style="width:100%;border-collapse:collapse;">
     <thead><tr style="border-bottom:1px solid var(--border);">
-      <th style="padding:8px 12px;font-size:11px;color:var(--text3);text-align:left;">원칙</th>
-      <th style="padding:8px 12px;font-size:11px;color:var(--text3);text-align:center;">위반 횟수</th>
-      <th style="padding:8px 12px;font-size:11px;color:var(--text3);text-align:center;">위반율</th>
+      <th class="jnl-th-left">원칙</th>
+      <th class="jnl-th">위반 횟수</th>
+      <th class="jnl-th">위반율</th>
       <th style="padding:8px 12px;font-size:11px;color:var(--text3);">위반율 바</th>
     </tr></thead>
     <tbody>${rows}</tbody>
@@ -541,8 +541,8 @@ function setPlanMode(mode) {
   const btnM = document.getElementById('plan-mode-multi');
   const sWrap = document.getElementById('plan-single-wrap');
   const mWrap = document.getElementById('plan-multi-wrap');
-  if (btnS) { btnS.style.borderColor = isSingle ? 'var(--accent)' : 'var(--border)'; btnS.style.background = isSingle ? 'rgba(0,229,255,0.12)' : 'var(--bg3)'; btnS.style.color = isSingle ? 'var(--accent)' : 'var(--text2)'; }
-  if (btnM) { btnM.style.borderColor = !isSingle ? 'var(--accent)' : 'var(--border)'; btnM.style.background = !isSingle ? 'rgba(0,229,255,0.12)' : 'var(--bg3)'; btnM.style.color = !isSingle ? 'var(--accent)' : 'var(--text2)'; }
+  if (btnS) { btnS.classList.toggle('is-active', isSingle); }
+  if (btnM) { btnM.classList.toggle('is-active', !isSingle); }
   if (sWrap) sWrap.style.display = isSingle ? 'block' : 'none';
   if (mWrap) mWrap.style.display = !isSingle ? 'block' : 'none';
   if (!isSingle) renderPlanFolderRows();
@@ -555,11 +555,11 @@ function renderPlanFolderRows() {
   wrap.innerHTML = Array.from({length: count}, (_, i) => `
     <div style="display:grid;grid-template-columns:1fr 70px 70px 70px;gap:5px;align-items:center;">
       <input type="text" placeholder="F${i+1} 경기명" class="plan-folder-game"
-        style="padding:6px 8px;font-size:11px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);">
+        class="jnl-input-sm">
       <input type="number" placeholder="배당" step="0.01" min="1" class="plan-folder-odds"
-        style="padding:6px 8px;font-size:11px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);">
+        class="jnl-input-sm">
       <input type="text" placeholder="종목" class="plan-folder-sport"
-        style="padding:6px 8px;font-size:11px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);">
+        class="jnl-input-sm">
       <select class="plan-folder-type" style="padding:6px 4px;font-size:11px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);">
         <optgroup label="일반">
           <option value="승/패">승/패</option>
@@ -583,7 +583,7 @@ function savePlan() {
   const reason     = document.getElementById('plan-reason')?.value?.trim();
   const mode       = document.getElementById('plan-betmode')?.value || 'single';
 
-  if (!date) { alert('날짜는 필수입니다.'); return; }
+  if (!date) { showToast('날짜는 필수입니다.', 'error'); return; }
 
   let planData = { id: Date.now(), date, confidence, reason: reason||'', mode, done: false, linkedBetId: null, matchResult: null };
 
@@ -592,7 +592,7 @@ function savePlan() {
     const sport  = document.getElementById('plan-sport')?.value?.trim();
     const odds   = parseFloat(document.getElementById('plan-odds')?.value) || 0;
     const amount = parseFloat(document.getElementById('plan-amount')?.value) || 0;
-    if (!game) { alert('경기명은 필수입니다.'); return; }
+    if (!game) { showToast('경기명은 필수입니다.', 'error'); return; }
     Object.assign(planData, { game, sport, odds, amount });
   } else {
     const amount = parseFloat(document.getElementById('plan-multi-amount')?.value) || 0;
@@ -600,15 +600,15 @@ function savePlan() {
     const folderOdds   = [...document.querySelectorAll('.plan-folder-odds')].map(el => parseFloat(el.value)||0);
     const folderSports = [...document.querySelectorAll('.plan-folder-sport')].map(el => el.value.trim());
     const folderTypes  = [...document.querySelectorAll('.plan-folder-type')].map(el => el.value || '승/패');
-    if (folderGames.every(g => !g)) { alert('최소 1개 폴더의 경기명을 입력하세요.'); return; }
+    if (folderGames.every(g => !g)) { showToast('최소 1개 폴더의 경기명을 입력하세요.', 'error'); return; }
     const totalOdds = folderOdds.reduce((a,b) => b > 0 ? a*b : a, 1);
     Object.assign(planData, { game: folderGames.filter(g=>g).join(' + '), amount, totalOdds: parseFloat(totalOdds.toFixed(2)), folderGames, folderOdds, folderSports, folderTypes });
   }
 
-  const plans = JSON.parse(localStorage.getItem('edge_plans') || '[]');
+  const plans = Storage.getJSON(KEYS.PLANS, []);
   plans.push(planData);
   plans.sort((a,b) => a.date.localeCompare(b.date));
-  localStorage.setItem('edge_plans', JSON.stringify(plans));
+  Storage.setJSON(KEYS.PLANS, plans);
 
   // 초기화
   ['plan-game','plan-sport','plan-odds','plan-amount','plan-reason','plan-multi-amount'].forEach(id => {
@@ -623,14 +623,14 @@ function savePlan() {
 function renderPlanVsReal() {
   const el = document.getElementById('plan-vs-real-stats');
   if (!el) return;
-  const plans = JSON.parse(localStorage.getItem('edge_plans') || '[]');
+  const plans = Storage.getJSON(KEYS.PLANS, []);
   const linked = plans.filter(p => p.linkedBetId);
   const total = plans.length;
   const done = plans.filter(p => p.done).length;
   const cancelled = plans.filter(p => !p.done && !p.linkedBetId && p.date < getKSTDateStr()).length;
 
   if (total === 0) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px;">예정 데이터 없음</div>';
+    el.innerHTML = '<div class="jnl-empty-state">예정 데이터 없음</div>';
     return;
   }
 
@@ -648,21 +648,21 @@ function renderPlanVsReal() {
   const followRate = linked.length > 0 ? followed/linked.length*100 : 0;
 
   el.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-      <div style="padding:10px;background:var(--bg3);border-radius:6px;text-align:center;">
-        <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">총 예정</div>
+    <div class="jnl-grid-2col" style="gap:8px;margin-bottom:12px;">
+      <div class="jnl-metric-cell">
+        <div class="jnl-metric-label">총 예정</div>
         <div style="font-size:18px;font-weight:700;color:var(--text);">${total}건</div>
       </div>
-      <div style="padding:10px;background:var(--bg3);border-radius:6px;text-align:center;">
-        <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">실제 연결됨</div>
+      <div class="jnl-metric-cell">
+        <div class="jnl-metric-label">실제 연결됨</div>
         <div style="font-size:18px;font-weight:700;color:var(--accent);">${linked.length}건</div>
       </div>
-      <div style="padding:10px;background:var(--bg3);border-radius:6px;text-align:center;">
-        <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">연결 베팅 적중률</div>
+      <div class="jnl-metric-cell">
+        <div class="jnl-metric-label">연결 베팅 적중률</div>
         <div style="font-size:18px;font-weight:700;color:${wr>=50?'var(--green)':'var(--red)'};">${linked.length>0?wr.toFixed(1)+'%':'—'}</div>
       </div>
-      <div style="padding:10px;background:var(--bg3);border-radius:6px;text-align:center;">
-        <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">계획대로 실행</div>
+      <div class="jnl-metric-cell">
+        <div class="jnl-metric-label">계획대로 실행</div>
         <div style="font-size:18px;font-weight:700;color:var(--gold);">${linked.length>0?followRate.toFixed(0)+'%':'—'}</div>
       </div>
     </div>
@@ -676,7 +676,7 @@ function renderPlanVsReal() {
 
 // 예정 불러오기 모달
 function showLoadPlanModal() {
-  const plans = JSON.parse(localStorage.getItem('edge_plans') || '[]');
+  const plans = Storage.getJSON(KEYS.PLANS, []);
   const pending = plans.filter(p => !p.done);
   const modal = document.getElementById('load-plan-modal');
   const listEl = document.getElementById('load-plan-list');
@@ -700,7 +700,7 @@ function showLoadPlanModal() {
             ${p.reason?`<div style="font-size:11px;color:var(--text3);margin-top:3px;line-height:1.5;">${p.reason}</div>`:''}
           </div>
           <button onclick="loadPlanToForm(${p.id})"
-            style="padding:6px 12px;background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);border-radius:6px;color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">불러오기</button>
+            class="jnl-btn-accent-md">불러오기</button>
         </div>
       </div>
     `).join('');
@@ -715,7 +715,7 @@ function closeLoadPlanModal() {
 }
 
 function loadPlanToForm(planId) {
-  const plans = JSON.parse(localStorage.getItem('edge_plans') || '[]');
+  const plans = Storage.getJSON(KEYS.PLANS, []);
   const plan = plans.find(p => p.id === planId);
   if (!plan) return;
 
@@ -792,14 +792,14 @@ function loadPlanToForm(planId) {
 }
 
 function linkPlanToBet(planId) {
-  const plans = JSON.parse(localStorage.getItem('edge_plans') || '[]');
+  const plans = Storage.getJSON(KEYS.PLANS, []);
   const plan = plans.find(p => p.id === planId);
   if (!plan) return;
 
   // 같은 날짜 베팅 목록 추출
   const candidates = bets.filter(b => b.date === plan.date && b.result !== 'PENDING');
   if (candidates.length === 0) {
-    alert('같은 날짜의 완료된 베팅이 없습니다.');
+    showToast('같은 날짜의 완료된 베팅이 없습니다.', 'info');
     return;
   }
 
@@ -825,21 +825,21 @@ function linkPlanToBet(planId) {
       followed: Math.abs(oddsDiff) <= 0.2 ? '✅ 계획대로' : oddsDiff > 0 ? '📈 배당 상승' : '📉 배당 하락'
     };
   } else {
-    alert('잘못된 번호입니다.');
+    showToast('잘못된 번호입니다.', 'error');
     return;
   }
 
-  localStorage.setItem('edge_plans', JSON.stringify(plans));
+  Storage.setJSON(KEYS.PLANS, plans);
   renderPlanList();
 }
 
 
 // ── 회차 자동 회고 ──
 function getRoundReviews() {
-  try { return JSON.parse(localStorage.getItem('edge_round_reviews') || '[]'); } catch { return []; }
+  return Storage.getJSON(KEYS.ROUND_REVIEWS, []);
 }
 function saveRoundReviews(arr) {
-  localStorage.setItem('edge_round_reviews', JSON.stringify(arr));
+  Storage.setJSON(KEYS.ROUND_REVIEWS, arr);
 }
 
 function generateRoundReview(roundData) {
@@ -939,7 +939,7 @@ function renderRoundReviewList() {
   if (!el) return;
   const reviews = getRoundReviews();
   if (reviews.length === 0) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px;">회차를 마감하면 자동으로 회고가 생성됩니다.</div>';
+    el.innerHTML = '<div class="jnl-empty-state">회차를 마감하면 자동으로 회고가 생성됩니다.</div>';
     return;
   }
   el.innerHTML = reviews.map(r => {
@@ -955,7 +955,7 @@ function renderRoundReviewList() {
         </div>
         <div style="font-size:11px;color:var(--text2);line-height:1.9;white-space:pre-line;">${r.text}</div>
         <div style="margin-top:8px;display:flex;gap:6px;">
-          <button onclick="editRoundReview(${r.id})" style="padding:4px 10px;font-size:10px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);border-radius:4px;color:var(--accent);cursor:pointer;">✏️ 수정</button>
+          <button onclick="editRoundReview(${r.id})" class="jnl-btn-accent">✏️ 수정</button>
           <button onclick="deleteRoundReview(${r.id})" style="padding:4px 10px;font-size:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text3);cursor:pointer;">삭제</button>
         </div>
       </div>`;
@@ -994,7 +994,7 @@ function loadJournal() {
   renderPlanList();
 
   // 오늘 일지 있으면 불러오기
-  const diaries = JSON.parse(localStorage.getItem('edge_diaries') || '{}');
+  const diaries = Storage.getJSON(KEYS.DIARIES, {});
   const diaryEl = document.getElementById('diary-text');
   if (diaryEl && diaries[today]) diaryEl.value = diaries[today];
   renderRoundReviewList();
@@ -1004,10 +1004,10 @@ function saveDiary() {
   const date = document.getElementById('diary-date')?.value;
   const text = document.getElementById('diary-text')?.value?.trim();
   if (!date) return;
-  const diaries = JSON.parse(localStorage.getItem('edge_diaries') || '{}');
+  const diaries = Storage.getJSON(KEYS.DIARIES, {});
   if (text) diaries[date] = text;
   else delete diaries[date];
-  localStorage.setItem('edge_diaries', JSON.stringify(diaries));
+  Storage.setJSON(KEYS.DIARIES, diaries);
   renderDiaryList();
   // 저장 피드백
   const btn = document.querySelector('[onclick="saveDiary()"]');
@@ -1017,9 +1017,9 @@ function saveDiary() {
 function deleteDiary() {
   const date = document.getElementById('diary-date')?.value;
   if (!date || !confirm(`${date} 일지를 삭제하시겠습니까?`)) return;
-  const diaries = JSON.parse(localStorage.getItem('edge_diaries') || '{}');
+  const diaries = Storage.getJSON(KEYS.DIARIES, {});
   delete diaries[date];
-  localStorage.setItem('edge_diaries', JSON.stringify(diaries));
+  Storage.setJSON(KEYS.DIARIES, diaries);
   document.getElementById('diary-text').value = '';
   renderDiaryList();
 }
@@ -1035,10 +1035,10 @@ function setDiaryTemplate(type) {
 function renderDiaryList() {
   const listEl = document.getElementById('diary-list');
   if (!listEl) return;
-  const diaries = JSON.parse(localStorage.getItem('edge_diaries') || '{}');
+  const diaries = Storage.getJSON(KEYS.DIARIES, {});
   const entries = Object.entries(diaries).sort((a,b) => b[0].localeCompare(a[0]));
   if (entries.length === 0) {
-    listEl.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px;">아직 작성된 일지가 없어요</div>';
+    listEl.innerHTML = '<div class="jnl-empty-state">아직 작성된 일지가 없어요</div>';
     return;
   }
   listEl.innerHTML = entries.map(([date, text]) => {
@@ -1056,7 +1056,7 @@ function renderDiaryList() {
 }
 
 function loadDiaryEntry(date) {
-  const diaries = JSON.parse(localStorage.getItem('edge_diaries') || '{}');
+  const diaries = Storage.getJSON(KEYS.DIARIES, {});
   const dateEl = document.getElementById('diary-date');
   const textEl = document.getElementById('diary-text');
   if (dateEl) dateEl.value = date;
@@ -1072,12 +1072,12 @@ function savePlan() {
   const confidence = document.getElementById('plan-confidence')?.value || 'mid';
   const reason     = document.getElementById('plan-reason')?.value?.trim();
 
-  if (!date || !game) { alert('날짜와 경기명은 필수입니다.'); return; }
+  if (!date || !game) { showToast('날짜와 경기명은 필수입니다.', 'error'); return; }
 
-  const plans = JSON.parse(localStorage.getItem('edge_plans') || '[]');
+  const plans = Storage.getJSON(KEYS.PLANS, []);
   plans.push({ id: Date.now(), date, game, sport, odds, confidence, reason, done: false });
   plans.sort((a,b) => a.date.localeCompare(b.date));
-  localStorage.setItem('edge_plans', JSON.stringify(plans));
+  Storage.setJSON(KEYS.PLANS, plans);
 
   // 입력 초기화
   ['plan-game','plan-sport','plan-odds','plan-reason'].forEach(id => {
@@ -1087,24 +1087,24 @@ function savePlan() {
 }
 
 function deletePlan(id) {
-  let plans = JSON.parse(localStorage.getItem('edge_plans') || '[]');
+  let plans = Storage.getJSON(KEYS.PLANS, []);
   plans = plans.filter(p => p.id !== id);
-  localStorage.setItem('edge_plans', JSON.stringify(plans));
+  Storage.setJSON(KEYS.PLANS, plans);
   renderPlanList();
 }
 
 function togglePlanDone(id) {
-  const plans = JSON.parse(localStorage.getItem('edge_plans') || '[]');
+  const plans = Storage.getJSON(KEYS.PLANS, []);
   const p = plans.find(p => p.id === id);
   if (p) p.done = !p.done;
-  localStorage.setItem('edge_plans', JSON.stringify(plans));
+  Storage.setJSON(KEYS.PLANS, plans);
   renderPlanList();
 }
 
 function renderPlanList() {
   const listEl = document.getElementById('plan-list');
   if (!listEl) return;
-  const plans = JSON.parse(localStorage.getItem('edge_plans') || '[]');
+  const plans = Storage.getJSON(KEYS.PLANS, []);
   if (plans.length === 0) {
     listEl.innerHTML = '';
     const emptyEl = document.getElementById('plan-empty');
@@ -1141,7 +1141,7 @@ function renderPlanList() {
           <button onclick="togglePlanDone(${p.id})" title="${p.done?'미완료로':'완료'}"
             style="padding:3px 8px;font-size:11px;background:${p.done?'var(--bg)':'rgba(0,230,118,0.1)'};border:1px solid ${p.done?'var(--border)':'var(--green)'};border-radius:4px;color:${p.done?'var(--text3)':'var(--green)'};cursor:pointer;">${p.done?'↩':'✅'}</button>
           <button onclick="loadPlanToDecision(${p.id})" title="베팅 결정으로 불러오기"
-            style="padding:3px 8px;font-size:11px;background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.3);border-radius:4px;color:#00ff88;cursor:pointer;font-weight:700;">⚡</button>
+            style="padding:3px 8px;font-size:11px;background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.3);border-radius:4px;color:var(--positive);cursor:pointer;font-weight:700;">⚡</button>
           <button onclick="linkPlanToBet(${p.id})" title="실제 베팅과 연결"
             style="padding:3px 8px;font-size:11px;background:${p.linkedBetId?'rgba(255,215,0,0.1)':'var(--bg)'};border:1px solid ${p.linkedBetId?'var(--gold)':'var(--border)'};border-radius:4px;color:${p.linkedBetId?'var(--gold)':'var(--text3)'};cursor:pointer;" title="${p.linkedBetId?'연결됨':'베팅 연결'}">${p.linkedBetId?'🔗':'연결'}</button>
           <button onclick="deletePlan(${p.id})"
@@ -1153,7 +1153,7 @@ function renderPlanList() {
 }
 
 function loadPlanToDecision(planId) {
-  const plans = JSON.parse(localStorage.getItem('edge_plans') || '[]');
+  const plans = Storage.getJSON(KEYS.PLANS, []);
   const plan = plans.find(p => p.id === planId);
   if (!plan) return;
 
@@ -1197,7 +1197,7 @@ function showMobileToast(msg) {
   if (!toast) {
     toast = document.createElement('div');
     toast.id = 'mobile-toast';
-    toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#00ff88;color:#050810;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:700;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;';
+    toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--positive);color:#050810;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:700;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;';
     document.body.appendChild(toast);
   }
   toast.textContent = msg;
@@ -1232,7 +1232,7 @@ function appendMemoTagActive(tag) {
   if (singleVisible && single) { appendMemoTag(single, tag); return; }
   if (lastFolder) { appendMemoTag(lastFolder, tag); return; }
   // 열린 메모창 없으면 알림
-  alert('📝 버튼을 눌러 메모창을 먼저 열어주세요.');
+  showToast('📝 메모창을 먼저 열어주세요.', 'info');
 }
 
 function appendMemoTag(targetOrId, tag) {
@@ -1270,7 +1270,7 @@ function showRoundSeedModal() {
 
 function updateDashboardRoundStats() {
   // ── [핵심 원칙] _SS = scope 기반 통계 / activeRound = 회차 상태 — 혼용 금지 ──
-  const _SS = window._SS;
+  const _SS = window.App._SS;
   const r   = _SS?.activeRound || null;   // 신형 rounds 시스템 (state.js)
 
   const seedEl           = document.getElementById('d-round-seed');
@@ -1639,21 +1639,21 @@ function updateSimRoundSeedBanner() {
     const wrstC = stats[worstIdx].roi >= 0 ? 'var(--green)' : 'var(--red)';
 
     kpiEl.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+      <div class="jnl-grid-3col" style="gap:10px;margin-bottom:16px;">
         <div class="card" style="text-align:center;padding:12px 8px;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">평균 ROI</div>
+          <div class="jnl-kpi-label">평균 ROI</div>
           <div style="font-size:20px;font-weight:900;color:${avgC};">${avgRoi >= 0 ? '+' : ''}${avgRoi.toFixed(1)}%</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">전체 ${_rrRounds.length}회차</div>
+          <div class="jnl-kpi-sub">전체 ${_rrRounds.length}회차</div>
         </div>
         <div class="card" style="text-align:center;padding:12px 8px;cursor:pointer;" onclick="rrSelectRoundFromKPI('${best.id}')">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">최고 ROI</div>
+          <div class="jnl-kpi-label">최고 ROI</div>
           <div style="font-size:20px;font-weight:900;color:${bestC};">${stats[bestIdx].roi >= 0 ? '+' : ''}${stats[bestIdx].roi.toFixed(1)}%</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">${bestN}회차</div>
+          <div class="jnl-kpi-sub">${bestN}회차</div>
         </div>
         <div class="card" style="text-align:center;padding:12px 8px;cursor:pointer;" onclick="rrSelectRoundFromKPI('${worst.id}')">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">최저 ROI</div>
+          <div class="jnl-kpi-label">최저 ROI</div>
           <div style="font-size:20px;font-weight:900;color:${wrstC};">${stats[worstIdx].roi >= 0 ? '+' : ''}${stats[worstIdx].roi.toFixed(1)}%</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">${worstN}회차</div>
+          <div class="jnl-kpi-sub">${worstN}회차</div>
         </div>
       </div>`;
   }

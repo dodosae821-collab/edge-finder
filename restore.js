@@ -5,7 +5,7 @@
 // 의존 (전역 — 허용):
 //   getBets(), saveBets() (state.js)
 //   migrateBets (전역)
-//   appSettings, loadSettingsDisplay (전역)
+//   restoreSettings, getSettings, loadSettingsDisplay (전역)
 //   recomputeAllStats, updateAll (전역)
 // ============================================================
 
@@ -79,8 +79,6 @@ function getBetFingerprint(b) {
 
 // [3] pre-restore 백업 — 완전 교체/누적 모두 실행 전에 스냅샷
 
-const PRE_RESTORE_KEY = 'edge_bets_pre_restore';
-
 // 스토리지 키 단일 소스 — backup / rollback / 미래 기능 전부 이 함수 참조
 
 function _getStorageKey() {
@@ -93,11 +91,11 @@ function backupBeforeRestore() {
     const key = _getStorageKey();
     if (typeof key !== 'string' || !key) return; // 잘못된 글로벌 상태 방어
 
-    const current = localStorage.getItem(key);
+    const current = Storage.get(key);
     if (!current) return; // 저장할 게 없으면 skip
 
-    localStorage.setItem(PRE_RESTORE_KEY, current);
-    localStorage.setItem('edge_bets_pre_restore_ts', Date.now());
+    Storage.set(KEYS.PRE_RESTORE, current);
+    Storage.set(KEYS.PRE_RESTORE_TS, Date.now());
   } catch (e) {
     console.warn('[restore] pre-backup failed', e);
   }
@@ -175,7 +173,7 @@ function _executeRestore(data, mode) {
     }
 
     if (incoming.length === 0) {
-      alert('유효한 베팅 데이터가 없습니다. (전체 ' + migrated.length + '건 검증 실패)');
+      showToast('유효한 베팅 데이터가 없습니다. (전체 ' + migrated.length + '건 검증 실패)', 'error');
       return;
     }
 
@@ -200,8 +198,7 @@ function _executeRestore(data, mode) {
       finalBets = incoming.map(b => ({ ...b, gate: null, restored: true, restoreMode: 'replace' }));
       addedCount = finalBets.length;
       if (data.settings) {
-        appSettings = data.settings;
-        localStorage.setItem('edge_settings', JSON.stringify(appSettings));
+        restoreSettings(data.settings);
       }
       if (typeof loadSettingsDisplay === 'function') loadSettingsDisplay();
     }
@@ -235,25 +232,22 @@ function _executeRestore(data, mode) {
 // ── 결과 모달 & 롤백 시스템 ──────────────────────────────────────
 
 
-const PRE_RESTORE_TS_KEY = 'edge_bets_pre_restore_ts';
-const RESTORE_LOG_KEY    = 'edge_restore_log';
 const RESTORE_UNDO_LIMIT_MS = 180000; // 3분
 
 
 function clearBackup() {
-  localStorage.removeItem(PRE_RESTORE_KEY);
-  localStorage.removeItem(PRE_RESTORE_TS_KEY);
+  Storage.remove(KEYS.PRE_RESTORE);
+  Storage.remove(KEYS.PRE_RESTORE_TS);
 }
 
 // restore 로그 — 최근 20건 유지
 
 function appendRestoreLog(entry) {
   try {
-    const raw = localStorage.getItem(RESTORE_LOG_KEY);
-    const log = raw ? JSON.parse(raw) : [];
+    const log = Storage.getJSON(KEYS.RESTORE_LOG, []);
     log.push(entry);
     if (log.length > 20) log.splice(0, log.length - 20);
-    localStorage.setItem(RESTORE_LOG_KEY, JSON.stringify(log));
+    Storage.setJSON(KEYS.RESTORE_LOG, log);
   } catch (e) {
     console.warn('[restore] log write failed', e);
   }
@@ -374,16 +368,21 @@ function restoreFromBackup() {
 
   try {
     // 시간 만료 검증
-    const ts = Number(localStorage.getItem(PRE_RESTORE_TS_KEY) || 0);
+    const ts = Number(Storage.get(KEYS.PRE_RESTORE_TS) || 0);
     if (Date.now() - ts > RESTORE_UNDO_LIMIT_MS) {
       showRestoreResultModal({ mode: 'expired' });
       return;
     }
 
-    const raw = localStorage.getItem(PRE_RESTORE_KEY);
+    const raw = Storage.get(KEYS.PRE_RESTORE);
     if (!raw) { console.warn('[restore] backup not found'); return; }
 
-    const parsed = JSON.parse(raw);
+    const parsed = Storage.getJSON(KEYS.PRE_RESTORE, null);
+    if (parsed === null) {
+      console.warn('[restore] corrupted backup json');
+      showToast('백업 데이터가 손상되었습니다.', 'error');
+      return;
+    }
     const backupBets = Array.isArray(parsed) ? parsed : (parsed?.bets ?? []);
     saveBets(backupBets, { refresh: false });
 
@@ -422,25 +421,25 @@ function restoreData(e) {
     try {
       data = JSON.parse(ev.target.result);
     } catch (e) {
-      alert('파일이 손상되었거나 JSON 형식이 아닙니다.');
+      showToast('파일이 손상되었거나 JSON 형식이 아닙니다.', 'error');
       return;
     }
 
     // Gate 2: object 타입 검증 (JSON.parse는 "123" 같은 원시값도 통과시킴)
     if (typeof data !== 'object' || data === null) {
-      alert('파일 구조가 올바르지 않습니다.');
+      showToast('파일 구조가 올바르지 않습니다.', 'error');
       return;
     }
 
     // Gate 3: bets 배열 구조 검증
     if (!Array.isArray(data.bets)) {
-      alert('파일 구조가 올바르지 않습니다.');
+      showToast('파일 구조가 올바르지 않습니다.', 'error');
       return;
     }
 
     // Gate 4: 빈 데이터 차단
     if (data.bets.length === 0) {
-      alert('불러올 데이터가 없습니다.');
+      showToast('불러올 데이터가 없습니다.', 'error');
       return;
     }
 
@@ -455,7 +454,7 @@ function restoreData(e) {
 // ── backupData ───────────────────────────────────────────────
 // JSON 백업 내보내기 — data 레이어 (localStorage/bets 접근)
 function backupData() {
-  const data = { bets, settings: appSettings, exportedAt: new Date().toISOString(), version: '6.1' };
+  const data = { bets, settings: getSettings(), exportedAt: new Date().toISOString(), version: '6.1' };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

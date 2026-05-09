@@ -74,6 +74,17 @@ function buildCtx(bets) {
 function loadCtx(bets) {
   const ctx = buildCtx(bets);
   vm.createContext(ctx);
+  // Runtime bootstrap mirror (production 로드 순서 부분 재현):
+  //   storage.js → engine files
+  //   storage.js: Storage·KEYS는 이제 core infra — 실제 파일 로드.
+  //   settings.js: DOM/이벤트/UI side effect 포함 → engine 테스트에 넣지 않음.
+  //                getSettings는 아래 stub으로 대체 (ctx.appSettings 반환).
+  ctx.getSettings = () => ctx.appSettings;
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'storage.js'), 'utf8'), ctx);
+  // storage.js는 window.Storage / window.KEYS로 등록 —
+  // state.js는 bare Storage / KEYS로 참조하므로 ctx에 직접 노출.
+  ctx.Storage = ctx.window.Storage;
+  ctx.KEYS    = ctx.window.KEYS;
   vm.runInContext(fs.readFileSync(path.join(__dirname, 'kelly.js'),   'utf8'), ctx);
   vm.runInContext(fs.readFileSync(path.join(__dirname, 'compute.js'), 'utf8'), ctx);
   vm.runInContext(fs.readFileSync(path.join(__dirname, 'state.js'),   'utf8'), ctx);
@@ -130,30 +141,45 @@ describe('calcSystemState — PENDING 필터링', () => {
   });
 });
 
-describe('calcSystemState — ROI 금액 가중 검증', () => {
-  // amount가 다른 두 건: WIN 1000 / LOSE 2000
-  // totalProfit = +1000 - 2000 = -1000
-  // totalInvest = 3000
-  // roi = (-1000 / 3000) * 100 = -33.33...
-  // 건수 평균이면 (100% + -100%) / 2 = 0% → 잘못된 구현 잡힘
+describe('calcSystemState — ROI uses season-scoped money weighting', () => {
+  // moneyResolved 기반 ROI invariant 검증:
+  //   - finSeason === currentFinSeason + amount > 0 + isFinite(profit) 만 포함
+  //   - ROI = totalProfit / totalInvest (금액 가중) — 건수 평균 아님
+  //
+  // 픽스처: WIN amount=1000 / LOSE amount=2000 (동일 시즌, finSeason:1)
+  //   totalProfit = +1000 - 2000 = -1000
+  //   totalInvest = 3000
+  //   roi = (-1000 / 3000) * 100 = -33.33...
+  //   건수 평균이면 (100% + -100%) / 2 = 0% → 이 케이스로 구별
   let result;
 
   beforeAll(() => {
+    // finSeason:1 명시 — currentFinSeason:1 context와 일치해야 moneyResolved 포함
     const unequalBets = [
-      { id: 10, result: 'WIN',  amount: 1000,  profit:  1000,  betmanOdds: 2.0, date: '2026-02-01', game: 'X', sport: 'NBA', type: 'UNDER' },
-      { id: 11, result: 'LOSE', amount: 2000,  profit: -2000,  betmanOdds: 2.0, date: '2026-02-02', game: 'Y', sport: 'NBA', type: 'UNDER' },
+      { id: 10, result: 'WIN',  amount: 1000,  profit:  1000,  betmanOdds: 2.0, date: '2026-02-01', game: 'X', sport: 'NBA', type: 'UNDER', finSeason: 1 },
+      { id: 11, result: 'LOSE', amount: 2000,  profit: -2000,  betmanOdds: 2.0, date: '2026-02-02', game: 'Y', sport: 'NBA', type: 'UNDER', finSeason: 1 },
     ];
-    result = loadCtx(unequalBets).calcSystemState();
+    // currentFinSeason:1 — 픽스처 finSeason과 동일 시즌으로 맞춤
+    const ctx = loadCtx(unequalBets);
+    ctx.appSettings.currentFinSeason = 1;
+    result = ctx.calcSystemState();
   });
 
-  test('roi는 건수 평균이 아닌 금액 가중 (totalProfit/totalInvest)', () => {
+  test('roi는 moneyResolved 기반 금액 가중 (totalProfit/totalInvest)', () => {
     // 금액 가중: -1000/3000*100 = -33.33...
     // 건수 평균이면 0 → 이 케이스로 구별
+    // finSeason 미설정이면 moneyResolved 비어 roi=0 → invariant 검증도 겸함
     expect(result.roi).toBeCloseTo(-33.33, 1);
   });
 
-  test('n=2 (PENDING 없음)', () => {
+  test('n=2 — allResolved 기준 (PENDING 없음)', () => {
+    // n은 allResolved(winRate 기준) — moneyResolved와 독립
     expect(result.n).toBe(2);
+  });
+
+  test('moneyResolved 건수=2 — 시즌 필터 통과', () => {
+    // finSeason:1 + currentFinSeason:1 → 두 건 모두 moneyResolved 포함
+    expect(result.moneyResolved.length).toBe(2);
   });
 });
 

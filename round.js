@@ -24,7 +24,7 @@
 // ============================================================
 let rounds = (function () {
   try {
-    const raw = JSON.parse(localStorage.getItem('edge_rounds') || '[]');
+    const raw = Storage.getJSON(KEYS.ROUNDS, []);
     return Array.isArray(raw) ? raw : [];
   } catch (e) {
     console.error('[round] edge_rounds 파싱 실패:', e);
@@ -34,7 +34,7 @@ let rounds = (function () {
 
 function saveRounds(arr) {
   rounds = arr;
-  localStorage.setItem('edge_rounds', JSON.stringify(arr));
+  Storage.setJSON(KEYS.ROUNDS, arr);
 }
 
 /** rounds 배열 읽기 전용 접근자 — 외부에서 직접 접근 금지 */
@@ -50,12 +50,12 @@ function getActiveRound() {
 /** 새 회차 시작 — LOCKED 회차가 없을 때만 생성 가능 */
 function lockNewRound(seed) {
   if (getActiveRound()) {
-    alert('진행 중인 회차가 있습니다. 현재 회차를 먼저 종료하세요.');
+    showToast('진행 중인 회차가 있습니다. 현재 회차를 먼저 종료하세요.', 'error');
     return false;
   }
   const parsedSeed = parseInt(seed, 10);
   if (!parsedSeed || parsedSeed <= 0) {
-    alert('유효한 시드 금액을 입력하세요.');
+    showToast('유효한 시드 금액을 입력하세요.', 'error');
     return false;
   }
   const id = 'r' + Date.now();
@@ -68,7 +68,7 @@ function lockNewRound(seed) {
     closedAt:  null
   };
   saveRounds([...rounds, newRound]);
-  localStorage.setItem('edge_current_round', id);
+  Storage.set(KEYS.CURRENT_ROUND, id);
   window.dispatchEvent(new Event('storage'));
   return true;
 }
@@ -122,11 +122,11 @@ function closeActiveRound() {
 
 // ── 회차 이력 (edge_round_history) ──────────────────────────
 function getRoundHistory() {
-  try { return JSON.parse(localStorage.getItem('edge_round_history') || '[]'); } catch { return []; }
+  try { return Storage.getJSON(KEYS.ROUND_HISTORY, []); } catch { return []; }
 }
 
 function saveRoundHistory(history) {
-  localStorage.setItem('edge_round_history', JSON.stringify(history));
+  Storage.setJSON(KEYS.ROUND_HISTORY, history);
 }
 
 
@@ -135,3 +135,29 @@ console.assert(typeof getActiveRound === 'function', '[round.js] getActiveRound 
 console.assert(typeof saveRounds     === 'function', '[round.js] saveRounds not defined');
 console.assert(typeof getRounds      === 'function', '[round.js] getRounds not defined');
 console.assert(typeof applyRoundBet  === 'function', '[round.js] applyRoundBet not defined');
+
+// ── [MIGRATION] App.services.round namespace 등록 ────────────
+// 현재 전역 함수(getActiveRound() 등 직접 호출)는 그대로 동작함.
+// 목표: 호출 경로를 window.App.services.round.* 로 점진 이전.
+// 전역 선언 제거는 별도 PR에서 진행. (이 단계는 migration path 생성)
+//
+// NOTE: round.js는 Storage, getBets, window.dispatchEvent에 의존하므로
+// App.compute/kelly/gate 와 달리 "service" 레이어로 분류.
+if (typeof window !== 'undefined') {
+  if (!window.App) window.App = {};
+  if (!window.App.services) window.App.services = {};
+  window.App.services.round = {
+    getRounds,
+    saveRounds,
+    getActiveRound,
+    lockNewRound,
+    applyRoundBet,
+    refundRoundBet,
+    closeActiveRound,
+    getRoundHistory,
+    saveRoundHistory,
+  };
+  if (window.App.debug) {
+    console.debug('[bootstrap] App.services.round attached', Object.keys(window.App.services.round));
+  }
+}

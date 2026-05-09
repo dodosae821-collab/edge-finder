@@ -1,24 +1,24 @@
 // ========== GOAL ==========
 function updateGoalStats() {
   // ── 엔진 연동 ──
-  const _SS = window._SS;
+  const _SS = window.App._SS;
 
   // 설정 탭 자금 자동 연동
-  if (appSettings.startFund > 0) {
+  if (getSettings().startFund > 0) {
     const goalStartEl = document.getElementById('goal-start');
     if (!goalStartEl.value || parseFloat(goalStartEl.value) === 500000) {
-      goalStartEl.value = appSettings.startFund;
+      goalStartEl.value = getSettings().startFund;
     }
   }
-  if (appSettings.targetFund > 0 && appSettings.startFund > 0) {
+  if (getSettings().targetFund > 0 && getSettings().startFund > 0) {
     const goalTargetEl = document.getElementById('goal-target');
-    const defaultTarget = appSettings.targetFund - appSettings.startFund;
+    const defaultTarget = getSettings().targetFund - getSettings().startFund;
     if (!goalTargetEl.value || parseFloat(goalTargetEl.value) === 1000000) {
       goalTargetEl.value = defaultTarget;
     }
   }
   // 설정값 자동 반영
-  const { startFund = 0, targetFund = 0 } = appSettings;
+  const { startFund = 0, targetFund = 0 } = getSettings();
 
   const resolved = bets.filter(b => b.result !== 'PENDING');
   const wins     = resolved.filter(b => b.result === 'WIN');
@@ -207,7 +207,7 @@ function updateGoalStats() {
   const remainLabel = document.getElementById('goal-remaining-label');
   if (remainEl && remainLabel) {
     const curBank = getCurrentBankroll();
-    const tgtFund = appSettings.targetFund || 0;
+    const tgtFund = getSettings().targetFund || 0;
     if (tgtFund > 0) {
       const remaining = tgtFund - curBank;
       remainEl.textContent = (remaining <= 0 ? '🎉 달성!' : '₩' + Math.round(remaining).toLocaleString());
@@ -225,7 +225,7 @@ function updateGoalStats() {
 
 function updatePredictTab() {
   // ── 엔진 연동 ──
-  const _SS = window._SS;
+  const _SS = window.App._SS;
 
   const resolved  = bets.filter(b => b.result !== 'PENDING');
 
@@ -449,7 +449,7 @@ function updatePredictTab() {
     const avgBetAmt  = bets.reduce((s, b) => s + b.amount, 0) / bets.length;
     const avgOddsAll2 = resolved.reduce((s, b) => s + b.betmanOdds, 0) / resolved.length;
     const kellyF     = ((overallWr * (avgOddsAll2 - 1)) - (1 - overallWr)) / (avgOddsAll2 - 1);
-    const seed       = appSettings.kellySeed || appSettings.startFund || 0;
+    const seed       = getSettings().kellySeed || getSettings().startFund || 0;
 
     // 엔진 ECE 보정 켈리금액 우선, 없으면 기존 계산
     const kellyAmt = _SS && _SS.kellyUnit > 0 ? _SS.kellyUnit
@@ -613,7 +613,7 @@ function updatePredPowerPanel() {
   if (resolved.length < 5) return;
 
   // ── 엔진 연동: _SS 우선 사용 ──
-  const _SS = window._SS;
+  const _SS = window.App._SS;
 
   // ── 1. 캘리브레이션 계산 ──
   // 예측 구간별로 실제 적중률 집계
@@ -637,8 +637,8 @@ function updatePredPowerPanel() {
     return { label:b.label, min:b.min, max:b.max, midProb, actWr, count:g.length, diff: actWr - midProb };
   }).filter(Boolean);
 
-  // 전역 노출 — calibrateProb() 호출용
-  window._calibData = calibData;
+  // calibData는 이 함수 내에서만 사용 (전역 노출 불필요)
+  // calcSystemState()는 window._calibData 대신 context.calibData 경로로 수신함
 
   // 캘리브레이션 오차 — 과소추정 절반 페널티
   const calibMAE = calibData.length > 0
@@ -691,7 +691,7 @@ function updatePredPowerPanel() {
     : totalScore >= 85 ? {letter:'S',color:'#ffd700',label:'최상 — 탁월한 예측력'}
     : totalScore >= 70 ? {letter:'A',color:'#00e676',label:'우수 — 안정적 엣지 보유'}
     : totalScore >= 55 ? {letter:'B',color:'var(--accent)',label:'양호 — 개선 가능'}
-    : totalScore >= 40 ? {letter:'C',color:'#ff9800',label:'주의 — 예측 정밀도 부족'}
+    : totalScore >= 40 ? {letter:'C',color:'var(--warn)',label:'주의 — 예측 정밀도 부족'}
     : {letter:'D',color:'var(--red)',label:'경고 — 베팅 규모 축소 권장'};
 
   // ── 등급 카드 업데이트 ──
@@ -838,7 +838,7 @@ function updatePredPowerPanel() {
     } else {
       const eceGrade = ece <= 5  ? {label:'우수', color:'var(--green)',   msg:'보정 상태 우수 — 켈리 기준 정상 적용 가능', kelly:'정상', bg:'rgba(0,230,118,0.08)', border:'rgba(0,230,118,0.25)'}
                      : ece <= 10 ? {label:'양호', color:'var(--gold)',    msg:'보정 양호 — 분수 켈리(1/4) 적용 권장',          kelly:'1/4 켈리', bg:'rgba(255,152,0,0.08)', border:'rgba(255,152,0,0.25)'}
-                     : ece <= 15 ? {label:'주의', color:'#ff9800',        msg:'⚠️ 보정 불량 — 켈리 1/8 이하로 축소 권장',       kelly:'1/8 켈리', bg:'rgba(255,152,0,0.1)', border:'rgba(255,152,0,0.3)'}
+                     : ece <= 15 ? {label:'주의', color:'var(--warn)',        msg:'⚠️ 보정 불량 — 켈리 1/8 이하로 축소 권장',       kelly:'1/8 켈리', bg:'rgba(255,152,0,0.1)', border:'rgba(255,152,0,0.3)'}
                      :             {label:'경고', color:'var(--red)',      msg:'🔴 보정 심각 — 켈리 비활성화 권장 (고정 소액만)', kelly:'켈리 ❌', bg:'rgba(255,59,92,0.08)', border:'rgba(255,59,92,0.25)'};
 
       if (eceValEl)   { eceValEl.textContent = ece.toFixed(1)+'%'; eceValEl.style.color = eceGrade.color; }
@@ -865,10 +865,10 @@ function updatePredPowerPanel() {
           return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
             <td style="padding:7px 4px;font-weight:600;">${r.label}</td>
             <td style="padding:7px 4px;text-align:center;color:var(--text3);">${r.count}건</td>
-            <td style="padding:7px 4px;text-align:center;">${r.avgProb.toFixed(1)}%</td>
-            <td style="padding:7px 4px;text-align:center;">${r.actWr.toFixed(1)}%</td>
+            <td class="gp-td-center">${r.avgProb.toFixed(1)}%</td>
+            <td class="gp-td-center">${r.actWr.toFixed(1)}%</td>
             <td style="padding:7px 4px;text-align:center;color:${status.color};font-weight:700;">${diffStr}</td>
-            <td style="padding:7px 4px;text-align:center;">${status.icon} <span style="color:${status.color}">${status.label}</span></td>
+            <td class="gp-td-center">${status.icon} <span style="color:${status.color}">${status.label}</span></td>
           </tr>`;
         }).join('');
       }
@@ -925,7 +925,7 @@ function updatePredPowerPanel() {
               backgroundColor: 'rgba(0,229,255,0.15)',
               borderWidth: 2.5,
               pointRadius: 6,
-              pointBackgroundColor: rows.map(r => Math.abs(r.diff) <= 5 ? '#00e676' : Math.abs(r.diff) <= 10 ? '#ff9800' : '#ff3b5c'),
+              pointBackgroundColor: rows.map(r => Math.abs(r.diff) <= 5 ? '#00e676' : Math.abs(r.diff) <= 10 ? 'var(--warn)' : '#ff3b5c'),
               pointBorderColor: '#fff',
               pointBorderWidth: 1.5,
               fill: false,
@@ -1049,7 +1049,7 @@ function updatePredPowerPanel() {
   }
 
   // ── 다음 베팅 권장 규모 ──
-  const bankroll = getCurrentBankroll() || appSettings.startFund || 0;
+  const bankroll = getCurrentBankroll() || getSettings().startFund || 0;
   const baseKellyPct = predEdge !== null && predEdge > 0
     ? Math.min(5, predEdge / 2) : 1; // 엣지 기반 기본 비율 (하프 켈리 근사)
   let adjPct = baseKellyPct;
@@ -1080,7 +1080,7 @@ function updatePredPowerPanel() {
   const last5Loses = last5.filter(b=>b.result==='LOSE').length;
   if (last5Loses >= 3) { adjPct *= 0.7; signals.push('❄️ 슬럼프 구간'); }
 
-  const _maxPct = appSettings.maxBetPct || 5;
+  const _maxPct = getSettings().maxBetPct || 5;
   adjPct = Math.max(0.5, Math.min(_maxPct, adjPct));
   const recAmount = bankroll > 0 ? Math.round(bankroll * adjPct / 100 / 1000) * 1000 : null;
 
@@ -1118,8 +1118,8 @@ function updatePredPowerPanel() {
 function calcGoal() {
   updateGoalStats();
 
-  const start      = getCurrentBankroll() || appSettings.startFund || 0;
-  const goalTarget = appSettings.targetFund || parseFloat(document.getElementById('goal-target').value) || 0;
+  const start      = getCurrentBankroll() || getSettings().startFund || 0;
+  const goalTarget = getSettings().targetFund || parseFloat(document.getElementById('goal-target').value) || 0;
   const target     = goalTarget > start ? goalTarget - start : goalTarget;
   const nextOdds   = parseFloat(document.getElementById('goal-next-odds').value)  || 0;
   const nextProb   = parseFloat(document.getElementById('goal-next-prob').value)  || 0;
@@ -1139,7 +1139,7 @@ function calcGoal() {
   }
 
   // 베팅 기록에서 자동 계산 — 엔진 우선
-  const _SScg = window._SS;
+  const _SScg = window.App._SS;
   const resolved = bets.filter(b => b.result !== 'PENDING');
   const wins     = resolved.filter(b => b.result === 'WIN');
   const winRate  = _SScg ? _SScg.winRate : (resolved.length > 0 ? wins.length / resolved.length : 0.50);
@@ -1249,7 +1249,7 @@ function calcGoal() {
     <div style="font-size:10px;color:var(--text3);margin-bottom:14px;">현재 진행도 ${progressPct}% (₩${Math.round(currentProfit).toLocaleString()} / ₩${target.toLocaleString()})</div>
 
     ${nextAmount > 0 && nextOdds > 1 ? `
-    <div style="background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.2);border-radius:6px;padding:12px;margin-bottom:12px;">
+    <div class="gp-info-box">
       <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">다음 베팅 예상</div>
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
         <span>배당 ${nextOdds.toFixed(2)} × ₩${nextAmount.toLocaleString()}</span>
@@ -1267,19 +1267,19 @@ function calcGoal() {
     </div>` : ''}
 
     <div style="font-size:12px;line-height:2;">
-      <div style="display:flex;justify-content:space-between;">
+      <div class="gp-kv-row">
         <span style="color:var(--text3);">예상 달성 기간</span>
         <span class="mono" style="color:var(--accent);">${_engWeeks ? _engWeeks + '주 (보정)' : weeksNeeded ? weeksNeeded + '주' : '∞'}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;">
+      <div class="gp-kv-row">
         <span style="color:var(--text3);">베팅당 기대수익</span>
         <span class="mono" style="color:${evPerWon >= 0 ? 'var(--green)' : 'var(--red)'};">${evPerWon >= 0 ? '+' : ''}₩${Math.round(evPerWon).toLocaleString()}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;">
+      <div class="gp-kv-row">
         <span style="color:var(--text3);">주간 기대수익</span>
         <span class="mono" style="color:${weeklyEV >= 0 ? 'var(--green)' : 'var(--red)'};">${weeklyEV >= 0 ? '+' : ''}₩${Math.round(weeklyEV).toLocaleString()}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;">
+      <div class="gp-kv-row">
         <span style="color:var(--text3);">현재 승률 (기록 기반)</span>
         <span class="mono">${(winRate * 100).toFixed(1)}%</span>
       </div>
@@ -1346,7 +1346,7 @@ function updateGoalChart(gp10, gp25, gp50, gp90, goalTarget, start, STEPS) {
           borderWidth: 1, pointRadius: 0, tension: 0.4, order: 7
         },
         // 비관 25%
-        { label:'비관 (하위 25%)', data:makeSim(gp25), borderColor:'#ff9800', borderWidth:1.5, pointRadius:0, tension:0.4, fill:false, order:4 },
+        { label:'비관 (하위 25%)', data:makeSim(gp25), borderColor:'var(--warn)', borderWidth:1.5, pointRadius:0, tension:0.4, fill:false, order:4 },
         // 최악 10%
         { label:'최악 (하위 10%)', data:makeSim(gp10), borderColor:'#ff3b5c', borderWidth:1.5, pointRadius:0, tension:0.4, borderDash:[4,3], fill:false, order:5 },
         // 중앙값
@@ -1391,18 +1391,18 @@ function updateGoalDirection(goalProb, winRate, evPerBet, weeksNeeded, avgOdds) 
   const neededExtra = Math.max(0, minWinRate - wr);
   const bestOddsRange = odds >= 2.0 ? '역배/마핸' : odds >= 1.7 ? '정배/역배' : '배당 올리기 필요';
   el.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:10px;">
+    <div class="gp-stat-stack">
       <div style="padding:10px;background:var(--bg3);border-radius:6px;border-left:3px solid ${prob>=50?'var(--green)':'var(--red)'};">
-        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px;">① 현재 추세 달성 가능성</div>
-        <div style="font-size:12px;color:var(--text2);">
+        <div class="gp-section-label">① 현재 추세 달성 가능성</div>
+        <div class="gp-text-muted">
           ${prob>=60 ? `현재 승률 ${(wr*100).toFixed(1)}% 유지 시 <span style="color:var(--green);">달성 가능성 높음</span>. ${weeksNeeded?weeksNeeded+'주 내':''} 목표 달성 예상.`
           : prob>=35 ? `현재 승률로는 <span style="color:var(--gold);">달성 불확실</span>. 승률 개선 필요.`
           : `현재 승률 <span style="color:var(--red);">목표 달성 어려움</span>. 전략 변경 필요.`}
         </div>
       </div>
       <div style="padding:10px;background:var(--bg3);border-radius:6px;border-left:3px solid var(--gold);">
-        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px;">② 목표 달성 최소 승률</div>
-        <div style="font-size:12px;color:var(--text2);">
+        <div class="gp-section-label">② 목표 달성 최소 승률</div>
+        <div class="gp-text-muted">
           평균 배당 ${odds.toFixed(2)} 기준 손익분기 승률 <span style="color:var(--gold);">${(minWinRate*100).toFixed(1)}%</span>.
           ${wr>=minWinRate
             ? `현재 승률이 <span style="color:var(--green);">${((wr-minWinRate)*100).toFixed(1)}%p 초과</span> → 장기 수익 구조.`
@@ -1410,8 +1410,8 @@ function updateGoalDirection(goalProb, winRate, evPerBet, weeksNeeded, avgOdds) 
         </div>
       </div>
       <div style="padding:10px;background:var(--bg3);border-radius:6px;border-left:3px solid var(--accent);">
-        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px;">③ 유리한 배당대 추천</div>
-        <div style="font-size:12px;color:var(--text2);">
+        <div class="gp-section-label">③ 유리한 배당대 추천</div>
+        <div class="gp-text-muted">
           현재 평균 배당 ${odds.toFixed(2)} → <span style="color:var(--accent);">${bestOddsRange}</span> 집중 권장.
         </div>
       </div>
@@ -1429,17 +1429,17 @@ function updateGoalRisk(winRate, avgOdds, avgAmt, start, goalTarget) {
   const safeAmt   = kellyFrac>0 ? Math.round((start||0)*kellyFrac) : 0;
   const volatility= amt * Math.sqrt(wr*(1-wr));
   el.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--bg3);border-radius:6px;">
-        <span style="font-size:11px;color:var(--text3);">리스크 수준</span>
+    <div class="gp-stat-stack">
+      <div class="gp-stat-row">
+        <span class="gp-stat-label">리스크 수준</span>
         <span class="mono" style="font-size:16px;font-weight:700;color:${riskColor};">${riskLevel}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--bg3);border-radius:6px;">
-        <span style="font-size:11px;color:var(--text3);">켈리 기준 적정 베팅</span>
+      <div class="gp-stat-row">
+        <span class="gp-stat-label">켈리 기준 적정 베팅</span>
         <span class="mono" style="font-size:14px;font-weight:700;color:var(--gold);">${safeAmt>0?'₩'+safeAmt.toLocaleString():'베팅 비권장'}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--bg3);border-radius:6px;">
-        <span style="font-size:11px;color:var(--text3);">베팅당 변동성</span>
+      <div class="gp-stat-row">
+        <span class="gp-stat-label">베팅당 변동성</span>
         <span class="mono" style="font-size:14px;font-weight:700;color:var(--accent);">±₩${Math.round(volatility).toLocaleString()}</span>
       </div>
       <div style="padding:10px;background:var(--bg3);border-radius:6px;border-left:3px solid ${riskColor};">

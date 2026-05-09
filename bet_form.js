@@ -322,7 +322,7 @@ function renderOneWayDecision(decResult, owProb, ss) {
 function updateLossRatio() {
   const amount  = parseFloat(document.getElementById('r-amount').value) || 0;
   const display = document.getElementById('loss-ratio-display');
-  const seed    = appSettings.kellySeed || appSettings.startFund || 0;
+  const seed    = getSettings().kellySeed || getSettings().startFund || 0;
 
   if (!display) return;
   if (!amount || amount <= 0) { display.style.display = 'none'; return; }
@@ -348,7 +348,7 @@ function updateLossRatio() {
     if (guide && evHint && hasEV) {
       guide.style.display = 'block';
       const probFrac = myProb / 100;
-      const pCalib   = typeof getCalibrated === 'function' ? getCalibrated(probFrac) : probFrac;
+      const pCalib   = typeof getCalibrated === 'function' ? getCalibrated(probFrac, window.App._SS?.calibBuckets) : probFrac;
       const acf      = getActiveCorrFactor();
       const evResult = computeEVDisplay(probFrac, odds, pCalib, acf);
       renderEVHint(evHint, guide, document.getElementById('calib-hint'), evResult, probFrac);
@@ -365,7 +365,7 @@ function updateLossRatio() {
   if (guide && evHint && hasEV) {
     guide.style.display = 'block';
     const probFrac = typeof toProb === 'function' ? toProb(myProb) : myProb / 100;
-    const pCalib   = typeof getCalibrated === 'function' ? getCalibrated(probFrac) : probFrac;
+    const pCalib   = typeof getCalibrated === 'function' ? getCalibrated(probFrac, window.App._SS?.calibBuckets) : probFrac;
     const acf      = getActiveCorrFactor();
     const evResult = computeEVDisplay(probFrac, odds, pCalib, acf);
     renderEVHint(evHint, guide, document.getElementById('calib-hint'), evResult, probFrac);
@@ -376,9 +376,9 @@ function updateLossRatio() {
   // ── 원웨이 판단 블록 (단폴) ──────────────────────────────
   const owMode = document.getElementById('r-betmode')?.value || 'single';
   if (owMode === 'single' && odds > 1 && myProb > 0) {
-    const ss         = window._SS;
+    const ss         = window.App._SS;
     const multiplier = getKellyMultiplier();
-    const decResult  = computeOneWayDecision(myProb, odds, ss, appSettings.kellySeed || 0, multiplier);
+    const decResult  = computeOneWayDecision(myProb, odds, ss, getSettings().kellySeed || 0, multiplier);
     renderOneWayDecision(decResult, myProb, ss);
   } else if (owMode === 'single') {
     clearDecisionBlock();
@@ -466,7 +466,7 @@ function _renderAdjProbHint(raw, adj) {
   if (!hint) return;
 
   // 순수 계산은 compute.js의 computeAdjProbHint에 위임
-  const n  = window._SS ? window._SS.n : 0;
+  const n  = window.App._SS ? window.App._SS.n : 0;
   const r  = computeAdjProbHint(raw, adj, n);
 
   hint.style.display = 'block';

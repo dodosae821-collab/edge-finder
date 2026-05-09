@@ -2,6 +2,37 @@ function updateStatsAnalysis() {
   // scope 필터 적용
   const _scopedBets = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
   const resolved = _scopedBets.filter(b => b.result !== 'PENDING');
+  // allResolved: 시뮬 제외 전체 실제 기록 (승률·ECE·streak·예측력 기준)
+  const allResolved = resolved.filter(b => !b.isSim);
+  // resolvedForMoney: 현재 시즌 + 실제 금액 기록만 (손익·ROI·bankroll 기준)
+  const _curSeason = (Number.isInteger(getSettings().currentFinSeason) && getSettings().currentFinSeason >= 1)
+    ? getSettings().currentFinSeason : 1;
+  const resolvedForMoney = allResolved.filter(b =>
+    b.finSeason === _curSeason &&
+    b.amount > 0 &&
+    Number.isFinite(b.profit)
+  );
+  // ── legacy 카운트 (finSeason:0) — 한 번 계산, 두 곳 재사용 ──
+  const legacyCount    = allResolved.filter(b => b.finSeason === 0).length;
+  const prevSeasonCount = allResolved.filter(b => b.finSeason > 0 && b.finSeason < _curSeason).length;
+  const excludedCount  = legacyCount + prevSeasonCount;
+
+  // ROI 카드 하단 hint
+  const seasonHintEl = document.getElementById('season-scope-hint');
+  if (seasonHintEl) {
+    if (excludedCount > 0) {
+      const parts = [];
+      if (prevSeasonCount > 0) parts.push(`이전 시즌 ${prevSeasonCount}건`);
+      if (legacyCount > 0)     parts.push(`구버전 데이터 ${legacyCount}건`);
+      seasonHintEl.innerHTML =
+        `현재 시즌 기준 손익 표시 중<br>` +
+        `<span style="color:var(--text3);">(${parts.join(' · ')} 별도 보관)</span>`;
+      seasonHintEl.style.display = 'block';
+    } else {
+      seasonHintEl.style.display = 'none';
+    }
+  }
+
   if (resolved.length === 0) {
     ['folder-stat-table','sport-stat-table','type-stat-table','odds-range-table','pred-table','dow-stat-table'].forEach(id => {
       const el = document.getElementById(id);
@@ -18,9 +49,13 @@ function updateStatsAnalysis() {
   }
 
   // ── 엔진 연동 — 순수 계산은 compute.js에 위임 ──
-  const _SS  = window._SS;
-  const _std = computeStatsDisplay(_SS, resolved);
-  const { wins, winRate: totalWr, roi, totalProfit, totalInvested, winsCount, plRatio: rrRatio } = _std;
+  // 승률/winsCount: resolved 전체 기준 / ROI·손익비: resolvedForMoney 기준
+  const _SS  = window.App._SS;
+  const _stdWr  = computeStatsDisplay(null, allResolved);        // 승률용 (sim 제외 전체)
+  const _stdMon = computeStatsDisplay(null, resolvedForMoney);  // 손익용 (현재 시즌 amount>0)
+  const { winRate: totalWr, winsCount } = _stdWr;
+  const { roi, totalProfit, totalInvested, plRatio: rrRatio } = _stdMon;
+  const wins = _stdWr.wins;
 
   // ── 통계1 상단 카드 ──
   // 승률
@@ -30,7 +65,7 @@ function updateStatsAnalysis() {
     wrEl.style.color = totalWr >= 0.5 ? 'var(--green)' : 'var(--red)';
   }
   const wrLabelEl = document.getElementById('sa-total-wr-label');
-  if (wrLabelEl) wrLabelEl.textContent = `${resolved.length}건 중 ${winsCount}적중`;
+  if (wrLabelEl) wrLabelEl.textContent = `${allResolved.length}건 중 ${winsCount}적중`;
 
   // ROI
   const roiEl = document.getElementById('sa-total-roi');
@@ -72,8 +107,8 @@ function updateStatsAnalysis() {
   }
 
   // 단폴 / 다폴더 분리
-  const singles = resolved.filter(b => b.mode !== 'multi');
-  const multis  = resolved.filter(b => b.mode === 'multi');
+  const singles = allResolved.filter(b => b.mode !== 'multi');
+  const multis  = allResolved.filter(b => b.mode === 'multi');
   const sWins   = singles.filter(b => b.result === 'WIN');
   const mWins   = multis.filter(b => b.result === 'WIN');
 
@@ -106,8 +141,9 @@ function updateStatsAnalysis() {
     if (!g.bets.length) return null;
     const wins    = g.bets.filter(b => b.result === 'WIN');
     const wr      = (wins.length / g.bets.length * 100).toFixed(1);
-    const profit  = g.bets.reduce((s, b) => s + b.profit, 0);
-    const invested = g.bets.reduce((s, b) => s + b.amount, 0);
+    const moneyBets = g.bets.filter(b => b.amount > 0 && Number.isFinite(b.profit));
+    const profit  = moneyBets.reduce((s, b) => s + b.profit, 0);
+    const invested = moneyBets.reduce((s, b) => s + b.amount, 0);
     const roi     = invested > 0 ? (profit / invested * 100).toFixed(1) : '—';
     const avgOdds = (g.bets.reduce((s, b) => s + b.betmanOdds, 0) / g.bets.length).toFixed(2);
     return `<tr>
@@ -134,13 +170,13 @@ function updateStatsAnalysis() {
   renderFolderDetail('5',      allBets.filter(b => b.mode === 'multi' && getActualFC(b) === '5'));
   renderFolderDetail('6',      allBets.filter(b => b.mode === 'multi' && getActualFC(b) === '6'));
 
-  const avgOdds = resolved.reduce((s,b) => s + b.betmanOdds, 0) / resolved.length;
+  const avgOdds = allResolved.reduce((s,b) => s + b.betmanOdds, 0) / allResolved.length;
   const avgOddsEl = document.getElementById('sa-avg-odds');
   if (avgOddsEl) avgOddsEl.textContent = avgOdds.toFixed(2);
 
   // 종목별 — folderSports 우선, 없으면 sport 문자열 인덱스 분리
   const sportMap = {};
-  resolved.forEach(b => {
+  allResolved.forEach(b => {
     if (b.mode === 'multi' && b.folderResults && b.folderResults.length > 0) {
       const sports = (b.sport || '기타').split(', ');
       b.folderResults.forEach((fr, i) => {
@@ -188,7 +224,7 @@ function updateStatsAnalysis() {
 
   // 형식별 — 다폴더는 folderResults 있으면 폴더 단위 집계
   const typeMap = {};
-  resolved.forEach(b => {
+  allResolved.forEach(b => {
     const types = (b.type || '기타').split(', ');
     if (b.mode === 'multi' && b.folderResults && b.folderResults.length > 0) {
       b.folderResults.forEach((fr, i) => {
@@ -203,8 +239,10 @@ function updateStatsAnalysis() {
         if (!typeMap[tp]) typeMap[tp] = { total:0, wins:0, profit:0, invested:0 };
         typeMap[tp].total++;
         if (b.result === 'WIN') typeMap[tp].wins++;
-        typeMap[tp].profit   += b.profit;
-        typeMap[tp].invested += b.amount;
+        if (b.amount > 0 && Number.isFinite(b.profit)) {
+          typeMap[tp].profit   += b.profit;
+          typeMap[tp].invested += b.amount;
+        }
       });
     }
   });
@@ -232,11 +270,11 @@ function updateStatsAnalysis() {
     { key:'ht-ou',    label:'📊 전반 언/옵',  match: t => t.includes('전반') && (t.includes('언/옵') || t.includes('오버') || t.includes('언더')) },
   ];
   const marketData = MARKETS.map(m => {
-    const g = resolved.filter(b => m.match(b.type || ''));
+    const g = allResolved.filter(b => m.match(b.type || ''));
     if (!g.length) return { ...m, total:0, wins:0, profit:0, invested:0, roi:null, wr:null };
     const wins    = g.filter(b=>b.result==='WIN').length;
-    const profit  = g.reduce((s,b)=>s+(b.profit||0),0);
-    const invested= g.reduce((s,b)=>s+(b.amount||0),0);
+    const profit  = g.filter(b=>b.amount>0&&Number.isFinite(b.profit)).reduce((s,b)=>s+(b.profit),0);
+    const invested= g.filter(b=>b.amount>0&&Number.isFinite(b.profit)).reduce((s,b)=>s+(b.amount),0);
     const predG   = g.filter(b=>b.myProb && b.betmanOdds);
     const edge    = predG.length > 0 ? predG.reduce((s,b)=>s+(b.myProb-100/b.betmanOdds),0)/predG.length : null;
     return { ...m, total:g.length, wins, profit, invested,
@@ -342,11 +380,11 @@ function updateStatsAnalysis() {
   const ranges = [[1.0,2.1],[2.1,3.1],[3.1,4.1],[4.1,5.1],[5.1,6.1],[6.1,7.1],[7.1,99]];
   const rangeLabels = ['1~2.0','2.1~3.0','3.1~4.0','4.1~5.0','5.1~6.0','6.1~7.0','7.1+'];
   const oddsRows = ranges.map(([lo,hi], i) => {
-    const inRange = resolved.filter(b => b.betmanOdds >= lo && b.betmanOdds < hi);
+    const inRange = allResolved.filter(b => b.betmanOdds >= lo && b.betmanOdds < hi);
     if (!inRange.length) return `<tr><td>${rangeLabels[i]}</td><td colspan="5" style="color:var(--text3);">데이터 없음</td></tr>`;
     const wins   = inRange.filter(b => b.result === 'WIN').length;
     const wr     = wins / inRange.length * 100;
-    const profit = inRange.reduce((s,b) => s+b.profit, 0);
+    const profit = inRange.filter(b => b.amount > 0 && Number.isFinite(b.profit)).reduce((s,b) => s+b.profit, 0);
     const avgO   = inRange.reduce((s,b) => s+b.betmanOdds, 0) / inRange.length;
     const breakEven = 1 / avgO * 100;
     const ok = wr >= breakEven;
@@ -370,11 +408,11 @@ function updateStatsAnalysis() {
   });
   // 현재 연속 (최신 베팅부터 역순으로 계산)
   curStreak = 0; curLose = 0;
-  for (let i = 0; i < resolved.length; i++) {
-    if (resolved[i].result === 'WIN')  { curStreak++; } else break;
+  for (let i = 0; i < allResolved.length; i++) {
+    if (allResolved[i].result === 'WIN')  { curStreak++; } else break;
   }
-  for (let i = 0; i < resolved.length; i++) {
-    if (resolved[i].result === 'LOSE') { curLose++; } else break;
+  for (let i = 0; i < allResolved.length; i++) {
+    if (allResolved[i].result === 'LOSE') { curLose++; } else break;
   }
   const msEl  = document.getElementById('sa-max-streak');
   const mlEl  = document.getElementById('sa-max-lose-streak');
@@ -387,7 +425,7 @@ function updateStatsAnalysis() {
 
   // 월별 차트
   const monthMap = {};
-  resolved.forEach(b => {
+  resolvedForMoney.forEach(b => {
     const m = (b.date || '').slice(0, 7);
     if (!m) return;
     if (!monthMap[m]) monthMap[m] = 0;
@@ -416,8 +454,19 @@ function updateStatsAnalysis() {
     }
   });
 
+  // 월별 차트 contextual hint
+  const monthlyHintEl = document.getElementById('monthly-chart-hint');
+  if (monthlyHintEl) {
+    if (excludedCount > 0) {
+      monthlyHintEl.textContent = `현재 시즌 기준 표시 중 · ${excludedCount}건 별도 보관`;
+      monthlyHintEl.style.display = 'block';
+    } else {
+      monthlyHintEl.style.display = 'none';
+    }
+  }
+
   // ── 예측 정확도 분석 ──
-  const predBets = resolved.filter(b => b.myProb != null && b.myProb > 0);
+  const predBets = allResolved.filter(b => b.myProb != null && b.myProb > 0);
 
   document.getElementById('pred-total').textContent = predBets.length;
 
@@ -535,15 +584,17 @@ function updateStatsAnalysis() {
   const dowMap = {};
   DOW_ORDER.forEach(d => { dowMap[d] = { total:0, wins:0, profit:0, invested:0, avgOdds:0 }; });
 
-  resolved.forEach(b => {
+  allResolved.forEach(b => {
     if (!b.date) return;
     const day = new Date(b.date).getDay(); // 0=일,1=월,...
     if (!dowMap[day]) return;
     dowMap[day].total++;
     if (b.result === 'WIN') dowMap[day].wins++;
-    dowMap[day].profit   += b.profit;
-    dowMap[day].invested += b.amount;
     dowMap[day].avgOdds  += b.betmanOdds;
+    if (b.amount > 0 && Number.isFinite(b.profit)) {
+      dowMap[day].profit   += b.profit;
+      dowMap[day].invested += b.amount;
+    }
   });
 
   const dowRows = DOW_ORDER.map(d => {
@@ -847,12 +898,12 @@ function updateEvCum() {
   resolved.forEach((b, i) => {
     // EV 기댓값: isValue이고 myProb 있으면 계산, 없으면 0 누적
     let evAmount = 0;
-    if (b.isValue && b.myProb && b.betmanOdds) {
+    if (b.isValue && b.myProb && b.betmanOdds && b.amount > 0) {
       const edge = (b.myProb / 100) * b.betmanOdds - 1;
       evAmount = b.amount * edge;
     }
     runEV += evAmount;
-    runActual += b.profit;
+    runActual += (b.amount > 0 && Number.isFinite(b.profit)) ? b.profit : 0;
     labels.push(i + 1);
     cumEV.push(Math.round(runEV));
     cumActual.push(Math.round(runActual));
@@ -994,7 +1045,7 @@ function updateKellyHistory() {
 
   // 각 베팅 시점의 뱅크롤 재구성 (시간순 정렬) — 전체 bets 기준 (뱅크롤 추적은 글로벌)
   const sorted = [...bets].sort((a, b) => new Date(a.date) - new Date(b.date));
-  const { startFund = 0 } = appSettings;
+  const { startFund = 0 } = getSettings();
   let runningBankroll = startFund;
 
   // 베팅 id → 그 시점 뱅크롤 맵

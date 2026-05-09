@@ -344,7 +344,7 @@ function closeSimSuggest(boxId) {
 function simSaveNote(idx, val) {
   if (!simState.history[idx]) return;
   simState.history[idx].note = val.trim();
-  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); } catch(e) {}
+  try { Storage.setJSON(KEYS.SIM_STATE, simState); } catch(e) {}
 }
 
 function simDeleteHistory(idx) {
@@ -359,7 +359,7 @@ function simDeleteHistory(idx) {
     simState.balance = SIM_START;
     simState.round = 1;
   }
-  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); } catch(e) {}
+  try { Storage.setJSON(KEYS.SIM_STATE, simState); } catch(e) {}
   simRender(); simOnInput();
 }
 
@@ -369,7 +369,7 @@ function simRestart() {
   simState.balance = SIM_START;
   simState.round = simState.history.length + 1;
   simState.goalReached = false;
-  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); } catch(e) {}
+  try { Storage.setJSON(KEYS.SIM_STATE, simState); } catch(e) {}
   simRender(); simOnInput();
 }
 
@@ -429,7 +429,7 @@ function simHold() {
   simResetOdds();
   simRenderPending();
   simOnInput();
-  try { localStorage.setItem('edge_sim_pending', JSON.stringify(simPending)); } catch(e) {}
+  try { Storage.setJSON(KEYS.SIM_PENDING, simPending); } catch(e) {}
 }
 
 function simRenderPending() {
@@ -522,13 +522,13 @@ function simApplyPending(key) {
 
   const simRecords = [];
   if (p.b2 > 0) {
-    simRecords.push({ id: String(Date.now())+'simA', date:new Date().toISOString().split('T')[0], game:p.memo||'-', sport:'', type:'승/패', mode:p.memo.includes('/')?'multi':'single', amount:p.b2, betmanOdds:p.o2, result:aWin?'WIN':'LOSE', profit:aWin?Math.round(p.b2*p.o2)-p.b2:-p.b2, memo:'[전략베팅 A]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
+    simRecords.push({ id: String(Date.now())+'simA', isSim: true, finSeason: -1, date:new Date().toISOString().split('T')[0], game:p.memo||'-', sport:'', type:'승/패', mode:p.memo.includes('/')?'multi':'single', amount:p.b2, betmanOdds:p.o2, result:aWin?'WIN':'LOSE', profit:aWin?Math.round(p.b2*p.o2)-p.b2:-p.b2, memo:'[전략베팅 A]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
   }
   if (p.b3 > 0) {
-    simRecords.push({ id: String(Date.now()+1)+'simB', date:new Date().toISOString().split('T')[0], game:p.memoB||'-', sport:'', type:'승/패', mode:p.memoB.includes('/')?'multi':'single', amount:p.b3, betmanOdds:p.o3, result:bWin?'WIN':'LOSE', profit:bWin?Math.round(p.b3*p.o3)-p.b3:-p.b3, memo:'[전략베팅 B]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
+    simRecords.push({ id: String(Date.now()+1)+'simB', isSim: true, finSeason: -1, date:new Date().toISOString().split('T')[0], game:p.memoB||'-', sport:'', type:'승/패', mode:p.memoB.includes('/')?'multi':'single', amount:p.b3, betmanOdds:p.o3, result:bWin?'WIN':'LOSE', profit:bWin?Math.round(p.b3*p.o3)-p.b3:-p.b3, memo:'[전략베팅 B]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
   }
   if ((p.b4||0) > 0) {
-    simRecords.push({ id: String(Date.now()+2)+'simC', date:new Date().toISOString().split('T')[0], game:p.memoC||'-', sport:'', type:'승/패', mode:(p.memoC||'').includes('/')?'multi':'single', amount:p.b4, betmanOdds:p.o4, result:cWin?'WIN':'LOSE', profit:cWin?Math.round(p.b4*p.o4)-p.b4:-p.b4, memo:'[전략베팅 C]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
+    simRecords.push({ id: String(Date.now()+2)+'simC', isSim: true, finSeason: -1, date:new Date().toISOString().split('T')[0], game:p.memoC||'-', sport:'', type:'승/패', mode:(p.memoC||'').includes('/')?'multi':'single', amount:p.b4, betmanOdds:p.o4, result:cWin?'WIN':'LOSE', profit:cWin?Math.round(p.b4*p.o4)-p.b4:-p.b4, memo:'[전략베팅 C]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
   }
   if (simRecords.length > 0) {
     saveBets([...simRecords, ...getBets()]);  // unshift 동작 유지 (앞에 추가)
@@ -542,14 +542,14 @@ function simApplyPending(key) {
     setTimeout(() => toast.remove(), 2000);
   }
 
-  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); localStorage.setItem('edge_sim_goal', SIM_GOAL); localStorage.removeItem('edge_sim_pending'); } catch(e) {}
+  try { Storage.setJSON(KEYS.SIM_STATE, simState); Storage.set(KEYS.SIM_GOAL, SIM_GOAL); Storage.remove(KEYS.SIM_PENDING); } catch(e) {}
   simRenderPending();
   simRender(); simOnInput();
 }
 
 function simCancelPending() {
   simPending = null;
-  try { localStorage.removeItem('edge_sim_pending'); } catch(e) {}
+  try { Storage.remove(KEYS.SIM_PENDING); } catch(e) {}
   simRenderPending();
 }
 
@@ -581,7 +581,7 @@ function simToggleResult(idx, result) {
     simState.balance = simState.history[simState.history.length - 1].after;
   }
 
-  try { localStorage.setItem('edge_sim_state', JSON.stringify(simState)); localStorage.setItem('edge_sim_goal', SIM_GOAL); } catch(e) {}
+  try { Storage.setJSON(KEYS.SIM_STATE, simState); Storage.set(KEYS.SIM_GOAL, SIM_GOAL); } catch(e) {}
   simRender(); simOnInput();
 }
 
@@ -1006,8 +1006,8 @@ function simSetStartBalance() {
   simPending = null;
   // localStorage에 먼저 저장 (initSimulator가 다시 불려도 이 값을 복원함)
   try {
-    localStorage.setItem('edge_sim_state', JSON.stringify(simState));
-    localStorage.removeItem('edge_sim_pending');
+    Storage.setJSON(KEYS.SIM_STATE, simState);
+    Storage.remove(KEYS.SIM_PENDING);
   } catch(e) {}
   simResetOdds();
   if(inp) inp.value = '';
@@ -1037,12 +1037,12 @@ function simConfirmGoal() {
 }
 
 function simManualSave() {
-  try{localStorage.setItem('edge_sim_state',JSON.stringify(simState));localStorage.setItem('edge_sim_goal',SIM_GOAL);
+  try{Storage.setJSON(KEYS.SIM_STATE, simState); Storage.set(KEYS.SIM_GOAL, SIM_GOAL);
   const el=document.getElementById('sim-save-status');if(el){el.textContent='저장 완료 — '+new Date().toLocaleString('ko-KR');el.style.color='var(--green)';setTimeout(()=>el.textContent='',3000);}}catch(e){}
 }
 
 function simManualLoad() {
-  try{const saved=localStorage.getItem('edge_sim_state'),savedGoal=localStorage.getItem('edge_sim_goal');
+  try{const saved=Storage.get(KEYS.SIM_STATE),savedGoal=Storage.get(KEYS.SIM_GOAL);
   if(!saved){const el=document.getElementById('sim-save-status');if(el){el.textContent='저장된 데이터가 없어요';el.style.color='var(--gold)';setTimeout(()=>el.textContent='',3000);}return;}
   simState=JSON.parse(saved);if(savedGoal)SIM_GOAL=parseInt(savedGoal);simSnaps=[];simResetOdds();simRender();simOnInput();
   // 경로 탭이 열려있으면 트리 갱신
@@ -1057,7 +1057,7 @@ function simConfirmReset(){
   simCloseResetModal();simSnaps=[];
   simState={balance:SIM_START,round:1,history:[],goalReached:false,goalHistory:[]};SIM_GOAL=1000000;
   // localStorage도 초기화
-  try{localStorage.removeItem('edge_sim_state');localStorage.removeItem('edge_sim_goal');localStorage.removeItem('edge_sim_pending');}catch(e){}
+  try{Storage.remove(KEYS.SIM_STATE);Storage.remove(KEYS.SIM_GOAL);Storage.remove(KEYS.SIM_PENDING);}catch(e){}
   simPending=null;
   ['sim-i-sv','sim-i-b2','sim-i-b3','sim-i-b4','sim-i-memo','sim-i-memo-b','sim-i-memo-c'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   simResetOdds();simRender();simOnInput();
@@ -1070,9 +1070,9 @@ function simConfirmReset(){
 
 function initSimulator() {
   try {
-    const saved=localStorage.getItem('edge_sim_state'), savedGoal=localStorage.getItem('edge_sim_goal');
+    const saved=Storage.get(KEYS.SIM_STATE), savedGoal=Storage.get(KEYS.SIM_GOAL);
     if(saved){simState=JSON.parse(saved);simSnaps=[];}if(savedGoal)SIM_GOAL=parseInt(savedGoal);
-    const savedPending=localStorage.getItem('edge_sim_pending');
+    const savedPending=Storage.get(KEYS.SIM_PENDING);
     if(savedPending){simPending=JSON.parse(savedPending);}
   } catch(e) {}
   simRender(); simRenderPending(); simOnInput();

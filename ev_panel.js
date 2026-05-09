@@ -17,7 +17,7 @@ function renderDecisionBlock({ isMulti, ev, kelly, rawP, safeP, verdict, folderC
   const el = document.getElementById('oneway-kelly-card');
   if (!el) return;
 
-  const base = (appSettings.kellySeed || appSettings.bankroll || 0) / 12;
+  const base = (getSettings().kellySeed || getSettings().bankroll || 0) / 12;
 
   // 색상/아이콘 맵
   const vMap = {

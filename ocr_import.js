@@ -142,7 +142,7 @@ const DEFAULT_ALIAS_MAP = {
 // ── localStorage 기반 alias 영속화 ────────────────────────────
 function loadAliasMap() {
   try {
-    const saved = JSON.parse(localStorage.getItem('ocr_alias_map') || '{}');
+    const saved = Storage.getJSON(KEYS.OCR_ALIAS_MAP, {});
     return { ...DEFAULT_ALIAS_MAP, ...saved };
   } catch { return { ...DEFAULT_ALIAS_MAP }; }
 }
@@ -154,7 +154,7 @@ function saveAliasMap(map) {
     for (const [k, v] of Object.entries(map)) {
       if (DEFAULT_ALIAS_MAP[k] !== v) userAdded[k] = v;
     }
-    localStorage.setItem('ocr_alias_map', JSON.stringify(userAdded));
+    Storage.setJSON(KEYS.OCR_ALIAS_MAP, userAdded);
   } catch {}
 }
 
@@ -645,12 +645,12 @@ const TEAM_HISTORY_KEY = 'ocr_team_history';
 function recordTeamHistory(rawName) {
   if (!rawName || rawName.length < 2) return;  // 너무 짧은 단편 제외
   try {
-    const db = JSON.parse(localStorage.getItem(TEAM_HISTORY_KEY) || '{}');
+    const db = Storage.getJSON(KEYS.OCR_TEAM_HISTORY, {});
     const entry = db[rawName] || { count: 0, lastSeen: null };
     entry.count++;
     entry.lastSeen = new Date().toISOString();
     db[rawName] = entry;
-    localStorage.setItem(TEAM_HISTORY_KEY, JSON.stringify(db));
+    Storage.setJSON(KEYS.OCR_TEAM_HISTORY, db);
   } catch { /* localStorage 실패 무시 */ }
 }
 
@@ -662,7 +662,7 @@ function recordTeamHistory(rawName) {
  */
 function getTeamHistorySuggestions(prefix, limit = 8) {
   try {
-    const db = JSON.parse(localStorage.getItem(TEAM_HISTORY_KEY) || '{}');
+    const db = Storage.getJSON(KEYS.OCR_TEAM_HISTORY, {});
     const norm = prefix.toLowerCase().replace(/\s/g, '');
     return Object.entries(db)
       .filter(([name]) => name.toLowerCase().replace(/\s/g, '').includes(norm))

@@ -11,8 +11,8 @@
 // ============================================================
 
 function getKellyMultiplier() {
-  const base = (appSettings.kellySeed || 0) / 12;
-  const kellyUnit = window._SS?.kellyUnit || 0;
+  const base = (getSettings().kellySeed || 0) / 12;
+  const kellyUnit = window.App._SS?.kellyUnit || 0;
   if (!base || base <= 0) return 1;
   const m = kellyUnit / base;
   if (!Number.isFinite(m) || m <= 0) return 1;
@@ -266,8 +266,8 @@ function calcEV() {
 
 
 function getActiveCorrFactor() {
-  return (window._SS && window._SS.activeCorrFactor != null)
-    ? window._SS.activeCorrFactor : 1.0;
+  return (window.App._SS && window.App._SS.activeCorrFactor != null)
+    ? window.App._SS.activeCorrFactor : 1.0;
 }
 
 // corrFactor 활성 상태 설명 텍스트 반환
@@ -288,7 +288,7 @@ function getCombinedCalibratedProb(rows) {
     const prob = parseFloat(row.querySelector('.folder-prob')?.value) || 0;
     if (prob > 0) {
       const baseProb   = prob / 100;
-      const calibrated = (typeof getCalibrated === 'function') ? getCalibrated(baseProb) : baseProb;
+      const calibrated = (typeof getCalibrated === 'function') ? getCalibrated(baseProb, window.App._SS?.calibBuckets) : baseProb;
       const acf        = getActiveCorrFactor();
       const damp       = acf < 0.999 ? 1 - (1 - acf) * 0.5 : 1.0;
       const probAdj    = calibrated * Math.min(damp, 1.0);
@@ -413,7 +413,7 @@ function calcMultiEV() {
       const _evSafe = _safeP * (roundedOdds - 1) - (1 - _safeP);
 
       // [5] 금액
-      const _base       = (appSettings.kellySeed || 0) / 12;
+      const _base       = (getSettings().kellySeed || 0) / 12;
       const _multiplier = getKellyMultiplier();
       const _rawBet     = Math.max(0, _base * _kellyFrac * _multiplier);
 
@@ -427,7 +427,7 @@ function calcMultiEV() {
       // [8] verdict (EV<=0 or kelly=0 → PASS)
       const _verdict = _evSafe <= 0 || _finalBet <= 0
         ? 'PASS'
-        : (window._SS?.verdict || 'WAIT');
+        : (window.App._SS?.verdict || 'WAIT');
 
       renderDecisionBlock({
         isMulti:     true,
@@ -515,9 +515,9 @@ function calcMultiEV() {
 // ── getCalibStatusText ───────────────────────────────────────
 // 보정 상태 텍스트 반환 — 여러 UI에서 재사용 (bet_form, bet_list 등)
 function getCalibStatusText() {
-  if (!window._SS) return null;
-  const n   = window._SS.n || 0;
-  const acf = window._SS.activeCorrFactor;
+  if (!window.App._SS) return null;
+  const n   = window.App._SS.n || 0;
+  const acf = window.App._SS.activeCorrFactor;
   if (n < 30 || acf == null) return null;
   const pct = ((1 - acf) * 100).toFixed(1);
   const strength = n < 50 ? '50%' : '100%';

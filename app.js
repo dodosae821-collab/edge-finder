@@ -1,3 +1,39 @@
+// ============================================================
+// window.App — Central runtime namespace registry
+//
+// Non-bundled architecture: ES module loader 없음.
+// 각 파일은 script 로딩 순서에 따라 이 namespace에 capability를 부착.
+//
+// 규칙:
+//   - shape는 이 파일(app.js)에서만 선언.
+//   - 각 파일은 자신의 레이어에 할당(attach)만 수행.
+//   - 새 레이어 추가 시 반드시 이 파일에 먼저 선언할 것.
+//
+// 레이어 구조:
+//   App.compute   — 순수 계산 함수 (compute.js)
+//   App.kelly     — Kelly 계산 (kelly.js)
+//   App.gate      — 베팅 의사결정 게이트 (decision_gate.js)
+//   App.services  — runtime/storage 의존 서비스
+//     .round      — 회차 관리 (round.js)
+//     .scope      — 스코프 필터 (scope.js)
+//   App.state     — 앱 상태 (state.js)
+//   App._SS       — calcSystemState() 캐시 (canonical owner)
+//                   window._SS 는 deprecated compatibility alias
+//   App.debug     — true 설정 시 bootstrap attach 로그 출력
+// ============================================================
+window.App = {
+  compute:  {},
+  kelly:    {},
+  gate:     {},
+  services: {
+    round: {},
+    scope: {},
+  },
+  state:    {},
+  _SS:      null,
+  debug:    false,
+};
+
 // ===== 용어집 =====
 const GLOSSARY = [
   // ── 기초 개념 ──

@@ -17,7 +17,7 @@ function updateSlumpBanner() {
   const resolved = bets.filter(b => b.result === 'WIN' || b.result === 'LOSE');
   if (resolved.length < 10) { banner.style.display = 'none'; return; }
 
-  const _SS = window._SS;
+  const _SS = window.App._SS;
 
   // 엔진 우선
   const totalWr   = _SS ? _SS.winRate * 100 : resolved.filter(b => b.result === 'WIN').length / resolved.length * 100;
@@ -327,7 +327,7 @@ function initFolderMemoTabs(row) {
 function showJudgeSigExplain(idx) {
   const panel = document.getElementById('judgeall-sig-explain');
   if (!panel) return;
-  const SS = window._SS;
+  const SS = window.App._SS;
   if (!SS) return;
 
   if (idx === -1) {

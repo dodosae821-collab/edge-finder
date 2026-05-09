@@ -227,3 +227,25 @@ function computeSizing(sizingInput, gate, config) {
 }
 
 console.assert(typeof computeSizing === 'function', '[decision_gate.js] computeSizing not defined');
+
+// ── [MIGRATION] App.gate namespace 등록 ──────────────────────
+// 현재 전역 함수(evaluateDecisionGate() 등 직접 호출)는 그대로 동작함.
+// 목표: 호출 경로를 window.App.gate.* 로 점진 이전.
+// 전역 선언 제거는 별도 PR에서 진행. (이 단계는 migration path 생성)
+if (typeof window !== 'undefined') {
+  if (!window.App) window.App = {};
+  if (!window.App.gate) window.App.gate = {};
+  window.App.gate = {
+    getGateConfig,
+    buildDecisionContext,
+    evaluateDecisionGate,
+    applyOverride,
+    attachGateSnapshot,
+    computeSizing,
+    // 내부 유틸 (필요 시 접근 가능)
+    _gateSnapshot,
+  };
+  if (window.App.debug) {
+    console.debug('[bootstrap] App.gate attached', Object.keys(window.App.gate));
+  }
+}

@@ -174,13 +174,33 @@ function computeKellyUnit({
 }
 
 
-// ── 전역 등록 ─────────────────────────────────────────────────
-window.getCalibCorrFactor  = getCalibCorrFactor;
-window.getAdaptiveMultiplier = getAdaptiveMultiplier;
-window.computeKellyUnit    = computeKellyUnit;
+// ── [MIGRATION] App.kelly namespace 등록 ─────────────────────
+// 현재 전역 함수(getCalibCorrFactor() 등 직접 호출)는 그대로 동작함.
+// 목표: 호출 경로를 window.App.kelly.* 로 점진 이전.
+// 전역 선언 제거는 별도 PR에서 진행. (이 단계는 migration path 생성)
+if (typeof window !== 'undefined') {
+  // flat 전역 등록 — 하위 호환 유지 (테스트 및 기존 직접 호출 경로)
+  // @deprecated: window.App.kelly.* 경로로 이전 예정
+  window.getCalibCorrFactor    = getCalibCorrFactor;
+  window.getAdaptiveMultiplier = getAdaptiveMultiplier;
+  window.computeKellyUnit      = computeKellyUnit;
 
-// window.App 네임스페이스 초기화 (state.js에서 확장)
-if (!window.App) window.App = {};
-window.App.computeKellyUnit    = computeKellyUnit;
-window.App.getAdaptiveMultiplier = getAdaptiveMultiplier;
-window.App.getCalibCorrFactor  = getCalibCorrFactor;
+  if (!window.App) window.App = {};
+  if (!window.App.kelly) window.App.kelly = {};
+
+  window.App.kelly = {
+    computeKellyUnit,
+    getAdaptiveMultiplier,
+    getCalibCorrFactor,
+  };
+
+  // 하위 호환 — 기존 window.App.computeKellyUnit() 직접 호출 경로 유지
+  // @deprecated: window.App.kelly.* 경로로 이전 예정
+  window.App.computeKellyUnit     = computeKellyUnit;
+  window.App.getAdaptiveMultiplier = getAdaptiveMultiplier;
+  window.App.getCalibCorrFactor   = getCalibCorrFactor;
+
+  if (window.App.debug) {
+    console.debug('[bootstrap] App.kelly attached', Object.keys(window.App.kelly));
+  }
+}

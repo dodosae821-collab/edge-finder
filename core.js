@@ -11,6 +11,33 @@
 //   updateJudgeAll()    → orchestrator (조립만, 로직 금지)
 // ============================================================
 
+// ── Chart.js defensive wrapper ────────────────────────────────
+// NOTE: safeCreateChart는 의미상으로는 charts.js에 속하지만,
+// 이 프로젝트는 번들러 없는 script 순서 기반 구조이므로
+// "도메인 소유권"보다 "초기 로드 안정성"이 우선된다.
+//
+// 로드 순서: core.js(440) → ev.js(445) → charts.js(454)
+// charts.js에 두면 ev.js·core.js 호출 시점에 미정의 상태가 된다.
+//
+// core.js는 이 아키텍처에서 "도메인 소유권 기준"이 아닌
+// "초기 로드 안정성 기준"의 전역 기반 유틸 레이어 역할을 한다.
+// DOM helper, formatting util, debounce 등 향후 추가될 유틸도
+// 동일한 이유로 이 파일에 배치한다.
+//
+// NOTE: safeCreateChart is placed in core.js because it must be available
+// before ev.js/charts.js load in non-bundled script order.
+// This is a load-order compatibility placement, not a chart ownership decision.
+function safeCreateChart(canvasId, config) {
+  const el = document.getElementById(canvasId);
+  if (!el) return null;
+  if (el.offsetWidth === 0 && el.offsetHeight === 0) return null;
+  // 기존 차트 파괴
+  const existing = Chart.getChart(el);
+  if (existing) existing.destroy();
+  return new Chart(el, config);
+}
+// ─────────────────────────────────────────────────────────────
+
 
 // ── 공통 헬퍼 ─────────────────────────────────────────────────
 
@@ -356,7 +383,7 @@ function renderVerdict(data) {
  * 이 함수에 로직을 추가하지 말 것.
  */
 function updateJudgeAll() {
-  const ss = window._SS || calcSystemState();
+  const ss = window.App._SS || calcSystemState();
   const { n } = ss;
 
   if (n < 3) {
@@ -373,4 +400,58 @@ function updateJudgeAll() {
   renderKpiList(data);
   renderComment(data);
   renderVerdict(data);
+}
+
+// ── showToast — blocking alert 대체용 최소 notification infra ──────────
+// 이번 PR 범위: alert() 38개 제거. queue/dedupe/animation은 다음 단계.
+function showToast(message, type = 'info') {
+  try {
+    let container = document.getElementById('edge-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'edge-toast-container';
+      container.style.cssText = [
+        'position:fixed',
+        'top:16px',
+        'left:50%',
+        'transform:translateX(-50%)',
+        'pointer-events:none',
+        'z-index:9999',
+        'display:flex',
+        'flex-direction:column',
+        'align-items:center',
+        'gap:6px',
+      ].join(';');
+      document.body.appendChild(container);
+    }
+
+    const colors = {
+      success: { bg: 'rgba(0,200,100,0.93)', text: '#050810' },
+      error:   { bg: 'rgba(220,50,60,0.93)',  text: '#fff'    },
+      info:    { bg: 'rgba(40,40,60,0.93)',   text: '#fff'    },
+    };
+    const c = colors[type] || colors.info;
+
+    const el = document.createElement('div');
+    el.className = 'edge-toast edge-toast-' + type;
+    el.style.cssText = [
+      'background:' + c.bg,
+      'color:' + c.text,
+      'padding:9px 18px',
+      'border-radius:20px',
+      'font-size:13px',
+      'font-weight:600',
+      'white-space:nowrap',
+      'max-width:320px',
+      'overflow:hidden',
+      'text-overflow:ellipsis',
+      'box-shadow:0 2px 8px rgba(0,0,0,0.25)',
+    ].join(';');
+    el.textContent = message;
+
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+  } catch (e) {
+    console.warn('[showToast] DOM 오류:', e);
+  }
 }

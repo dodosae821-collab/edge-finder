@@ -1,7 +1,12 @@
 {
   "name": "kelly-tests",
   "version": "1.0.0",
-  "scripts": { "test": "jest --verbose" },
+  "scripts": {
+    "test": "jest --verbose",
+    "audit": "node audit_globals.js",
+    "audit:baseline": "node audit_globals.js --show-baseline",
+    "pretest": "node audit_globals.js"
+  },
   "devDependencies": { "jest": "^29.0.0" },
   "jest": { "testEnvironment": "node" }
 }

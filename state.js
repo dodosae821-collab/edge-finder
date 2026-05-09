@@ -4,16 +4,6 @@
 console.assert(typeof getActiveRound  === 'function', '[state.js] round.js not loaded — check script order');
 console.assert(typeof getCurrentScope === 'function', '[state.js] scope.js not loaded — check script order');
 
-// 차트 생성 헬퍼 - 숨겨진 캔버스에 그리지 않음
-function safeCreateChart(canvasId, config) {
-  const el = document.getElementById(canvasId);
-  if (!el) return null;
-  if (el.offsetWidth === 0 && el.offsetHeight === 0) return null;
-  // 기존 차트 파괴
-  const existing = Chart.getChart(el);
-  if (existing) existing.destroy();
-  return new Chart(el, config);
-}
 // ========== STATE ==========
 
 // ── STORAGE KEY (단일 정의 — 전 파일 공유 금지, window.App.STORAGE_KEY 사용) ──
@@ -46,7 +36,7 @@ function _migrate(state) {
 
 // ── loadState — localStorage 파싱 + migration ───────────────
 function _loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw = Storage.get(KEYS.BETS);
   if (!raw) return { schemaVersion: CURRENT_SCHEMA_VERSION, bets: [] };
 
   let parsed;
@@ -73,7 +63,7 @@ function _loadState() {
 // ── saveState — localStorage 기록 ───────────────────────────
 function _saveState(state) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    Storage.set(KEYS.BETS, JSON.stringify(state));
   } catch (e) {
     console.error('[state] localStorage write failed', e);
   }
@@ -86,18 +76,21 @@ function _getState() {
 }
 
 // ── 멀티탭 캐시 무효화 + gate 재평가 ────────────────────────
-window.addEventListener('storage', (e) => {
-  if (e.key !== STORAGE_KEY) return;
-  try {
-    _state = null;
-    const formVisible = document.getElementById('r-amount') !== null;
-    if (formVisible && typeof recomputeGate === 'function') {
-      recomputeGate();
+// browser runtime side effect — test/SSR 환경에서는 실행되지 않아야 함
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('storage', (e) => {
+    if (e.key !== STORAGE_KEY) return;
+    try {
+      _state = null;
+      const formVisible = document.getElementById('r-amount') !== null;
+      if (formVisible && typeof recomputeGate === 'function') {
+        recomputeGate();
+      }
+    } catch (err) {
+      console.warn('[state] storage 이벤트 처리 실패:', err);
     }
-  } catch (err) {
-    console.warn('[state] storage 이벤트 처리 실패:', err);
-  }
-});
+  });
+}
 
 // ── getBets — 유일한 읽기 경로 (외부 인터페이스 유지) ────────
 function getBets() {
@@ -126,6 +119,27 @@ function saveBets(nextBets, options = {}) {
 
   // 불변성 보장 (참조 차단)
   const cloned = nextBets.map(b => ({ ...b }));
+
+  // ── finSeason normalize ───────────────────────────────────
+  // 모든 저장 경로(manual/restore/csv/ocr/gdrive)를 단일 지점에서 처리
+  // isSim: true 기록은 finSeason: -1 고정 (덮어쓰기 금지)
+  // 손상 데이터(amount===0 && profit===0): finSeason: 0 (legacy)
+  // 그 외 finSeason 미설정/오염값: currentFinSeason 부여
+  const _curSeason = (Number.isInteger(getSettings().currentFinSeason) && getSettings().currentFinSeason >= 1)
+    ? getSettings().currentFinSeason
+    : 1;
+  cloned.forEach(b => {
+    if (b.isSim === true) {
+      b.finSeason = -1; // 시뮬 기록: 항상 -1 고정
+      return;
+    }
+    if (!Number.isInteger(b.finSeason) || b.finSeason < 0) {
+      // finSeason 미설정 또는 오염값(NaN/"abc"/-1 등)
+      b.finSeason = (b.amount === 0 && b.profit === 0) ? 0 : _curSeason;
+    }
+    // finSeason >= 0 && isInteger인 경우 → 기존 값 유지 (정상 데이터)
+  });
+  // ─────────────────────────────────────────────────────────
 
   // 캐시 업데이트 + 저장
   const state = _getState();
@@ -160,60 +174,97 @@ Object.defineProperty(window, 'bets', {
 
 /** 현재 활성 탭을 기준으로 모든 UI 컴포넌트를 재렌더.
  *  storage 이벤트 핸들러 및 scope 전환 후 단일 진입점. */
+// ── 탭별 렌더 책임 단일 진입점 ─────────────────────────────
+// 새 탭 추가 시 여기만 수정하면 됩니다.
+function renderPage(page) {
+  switch (page) {
+    case 'analysis':
+      if (typeof updateStatsAnalysis === 'function') updateStatsAnalysis();
+      if (typeof updateTagStats      === 'function') updateTagStats();
+      break;
+    case 'analysis2':
+      if (typeof updateStatsAnalysis === 'function') updateStatsAnalysis();
+      break;
+    case 'analysis3':
+      if (typeof updateStatsAnalysis === 'function') updateStatsAnalysis();
+      if (typeof updateEvBias        === 'function') updateEvBias();
+      if (typeof updateEvMonthly     === 'function') updateEvMonthly();
+      if (typeof updateEvCum         === 'function') updateEvCum();
+      break;
+    case 'analyze':
+      if (typeof updateAnalyzeTab === 'function') updateAnalyzeTab();
+      break;
+    case 'predict':
+      if (typeof updateGoalStats  === 'function') updateGoalStats();
+      if (typeof updatePredictTab === 'function') updatePredictTab();
+      break;
+    case 'predpower':
+      if (typeof updatePredPowerPanel === 'function') updatePredPowerPanel();
+      break;
+    case 'judgeall':
+      if (typeof updateJudgeAll === 'function') updateJudgeAll();
+      break;
+    case 'simulator':
+      if (typeof calcKelly        === 'function') calcKelly();
+      if (typeof renderKellySlots === 'function') {
+        const resolved = (typeof getBetsByScope === 'function' ? getBetsByScope() : bets)
+                           .filter(b => b.result !== 'PENDING');
+        renderKellySlots(resolved.length % 12, resolved);
+      }
+      if (typeof updateSimRoundSeedBanner === 'function') updateSimRoundSeedBanner();
+      if (typeof updateKellyHistory       === 'function') updateKellyHistory();
+      if (typeof updateKellyGradeBanner   === 'function') updateKellyGradeBanner();
+      try { if (typeof updateFibonacci === 'function') updateFibonacci(); } catch(e) { console.warn('updateFibonacci error:', e); }
+      break;
+    case 'goal':
+      if (typeof updateRoundHistory      === 'function') updateRoundHistory();
+      if (typeof renderPrincipleList     === 'function') renderPrincipleList();
+      if (typeof renderPrincipleChecklist=== 'function') renderPrincipleChecklist();
+      if (typeof renderRoundReviewList   === 'function') renderRoundReviewList();
+      if (typeof updateGoalStats         === 'function') updateGoalStats();
+      if (typeof calcGoal                === 'function') calcGoal();
+      break;
+    case 'round-report':
+      if (typeof updateRoundReport === 'function') updateRoundReport();
+      break;
+    case 'vault':
+      if (typeof renderVault === 'function') renderVault();
+      break;
+    case 'verify':
+      if (typeof renderVerifyPage === 'function') renderVerifyPage();
+      break;
+    case 'settings':
+      if (typeof renderSeasonHistory === 'function') renderSeasonHistory();
+      break;
+  }
+}
+
 function refreshAllUI() {
   // ── 1. 중앙 엔진 재계산 (scopedBets 반영) ──
   calcSystemState();
 
-  // ── 2. 대시보드 공통 컴포넌트 ──
+  // ── 2. 공통/항상 실행 블록 ──────────────────────────────────
   if (typeof updateCharts             === 'function') updateCharts();
   if (typeof updateJudgePanel         === 'function') updateJudgePanel();
   // 대시보드 KPI 카드 — scope 전환 시에도 반드시 갱신
   if (typeof updateFundCards          === 'function') updateFundCards();
   if (typeof updateDashboardKPI       === 'function') updateDashboardKPI();
   if (typeof updateDashboardRoundStats=== 'function') updateDashboardRoundStats();
+  // 베팅 목록
+  if (typeof renderTable              === 'function') renderTable();
+  if (typeof renderRecentTable        === 'function') renderRecentTable();
+  // 배너 / side-effect — 에러나도 계속 진행
+  try { if (typeof updateGoalBankrollDisplay === 'function') updateGoalBankrollDisplay(); } catch(e) { console.warn('updateGoalBankrollDisplay', e); }
+  try { if (typeof updateWeeklySeedStatus    === 'function') updateWeeklySeedStatus();    } catch(e) { console.warn('updateWeeklySeedStatus', e); }
+  try { if (typeof updateGameSuggestions     === 'function') updateGameSuggestions();     } catch(e) { console.warn('updateGameSuggestions', e); }
+  try { if (typeof updateRetroBanner         === 'function') updateRetroBanner();         } catch(e) { console.warn('updateRetroBanner', e); }
+  try { if (typeof updateSlumpBanner         === 'function') updateSlumpBanner();         } catch(e) { console.warn('updateSlumpBanner', e); }
+  try { if (typeof checkAutoRoundReset       === 'function') checkAutoRoundReset();       } catch(e) { console.warn('checkAutoRoundReset', e); }
+  try { if (typeof loadSettingsDisplay       === 'function') loadSettingsDisplay();       } catch(e) { console.warn('loadSettingsDisplay', e); }
 
-  // ── 3. 현재 활성 탭 전용 업데이트 ──
+  // ── 3. 현재 활성 탭 전용 렌더 ─────────────────────────────
   const page = (typeof activePage !== 'undefined') ? activePage : '';
-  if (page === 'analysis' || page === 'analysis2') {
-    if (typeof updateStatsAnalysis === 'function') updateStatsAnalysis();
-    if (page === 'analysis')  { if (typeof updateTagStats === 'function') updateTagStats(); }
-  }
-  if (page === 'analysis3') {
-    if (typeof updateStatsAnalysis === 'function') updateStatsAnalysis();
-    if (typeof updateEvBias        === 'function') updateEvBias();
-    if (typeof updateEvMonthly     === 'function') updateEvMonthly();
-    if (typeof updateEvCum         === 'function') updateEvCum();
-  }
-  if (page === 'analyze')    { if (typeof updateAnalyzeTab    === 'function') updateAnalyzeTab(); }
-  if (page === 'predict')    { if (typeof updateGoalStats     === 'function') updateGoalStats();
-                               if (typeof updatePredictTab    === 'function') updatePredictTab(); }
-  if (page === 'predpower')  { if (typeof updatePredPowerPanel=== 'function') updatePredPowerPanel(); }
-  if (page === 'judgeall')   { if (typeof updateJudgeAll      === 'function') updateJudgeAll(); }
-  if (page === 'simulator')  {
-    if (typeof calcKelly            === 'function') calcKelly();
-    if (typeof renderKellySlots     === 'function') {
-      const resolved = (typeof getBetsByScope === 'function' ? getBetsByScope() : bets)
-                         .filter(b => b.result !== 'PENDING');
-      renderKellySlots(resolved.length % 12, resolved);
-    }
-    if (typeof updateSimRoundSeedBanner === 'function') updateSimRoundSeedBanner();
-    if (typeof updateKellyHistory       === 'function') updateKellyHistory();
-    if (typeof updateKellyGradeBanner   === 'function') updateKellyGradeBanner();
-  }
-  if (page === 'goal') {
-    if (typeof updateRoundHistory      === 'function') updateRoundHistory();
-    if (typeof renderPrincipleList     === 'function') renderPrincipleList();
-    if (typeof renderPrincipleChecklist=== 'function') renderPrincipleChecklist();
-    if (typeof renderRoundReviewList   === 'function') renderRoundReviewList();
-    if (typeof updateGoalStats         === 'function') updateGoalStats();
-    if (typeof calcGoal                === 'function') calcGoal();
-  }
-  if (page === 'round-report') {
-    if (typeof updateRoundReport === 'function') updateRoundReport();
-  }
-  if (page === 'verify') {
-    if (typeof renderVerifyPage === 'function') renderVerifyPage();
-  }
+  renderPage(page);
 
   // ── 4. Scope UI 동기화 (두 위치 모두) ──
   _syncScopeUI();
@@ -225,23 +276,27 @@ let charts = { profit: null, sport: null, odds: null, monthly: null, seed: null,
 
 // ▶ calcSystemState() — 중앙 계산 엔진
 //   모든 파생 지표를 단 한 번 bets 배열에서 계산하고
-//   window._SS 에 저장. 각 탭은 이 객체를 읽기만 한다.
+//   window.App._SS 에 저장 (canonical owner). 각 탭은 이 객체를 읽기만 한다.
+//   window._SS 는 @deprecated compatibility alias.
 // ============================================================
 function calcSystemState() {
   // ── 어댑터 레이어 — 전역 수집 후 computeSystemState 위임 ──
   const scopedBets = getBetsByScope();
   const allBets    = getBets();
 
+  // ── calibration 데이터 경로 ───────────────────────────────────
+  // calibrateProb / getCalibrated 모두 ss.calibBuckets를 호출부에서 명시적으로 주입받음.
+
   const settings = {
     kelly: {
-      seed:           (typeof getBetSeed === 'function' ? getBetSeed() : 0) || appSettings.kellySeed || 0,
-      bankroll:       (typeof getCurrentBankroll === 'function' ? getCurrentBankroll() : 0) || appSettings.startFund || 0,
-      maxBetPct:      appSettings.maxBetPct || 5,
-      kellyGradeAdj:  !!appSettings.kellyGradeAdj,
+      seed:           (typeof getBetSeed === 'function' ? getBetSeed() : 0) || getSettings().kellySeed || 0,
+      bankroll:       (typeof getCurrentBankroll === 'function' ? getCurrentBankroll() : 0) || getSettings().startFund || 0,
+      maxBetPct:      getSettings().maxBetPct || 5,
+      kellyGradeAdj:  !!getSettings().kellyGradeAdj,
       prevMultiplier: window.App.kellyPrevMultiplier,
     },
     target: {
-      fund: appSettings.targetFund || 0,
+      fund: getSettings().targetFund || 0,
     },
   };
 
@@ -251,17 +306,41 @@ function calcSystemState() {
     project:     getCurrentProject(),
     activeRound: getActiveRound(),
   };
+  // calibData는 getAdjustedProb → calibrateProb 경로에서 window.App._SS.calibBuckets로 소비됨.
+  // computeSystemState는 context를 계산 로직에 사용하지 않으므로 여기서 전달하지 않음.
 
   const result = computeSystemState(scopedBets, allBets, settings, context);
 
   // 히스테리시스 상태 업데이트 — 다음 호출 시 prevMultiplier로 재주입
   window.App.kellyPrevMultiplier = result._nextMultiplier;
 
-  window._SS = result;
-  return window._SS;
+  // canonical owner: window.App._SS
+  // window._SS 는 @deprecated getter로 연결됨 — 별도 대입 불필요
+  window.App._SS = result;
+  return window.App._SS;
 }
 // ── 엔진 초기 실행 ──
-window._SS = null;
+window.App._SS = null;
+
+// ── window._SS deprecated getter ─────────────────────────────
+// canonical owner: window.App._SS
+// window._SS 는 compatibility alias — 추후 제거 예정.
+// App.debug = true 시 접근 위치를 warn으로 추적 가능.
+// configurable: true — 테스트 환경에서 재정의 가능.
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, '_SS', {
+    get() {
+      if (window.App?.debug) {
+        console.warn('[deprecated] window._SS — use window.App._SS');
+      }
+      return window.App._SS;
+    },
+    set(v) {
+      window.App._SS = v;
+    },
+    configurable: true,
+  });
+}
 
 // ── Kelly 히스테리시스 상태 — 세션 전용, localStorage 비저장 ──
 // prevMultiplier는 computeKellyUnit 호출 간 연속성 유지용.
@@ -292,13 +371,21 @@ function getWeight(n, sample) {
   return Math.min(0.5 + (n - 50) / 50 * 0.5, 0.9); // 최대 0.9 (항상 10% 내 판단 유지)
 }
 
-function calibrateProb(myProb, bucket, totalBets) {
+function calibrateProb(myProb, bucket, totalBets, calibData) {
+  // ── 입력값 guard ─────────────────────────────────────────
+  // restore/csv/OCR 경로에서 "", "65%", null, NaN 유입 방어
+  const p = Number(myProb);
+  if (!Number.isFinite(p)) return 0.5;
+
+  // calibData 없음 = calibration bypass (조용한 null fallback 제거)
+  if (!Array.isArray(calibData) || calibData.length === 0) return p;
+
   // { bin, actual } 또는 { min, max, actWr, count } 둘 다 지원
   const expected = bucket.bin != null ? bucket.bin : (bucket.min + bucket.max) / 2;
   const actual   = bucket.actual != null ? bucket.actual : bucket.actWr / 100;
   const sample   = bucket.count != null ? bucket.count : 10; // count 없으면 최소치로 간주
 
-  if (!bucket || expected == null || actual == null) return myProb;
+  if (!bucket || expected == null || actual == null) return p;
 
   // 1. ratio 계산 (같은 단위로 비교)
   let ratio = actual / expected;
@@ -312,8 +399,8 @@ function calibrateProb(myProb, bucket, totalBets) {
   // 4. 완화된 ratio
   const adjustedRatio = 1 + (ratio - 1) * weight;
 
-  // 5. 적용
-  let finalProb = myProb * adjustedRatio;
+  // 5. 적용 (검증된 p 사용)
+  let finalProb = p * adjustedRatio;
 
   // 6. 최종 클램프 [0.05 ~ 0.95]
   finalProb = Math.min(Math.max(finalProb, 0.05), 0.95);
@@ -321,21 +408,30 @@ function calibrateProb(myProb, bucket, totalBets) {
   return finalProb;
 }
 
-function getCalibrated(p) {
-  if (!window._calibData || window._calibData.length === 0) return p;
+function getCalibrated(p, calibData) {
+  if (!Array.isArray(calibData) || calibData.length === 0) return p;
 
   let closest = null;
   let minDiff = Infinity;
 
-  for (const d of window._calibData) {
-    const diff = Math.abs(p - d.bin);
+  for (const d of calibData) {
+    const expected =
+      d.bin != null
+        ? d.bin
+        : (d.mid != null ? d.mid / 100 : d.avgProb / 100);
+
+    const diff = Math.abs(p - expected);
     if (diff < minDiff) {
       minDiff = diff;
       closest = d;
     }
   }
 
-  return closest ? closest.actual : p;
+  if (!closest) return p;
+
+  return closest.actual != null
+    ? closest.actual
+    : closest.actWr / 100;
 }
 
 // ============================================================
@@ -348,7 +444,7 @@ function getCalibrated(p) {
 // ============================================================
 function getAdjustedProb(myProbPct) {
   const p = myProbPct / 100;
-  const ss = window._SS;
+  const ss = window.App._SS; // canonical owner
   if (!ss || !ss.calibBuckets || ss.calibBuckets.length === 0 || ss.n < 30) {
     return myProbPct; // 데이터 부족 → raw 그대로
   }
@@ -367,13 +463,13 @@ function getAdjustedProb(myProbPct) {
     return adj;
   }
 
-  // calibrateProb 호출 (state.js 내 함수)
+  // calibrateProb 호출 — calibData를 명시적으로 전달 (전역 읽기 없음)
   const adjP = calibrateProb(p, {
     min: bucket.min,
     max: bucket.max,
     actWr: bucket.actWr,
     count: bucket.count
-  }, totalBets);
+  }, totalBets, ss.calibBuckets);
 
   return Math.min(Math.max(adjP * 100, 5), 95);
 }
@@ -381,7 +477,7 @@ function getAdjustedProb(myProbPct) {
 // CLV 기반 추가 보정 (avgCLV < 0 → downscale)
 function getCLVAdjustedProb(myProbPct) {
   let adj = getAdjustedProb(myProbPct);
-  const ss = window._SS;
+  const ss = window.App._SS; // canonical owner
   if (!ss || !ss.predBets || ss.predBets.length < 10) return adj;
 
   // avgCLV 계산: myProb - impliedProb 평균
@@ -419,7 +515,7 @@ function getCLVAdjustedProb(myProbPct) {
 function getAdjustedProbLive({ myProb, buckets, corrFactor, totalN }) {
   if (!myProb || myProb <= 0) return { adjustedProb: myProb, source: 'RAW', delta: 0, bucketCount: 0 };
 
-  const ss = window._SS;
+  const ss = window.App._SS; // canonical owner
   // 데이터 부족 → raw 그대로
   if (!ss || (totalN || ss.n || 0) < 10) {
     return { adjustedProb: myProb, source: 'RAW', delta: 0, bucketCount: 0 };
@@ -467,7 +563,7 @@ function getAdjustedProbLive({ myProb, buckets, corrFactor, totalN }) {
  * @returns { allow, kellyFactor, reason, label, labelColor, desc, confidenceLevel }
  */
 function getBetDecisionLive({ myProb, odds, recentEce, totalEce, sampleSize }) {
-  const ss = window._SS;
+  const ss = window.App._SS; // canonical owner
   // _SS에서 최신 ECE/표본 가져오기 (인자 우선)
   const rEce    = recentEce  ?? ss?.recentEce  ?? null;
   const tEce    = totalEce   ?? ss?.ece         ?? null;
@@ -561,7 +657,7 @@ function toPct(prob, decimals = 1) {
  *   recentEce/totalEce  — %
  */
 function getDecisionSnapshot(myProb, odds) {
-  const ss = window._SS;
+  const ss = window.App._SS; // canonical owner
 
   // adjustedProb 계산 (Live — _SS는 데이터 공급만)
   const adjResult = getAdjustedProbLive({
@@ -604,51 +700,76 @@ function getDecisionSnapshot(myProb, odds) {
 }
 
 // ============================================================
-(function _initStorageListener() {
-  let _debounceTimer = null;
+// browser runtime side effect — test/SSR 환경에서는 실행되지 않아야 함
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  (function _initStorageListener() {
+    let _debounceTimer = null;
 
-  window.addEventListener('storage', function (e) {
-    // edge_bets / edge_rounds 외 키는 무시
-    if (e.key !== null && e.key !== STORAGE_KEY && e.key !== 'edge_rounds') return;
+    window.addEventListener('storage', function (e) {
+      // edge_bets / edge_rounds 외 키는 무시
+      if (e.key !== null && e.key !== STORAGE_KEY && e.key !== 'edge_rounds') return;
 
-    clearTimeout(_debounceTimer);
-    _debounceTimer = setTimeout(function () {
-      // bets 배열 최신화 (다른 탭에서 변경된 경우 대비)
-      if (e.key === STORAGE_KEY || e.key === null) {
-        try {
-          const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-          if (Array.isArray(raw)) {
-            saveBets(raw.map(b => ({ projectId: b.projectId || 'default', ...b })), { refresh: false });
+      clearTimeout(_debounceTimer);
+      _debounceTimer = setTimeout(function () {
+        // bets 배열 최신화 (다른 탭에서 변경된 경우 대비)
+        if (e.key === STORAGE_KEY || e.key === null) {
+          try {
+            const raw = Storage.getJSON(KEYS.BETS, []);
+            if (Array.isArray(raw)) {
+              saveBets(raw.map(b => ({ projectId: b.projectId || 'default', ...b })), { refresh: false });
+            }
+          } catch (err) {
+            console.error('[storage sync] bets 동기화 실패', err);
           }
-        } catch (err) {
-          console.error('[storage sync] bets 동기화 실패', err);
         }
-      }
 
-      // rounds 배열 최신화 (saveRounds 경유)
-      if (e.key === 'edge_rounds' || e.key === null) {
-        try {
-          const rawR = JSON.parse(localStorage.getItem('edge_rounds') || '[]');
-          if (Array.isArray(rawR)) {
-            saveRounds(rawR);
+        // rounds 배열 최신화 (saveRounds 경유)
+        if (e.key === 'edge_rounds' || e.key === null) {
+          try {
+            const rawR = Storage.getJSON(KEYS.ROUNDS, []);
+            if (Array.isArray(rawR)) {
+              saveRounds(rawR);
+            }
+          } catch (err) {
+            console.error('[storage sync] rounds 동기화 실패', err);
           }
-        } catch (err) {
-          console.error('[storage sync] rounds 동기화 실패', err);
         }
-      }
 
-      refreshAllUI();
-    }, 100);
-  });
-}());
+        refreshAllUI();
+      }, 100);
+    });
+  }());
+}
 
-// ── window.App 네임스페이스 (state.js 코어 등록) ─────────────
-// kelly.js에서 계산 함수 등록 후, 여기서 데이터/엔진 함수 추가
-window.App = {
-  ...(window.App || {}),
-  STORAGE_KEY,
-  getBets,
-  saveBets,
-  calcSystemState,
-  refreshAllUI,
-};
+// ── window.App.state 네임스페이스 (state.js 코어 등록) ────────
+// shape는 app.js에서 선언. 여기서는 state 레이어에 attach만 수행.
+// [MIGRATION] 전역 함수(getBets() 등 직접 호출)는 그대로 동작.
+// 목표: 호출 경로를 window.App.state.* 로 점진 이전.
+// 전역 선언 제거는 별도 PR에서 진행. (이 단계는 migration path 생성)
+if (typeof window !== 'undefined') {
+  if (!window.App) window.App = {};
+  if (!window.App.state) window.App.state = {};
+
+  // state 레이어 — 데이터/엔진 함수
+  window.App.state = {
+    STORAGE_KEY,
+    getBets,
+    saveBets,
+    calcSystemState,
+    refreshAllUI,
+    renderPage,
+  };
+
+  // 하위 호환 — 기존에 window.App.getBets() 로 직접 호출하던 경로 유지
+  // @deprecated: window.App.state.* 경로로 이전 예정
+  window.App.getBets        = getBets;
+  window.App.saveBets       = saveBets;
+  window.App.calcSystemState = calcSystemState;
+  window.App.refreshAllUI   = refreshAllUI;
+  window.App.renderPage     = renderPage;
+  window.App.STORAGE_KEY    = STORAGE_KEY;
+
+  if (window.App.debug) {
+    console.debug('[bootstrap] App.state attached', Object.keys(window.App.state));
+  }
+}

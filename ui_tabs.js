@@ -83,7 +83,7 @@ function switchTabFromDropdown(name, el) {
   // 해당 드롭다운 트리거 active
   const triggerMap = {
     analysis: 'stats', analysis2: 'stats', analysis3: 'stats',
-    analyze: 'insight', predict: 'insight', predpower: 'insight', verify: 'insight',
+    analyze: 'insight', predict: 'insight', predpower: 'insight', verify: 'insight', 'kbo-analysis': 'insight',
     simulator: 'fund', goal: 'fund', 'round-report': 'fund'
   };
   const triggerKey = triggerMap[name];
@@ -110,6 +110,7 @@ function switchTabFromDropdown(name, el) {
   if (name === 'predict')   { updateGoalStats(); updatePredictTab(); }
   if (name === 'predpower') updatePredPowerPanel();
   if (name === 'verify')    { if (typeof renderVerifyPage === 'function') renderVerifyPage(); }
+  if (name === 'settings')  { if (typeof renderSeasonHistory === 'function') renderSeasonHistory(); }
   if (name === 'simulator') {
     const bets = getBets();
     calcKelly();
@@ -135,7 +136,7 @@ function switchTabFromDropdown(name, el) {
 // updateAnalyzeTab
 // ============================================================
 function updateAnalyzeTab() {
-  const _SS     = window._SS;
+  const _SS     = window.App._SS;
   const bets    = getBets();
   const metrics = computeAnalyzeMetrics(bets);
 
@@ -404,9 +405,9 @@ function updateJudgePanel() {
 function updateAnalyzeChart() {
   const bets   = getBets();
   const config = {
-    start:      getCurrentBankroll() || appSettings.startFund || 0,
-    goalTarget: appSettings.targetFund || 0,
-    simGrade:   appSettings.kellyGradeAdj ? calcPredGrade() : null
+    start:      getCurrentBankroll() || getSettings().startFund || 0,
+    goalTarget: getSettings().targetFund || 0,
+    simGrade:   getSettings().kellyGradeAdj ? calcPredGrade() : null
   };
   const sim = computeSimulation(bets, config);
 
@@ -505,7 +506,7 @@ function updateAnalyzeChart() {
 function updateAnalyzeGradeBanner(grade, mult, useRecent, totalCount) {
   const banner = document.getElementById('analyze-grade-banner');
   if (!banner) return;
-  if (!grade || !appSettings.kellyGradeAdj) { banner.style.display = 'none'; return; }
+  if (!grade || !getSettings().kellyGradeAdj) { banner.style.display = 'none'; return; }
   const rgbMap = {S:'255,215,0', A:'0,230,118', B:'0,229,255', C:'255,152,0', D:'255,59,92'};
   banner.style.display = 'flex';
   banner.style.background = 'rgba(' + (rgbMap[grade.letter]||'0,229,255') + ',0.07)';
@@ -678,7 +679,7 @@ function updateRoundHistory() {
 // ============================================================
 function clearRoundHistory() {
   if (!confirm('회차 이력을 전체 삭제합니다. 복구가 불가능합니다. 계속하시겠습니까?')) return;
-  localStorage.removeItem('edge_round_history');
+  Storage.remove(KEYS.ROUND_HISTORY);
   updateRoundHistory();
 }
 

@@ -10,7 +10,7 @@
 // ============================================================
 
 function exportCSV() {
-  if (bets.length === 0) { alert('내보낼 베팅 기록이 없습니다.'); return; }
+  if (bets.length === 0) { showToast('내보낼 베팅 기록이 없습니다.', 'info'); return; }
   const headers = ['날짜','경기','종목','형식','방식','배당','베팅금','결과','손익','메모'];
   const rows = bets.map(b => [
     b.date || '',
@@ -67,13 +67,13 @@ function handleCSV(e) {
     const invalid = total - valid;
 
     if (newBets.length === 0) {
-      alert(`유효한 베팅 데이터가 없습니다. (전체 ${total}건 검증 실패)`);
+      showToast(`유효한 베팅 데이터가 없습니다. (전체 ${total}건 검증 실패)`, 'error');
       return;
     }
 
     saveBets([...getBets(), ...newBets], { refresh: false });
     updateAll();
-    alert(`${total}건 중 ${valid}건 로드 완료${invalid > 0 ? ` (${invalid}건 유효성 검사 실패로 제외)` : ''}`);
+    showToast(`${total}건 중 ${valid}건 로드 완료${invalid > 0 ? ` (${invalid}건 제외)` : ''}`, 'success');
   };
   reader.readAsText(file);
 }
