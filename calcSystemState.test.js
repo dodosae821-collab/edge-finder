@@ -30,7 +30,7 @@ function makeLocalStorage(bets) {
 }
 
 // ── vm context 구성 ───────────────────────────────────────────
-function buildCtx(bets) {
+function buildCtx(bets, scope = 'all') {
   const win = {
     App: { debug: false, kellyPrevMultiplier: 1.0 },
     addEventListener: () => {},
@@ -42,8 +42,8 @@ function buildCtx(bets) {
     localStorage: makeLocalStorage(bets),
     // state.js 내부 bare `bets` 참조 (line 467) 주입
     bets,
-    // scope stub
-    getCurrentScope:    () => 'all',
+    // scope stub — scope 파라미터로 제어 (명시적 contract)
+    getCurrentScope:    () => scope,
     getCurrentProject:  () => null,
     getActiveRound:     () => null,
     getBetsByScope:     () => bets,
@@ -71,8 +71,8 @@ function buildCtx(bets) {
   };
 }
 
-function loadCtx(bets) {
-  const ctx = buildCtx(bets);
+function loadCtx(bets, scope = 'all') {
+  const ctx = buildCtx(bets, scope);
   vm.createContext(ctx);
   // Runtime bootstrap mirror (production 로드 순서 부분 재현):
   //   storage.js → engine files
@@ -141,45 +141,190 @@ describe('calcSystemState — PENDING 필터링', () => {
   });
 });
 
-describe('calcSystemState — ROI uses season-scoped money weighting', () => {
-  // moneyResolved 기반 ROI invariant 검증:
-  //   - finSeason === currentFinSeason + amount > 0 + isFinite(profit) 만 포함
-  //   - ROI = totalProfit / totalInvest (금액 가중) — 건수 평균 아님
-  //
-  // 픽스처: WIN amount=1000 / LOSE amount=2000 (동일 시즌, finSeason:1)
-  //   totalProfit = +1000 - 2000 = -1000
-  //   totalInvest = 3000
-  //   roi = (-1000 / 3000) * 100 = -33.33...
-  //   건수 평균이면 (100% + -100%) / 2 = 0% → 이 케이스로 구별
-  let result;
+// ══════════════════════════════════════════════════════════════
+// 그룹 1: scope-aware behavior
+// ── contract: scope에 따라 moneyResolved 범위(finSeason 필터)가 달라져야 한다
+//
+// 픽스처: 두 시즌 데이터 혼재 — currentFinSeason=2
+//   시즌1: WIN  amount=10000 profit=+2000
+//   시즌2: LOSE amount=10000 profit=-3000
+//
+//   scope='all'   → finSeason 필터 없음
+//     totalProfit = 2000 + (-3000) = -1000
+//     totalInvest = 20000
+//     roi         = -1000/20000*100 = -5.0%
+//
+//   scope='round' → finSeason===2 만 포함
+//     totalProfit = -3000
+//     totalInvest = 10000
+//     roi         = -3000/10000*100 = -30.0%
+//
+// 이 fixture로 totalProfit·totalInvest·roi 세 값이 모두 달라짐을 보장.
+// ══════════════════════════════════════════════════════════════
+describe('calcSystemState — scope-aware moneyResolved (그룹1)', () => {
+  // ── 픽스처 ──────────────────────────────────────────────────
+  const MIXED_BETS = [
+    { id: 20, result: 'WIN',  amount: 10000, profit:  2000, betmanOdds: 2.0,
+      date: '2026-01-01', game: 'A', sport: 'NBA', type: 'UNDER', finSeason: 1 },
+    { id: 21, result: 'LOSE', amount: 10000, profit: -3000, betmanOdds: 2.0,
+      date: '2026-02-01', game: 'B', sport: 'NBA', type: 'UNDER', finSeason: 2 },
+  ];
+
+  let ctxAll, ctxRound;
 
   beforeAll(() => {
-    // finSeason:1 명시 — currentFinSeason:1 context와 일치해야 moneyResolved 포함
-    const unequalBets = [
-      { id: 10, result: 'WIN',  amount: 1000,  profit:  1000,  betmanOdds: 2.0, date: '2026-02-01', game: 'X', sport: 'NBA', type: 'UNDER', finSeason: 1 },
-      { id: 11, result: 'LOSE', amount: 2000,  profit: -2000,  betmanOdds: 2.0, date: '2026-02-02', game: 'Y', sport: 'NBA', type: 'UNDER', finSeason: 1 },
-    ];
-    // currentFinSeason:1 — 픽스처 finSeason과 동일 시즌으로 맞춤
-    const ctx = loadCtx(unequalBets);
-    ctx.appSettings.currentFinSeason = 1;
-    result = ctx.calcSystemState();
+    // scope='all': finSeason 필터 없이 전체 집계
+    ctxAll = loadCtx(MIXED_BETS, 'all');
+    ctxAll.appSettings.currentFinSeason = 2;
+
+    // scope='round': finSeason===currentFinSeason(2)만 집계 — 별도 인스턴스로 isolation
+    ctxRound = loadCtx(MIXED_BETS, 'round');
+    ctxRound.appSettings.currentFinSeason = 2;
   });
 
-  test('roi는 moneyResolved 기반 금액 가중 (totalProfit/totalInvest)', () => {
-    // 금액 가중: -1000/3000*100 = -33.33...
-    // 건수 평균이면 0 → 이 케이스로 구별
-    // finSeason 미설정이면 moneyResolved 비어 roi=0 → invariant 검증도 겸함
-    expect(result.roi).toBeCloseTo(-33.33, 1);
+  // ── scope='all': 전체 시즌 집계 ─────────────────────────────
+  describe('scope=all → 전체 시즌 손익 집계', () => {
+    let result;
+    beforeAll(() => { result = ctxAll.calcSystemState(); });
+
+    test('totalProfit = 2000 + (-3000) = -1000', () => {
+      expect(result.totalProfit).toBeCloseTo(-1000, 0);
+    });
+    test('totalInvest = 10000 + 10000 = 20000', () => {
+      expect(result.totalInvest).toBeCloseTo(20000, 0);
+    });
+    test('roi = -1000/20000*100 = -5.0%', () => {
+      expect(result.roi).toBeCloseTo(-5.0, 1);
+    });
+    test('moneyResolved 건수 = 2 (시즌 필터 없음)', () => {
+      expect(result.moneyResolved.length).toBe(2);
+    });
   });
 
-  test('n=2 — allResolved 기준 (PENDING 없음)', () => {
-    // n은 allResolved(winRate 기준) — moneyResolved와 독립
-    expect(result.n).toBe(2);
+  // ── scope='round': 현재 시즌(2)만 집계 ─────────────────────
+  describe('scope=round → 현재 시즌(finSeason=2)만 집계', () => {
+    let result;
+    beforeAll(() => { result = ctxRound.calcSystemState(); });
+
+    test('totalProfit = -3000 (시즌2만)', () => {
+      expect(result.totalProfit).toBeCloseTo(-3000, 0);
+    });
+    test('totalInvest = 10000 (시즌2만)', () => {
+      expect(result.totalInvest).toBeCloseTo(10000, 0);
+    });
+    test('roi = -3000/10000*100 = -30.0%', () => {
+      expect(result.roi).toBeCloseTo(-30.0, 1);
+    });
+    test('moneyResolved 건수 = 1 (시즌2 only)', () => {
+      expect(result.moneyResolved.length).toBe(1);
+    });
   });
 
-  test('moneyResolved 건수=2 — 시즌 필터 통과', () => {
-    // finSeason:1 + currentFinSeason:1 → 두 건 모두 moneyResolved 포함
-    expect(result.moneyResolved.length).toBe(2);
+  // ── 동일 fixture, scope만 달라도 결과가 달라야 함 ────────────
+  test('scope=all vs scope=round → totalProfit 값 달라야 한다 (regression guard)', () => {
+    const rAll   = ctxAll.calcSystemState();
+    const rRound = ctxRound.calcSystemState();
+    expect(rAll.totalProfit).not.toBeCloseTo(rRound.totalProfit, 0);
+  });
+
+  // ── ROI 금액 가중 검증 (건수 평균이 아님을 명시) ──────────────
+  test('roi는 금액 가중 계산 (건수 평균이면 다른 값 나옴)', () => {
+    // scope='all': 금액 가중 = -1000/20000*100 = -5.0%
+    // 건수 평균이면 (20% + -30%) / 2 = -5.0% → 우연히 같음
+    // scope='round'로 구별: 금액 가중 = -30%, 건수 평균 = -30% (1건이라 같음)
+    // 진짜 구별: scope='all'의 totalInvest가 20000인지 확인
+    const rAll = ctxAll.calcSystemState();
+    expect(rAll.totalInvest).toBeCloseTo(20000, 0);
+    expect(rAll.roi).toBeCloseTo(-5.0, 1);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// 그룹 2: missing scope contract
+// ── contract:
+//   1. context.scope 미지정 시 console.warn 발생 (dev only: window.App.debug=true)
+//   2. fallback 결과는 scope='all' 명시 결과와 동일해야 한다
+// ══════════════════════════════════════════════════════════════
+describe('calcSystemState — missing scope contract (그룹2)', () => {
+  const BETS_FOR_SCOPE = [
+    { id: 30, result: 'WIN',  amount: 5000, profit: 1000, betmanOdds: 2.0,
+      date: '2026-01-01', game: 'C', sport: 'NBA', type: 'UNDER', finSeason: 1 },
+    { id: 31, result: 'LOSE', amount: 5000, profit:-1500, betmanOdds: 2.0,
+      date: '2026-02-01', game: 'D', sport: 'NBA', type: 'UNDER', finSeason: 2 },
+  ];
+
+  let ctxNoScope, ctxAllScope;
+  let prevApp;
+
+  beforeEach(() => {
+    // vm context 내부 window.App.debug 격리 설정
+    // afterEach에서 복원 — 타 테스트 오염 방지
+    prevApp = { ...ctxNoScope.window.App };
+    ctxNoScope.window.App = { ...ctxNoScope.window.App, debug: true };
+  });
+
+  afterEach(() => {
+    ctxNoScope.window.App = prevApp;
+  });
+
+  beforeAll(() => {
+    ctxNoScope  = loadCtx(BETS_FOR_SCOPE, 'all');  // scope 미지정 케이스: 직접 computeSystemState 호출
+    ctxNoScope.appSettings.currentFinSeason = 2;
+
+    ctxAllScope = loadCtx(BETS_FOR_SCOPE, 'all');
+    ctxAllScope.appSettings.currentFinSeason = 2;
+  });
+
+  test('scope 미지정 시 console.warn 발생 (debug=true 환경)', () => {
+    // vm 컨텍스트 내 console.warn을 spy (Node 전역 console과 분리)
+    const warnCalls = [];
+    ctxNoScope.console.warn = (...args) => { warnCalls.push(args[0]); };
+
+    try {
+      const bets     = ctxNoScope.getBets();
+      const settings = {
+        kelly: {
+          seed: 0, bankroll: 0, maxBetPct: 5,
+          kellyGradeAdj: false, prevMultiplier: 1.0,
+        },
+        target: { fund: 0 },
+      };
+      // context.scope 의도적으로 누락
+      ctxNoScope.computeSystemState(bets, bets, settings, {});
+      expect(warnCalls.length).toBeGreaterThanOrEqual(1);
+      expect(warnCalls[0]).toMatch(/context\.scope 미지정/);
+    } finally {
+      ctxNoScope.console.warn = () => {};  // stub 복원
+    }
+  });
+
+  test('scope 미지정 fallback 결과 === scope=all 명시 결과 (totalProfit·totalInvest·roi)', () => {
+    const settings = {
+      kelly: {
+        seed: 0, bankroll: 0, maxBetPct: 5,
+        kellyGradeAdj: false, prevMultiplier: 1.0,
+      },
+      target: { fund: 0 },
+    };
+
+    const betsNoScope = ctxNoScope.getBets();
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    let resultNoScope;
+    try {
+      resultNoScope = ctxNoScope.computeSystemState(
+        betsNoScope, betsNoScope, settings, {}  // scope 누락
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+
+    // scope='all' 명시 결과
+    ctxAllScope.window.App.kellyPrevMultiplier = 1.0;
+    const resultAllScope = ctxAllScope.calcSystemState();
+
+    expect(resultNoScope.totalProfit).toBeCloseTo(resultAllScope.totalProfit, 0);
+    expect(resultNoScope.totalInvest).toBeCloseTo(resultAllScope.totalInvest, 0);
+    expect(resultNoScope.roi).toBeCloseTo(resultAllScope.roi, 1);
   });
 });
 

@@ -67,14 +67,14 @@ function makeLocalStorage(bets) {
 }
 
 // ── vm context ────────────────────────────────────────────────
-function buildCtx(bets, finSeason = CURRENT_FIN_SEASON) {
+function buildCtx(bets, finSeason = CURRENT_FIN_SEASON, scope = 'round') {
   const win = { App: { debug: false, kellyPrevMultiplier: 1.0 }, addEventListener: () => {}, _SS: null };
   return {
     console:      { ...console, assert: () => {}, warn: () => {} },
     window:       win,
     localStorage: makeLocalStorage(bets),
     bets,
-    getCurrentScope:    () => 'all',
+    getCurrentScope:    () => scope,
     getCurrentProject:  () => null,
     getActiveRound:     () => null,
     getBetsByScope:     () => bets,
@@ -101,8 +101,8 @@ function buildCtx(bets, finSeason = CURRENT_FIN_SEASON) {
   };
 }
 
-function loadCtx(bets, finSeason = CURRENT_FIN_SEASON) {
-  const ctx = buildCtx(bets, finSeason);
+function loadCtx(bets, finSeason = CURRENT_FIN_SEASON, scope = 'round') {
+  const ctx = buildCtx(bets, finSeason, scope);
   vm.createContext(ctx);
   // Runtime bootstrap mirror (production 로드 순서 부분 재현):
   //   storage.js → engine files

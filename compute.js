@@ -728,8 +728,25 @@ function computeSystemState(scopedBets, allBets, settings, context = {}) {
     ? getSettings().currentFinSeason : 1;
 
   const allResolved  = resolved.filter(b => !b.isSim);
+
+  // ── scope authority: state.js (getCurrentScope) → context.scope 경유 전달.
+  // compute layer는 scope policy owner가 아님 — fallback만 담당.
+  // fallback='all': 정상 runtime 경로(state.js)는 항상 scope를 명시 전달하므로
+  //   미지정은 오직 직접 호출(테스트 등) 케이스. silent widening 방지를 위해 warn.
+  const _scope = context.scope ?? 'all';
+  if (typeof window !== 'undefined' && window.App?.debug && context.scope === undefined) {
+    console.warn(
+      '[computeSystemState] context.scope 미지정 — all로 폴백. ' +
+      '정상 경로(state.js)는 scope를 명시 전달해야 합니다.'
+    );
+  }
+  const _isAllScope = _scope === 'all';
+
+  // finSeason 필터:
+  //   scope='all'  → 시즌 무관 전체 손익 집계 (UI scope가 이미 범위 결정)
+  //   그 외        → 현재 시즌만 (stats 탭 등 시즌 경계 기준 집계)
   const moneyResolved = allResolved.filter(b =>
-    b.finSeason === _curSeason &&
+    (_isAllScope || b.finSeason === _curSeason) &&
     b.amount > 0 &&
     Number.isFinite(b.profit)
   );

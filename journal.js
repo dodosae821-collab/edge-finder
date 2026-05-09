@@ -1350,9 +1350,16 @@ function updateDashboardRoundStats() {
     }
   }
 
-  // ── [2] 손익 카드 — _SS.totalProfit 통일, 라벨만 scope 분기 ──
+  // ── [2] 손익 카드 — scope에 따라 타이틀/라벨/값 분기 ──
   const scope  = typeof getCurrentScope === 'function' ? getCurrentScope() : 'all';
   const profit = _SS?.totalProfit || 0;
+
+  const profitTitle = document.getElementById('d-round-profit-title');
+  if (profitTitle) {
+    profitTitle.textContent = scope === 'round' ? '이번 회차 손익' : '전체 누적 손익';
+  } else if (window.App?.debug) {
+    console.warn(`[updateDashboardRoundStats] #d-round-profit-title 없음 — scope="${scope}" 타이틀 미갱신`);
+  }
 
   if (roundProfit) {
     roundProfit.textContent = (profit >= 0 ? '+' : '') + '₩' + Math.round(profit).toLocaleString();
