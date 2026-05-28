@@ -34,13 +34,17 @@ function saveSettings() {
   const weeklyLimit = parseFloat(document.getElementById('settings-weekly-limit').value)|| 0;
 
   // kellySeed = 현재 뱅크롤 × 베팅 비율 자동 계산 (1/12 시드 = 베팅 시드)
-  const currentBankroll = startFund + bets.filter(b => b.result === 'WIN' || b.result === 'LOSE').reduce((s, b) => s + (b.profit || 0), 0);
+  const currentBankroll = getCurrentBankroll() || startFund;
   const kellySeed = betRatio > 0 ? Math.round(currentBankroll * betRatio / 100) : 0;
 
   const maxBetPct = parseFloat(document.getElementById('settings-max-bet-pct')?.value) || 5;
   const kellyGradeAdj = document.getElementById('kelly-grade-toggle-ui')?.dataset.active === 'true';
+  // showJournal/showEVCalc 는 toggleFeatureVisibility() 가 별도 저장 — 덮어쓰지 않도록 보존
+  const showJournal = appSettings.showJournal ?? false;
+  const showEVCalc  = appSettings.showEVCalc  ?? false;
   appSettings = { startFund, targetFund, kellySeed, betRatio, dailyLimit, weeklyLimit,
     maxBetPct, kellyGradeAdj,
+    showJournal, showEVCalc,
     roundType: appSettings.roundType || 'manual',
     roundNbet: parseInt(document.getElementById('settings-round-nbet')?.value) || 12,
     currentFinSeason: Number.isInteger(appSettings.currentFinSeason) && appSettings.currentFinSeason >= 1
@@ -291,6 +295,8 @@ function handleLockNewRound() {
   }
   updateWeeklySeedStatus();
   if (typeof updateDashboardRoundStats === 'function') updateDashboardRoundStats();
+  if (typeof _syncScopeUI  === 'function') _syncScopeUI();
+  if (typeof _syncRoundStatusUI === 'function') _syncRoundStatusUI();
 }
 
 /** 베팅 저장 시 호출 — roundId 주입 + remaining 차감
@@ -534,10 +540,17 @@ function checkLossWarning() {
 
 // ========== 권장 베팅 사이즈 (하프 켈리) ==========
 function getCurrentBankroll() {
-  // 현재 뱅크롤 = 시작자금 + 확정된 베팅 손익 합산
+  // 현재 뱅크롤 = 시작자금 + 현재 시즌 확정된 베팅 손익 합산
   const { startFund = 0 } = appSettings;
   if (!startFund) return 0;
-  const resolved = bets.filter(b => b.result === 'WIN' || b.result === 'LOSE');
+  const _curSeason = (Number.isInteger(appSettings.currentFinSeason) && appSettings.currentFinSeason >= 1)
+    ? appSettings.currentFinSeason : 1;
+  const resolved = bets.filter(b =>
+    (b.result === 'WIN' || b.result === 'LOSE') &&
+    !b.isSim &&
+    // 현재 시즌 또는 레거시(finSeason=0)는 시즌1에서 포함
+    (b.finSeason === _curSeason || (b.finSeason === 0 && _curSeason === 1))
+  );
   const totalProfit = resolved.reduce((s, b) => s + (b.profit || 0), 0);
   return startFund + totalProfit;
 }
@@ -747,6 +760,11 @@ function startNewFinSeason() {
   // saveBets 호출 → normalize가 신규 기록부터 next 시즌 자동 부여
   // 기존 기록은 이미 finSeason이 설정되어 있으므로 변경 없음
   saveBets(getBets(), { refresh: true });
+
+  // 설정 탭 UI 갱신
+  if (typeof loadSettingsDisplay  === 'function') loadSettingsDisplay();
+  if (typeof renderSeasonHistory  === 'function') renderSeasonHistory();
+  if (typeof updateWeeklySeedStatus === 'function') updateWeeklySeedStatus();
 
   showToast(`✅ 시즌 ${next} 시작됐습니다.`, 'success');
 }

@@ -234,7 +234,9 @@ function renderPage(page) {
       if (typeof renderVerifyPage === 'function') renderVerifyPage();
       break;
     case 'settings':
-      if (typeof renderSeasonHistory === 'function') renderSeasonHistory();
+      if (typeof loadSettingsDisplay  === 'function') loadSettingsDisplay();
+      if (typeof renderSeasonHistory  === 'function') renderSeasonHistory();
+      if (typeof updateWeeklySeedStatus === 'function') updateWeeklySeedStatus();
       break;
   }
 }
@@ -707,7 +709,8 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
 
     window.addEventListener('storage', function (e) {
       // edge_bets / edge_rounds 외 키는 무시
-      if (e.key !== null && e.key !== STORAGE_KEY && e.key !== 'edge_rounds') return;
+      // e.key가 undefined인 경우는 round.js의 dispatchEvent(new Event('storage')) — 통과 허용
+      if (e.key !== null && e.key !== undefined && e.key !== STORAGE_KEY && e.key !== 'edge_rounds') return;
 
       clearTimeout(_debounceTimer);
       _debounceTimer = setTimeout(function () {

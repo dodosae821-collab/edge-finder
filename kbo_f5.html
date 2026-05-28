@@ -1,0 +1,1931 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KBO F5 — 언오버 예측 엔진</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #0a0c10;
+  --bg2:      #10141c;
+  --bg3:      #181e2a;
+  --border:   rgba(255,255,255,0.07);
+  --border2:  rgba(255,255,255,0.12);
+  --text1:    #e8eaf0;
+  --text2:    #8892a4;
+  --text3:    #4a5568;
+  --accent:   #4fc3f7;
+  --accent2:  #0288d1;
+  --green:    #00e676;
+  --red:      #ff3b5c;
+  --gold:     #ffd740;
+  --orange:   #ff9100;
+  --purple:   #bb86fc;
+  --mono:     'Space Mono', monospace;
+  --sans:     'Noto Sans KR', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text1);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── 헤더 ── */
+.header {
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg2);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header-logo {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+.header-title {
+  font-size: 13px;
+  color: var(--text2);
+}
+.phase-badge {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 11px;
+  background: rgba(255,145,0,0.12);
+  color: var(--orange);
+  border: 1px solid rgba(255,145,0,0.25);
+  letter-spacing: 0.05em;
+}
+
+/* ── 레이아웃 ── */
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+/* ── 섹션 타이틀 ── */
+.section-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--text3);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+/* ── 카드 ── */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 12px;
+}
+.card-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text2);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-title .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ── 팀 그리드 ── */
+.team-grid {
+  display: grid;
+  grid-template-columns: 1fr 40px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.vs-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 36px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+}
+
+/* ── 팀 패널 ── */
+.team-panel {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+}
+.team-panel.home { border-top: 2px solid var(--accent); }
+.team-panel.away { border-top: 2px solid var(--purple); }
+
+.team-badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 2px;
+  margin-bottom: 10px;
+  letter-spacing: 0.1em;
+}
+.home .team-badge { background: rgba(79,195,247,0.1); color: var(--accent); }
+.away .team-badge { background: rgba(187,134,252,0.1); color: var(--purple); }
+
+/* ── 인풋 그룹 ── */
+.input-group {
+  margin-bottom: 10px;
+}
+.input-label {
+  font-size: 11px;
+  color: var(--text2);
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+}
+.input-hint {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text3);
+}
+
+input[type="text"], input[type="number"], select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  color: var(--text1);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+  -webkit-appearance: none;
+}
+input:focus, select:focus {
+  border-color: var(--accent);
+}
+input::placeholder { color: var(--text3); }
+
+.input-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.input-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+/* ── 구장 선택 ── */
+.park-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: end;
+}
+.park-display {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--gold);
+  margin-top: 6px;
+}
+
+/* ── 파라미터 패널 ── */
+.param-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+/* ── 버튼 ── */
+.btn-calc {
+  width: 100%;
+  padding: 14px;
+  background: var(--accent2);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-top: 16px;
+}
+.btn-calc:hover { background: var(--accent); color: #000; }
+.btn-calc:active { transform: scale(0.99); }
+
+.btn-reset {
+  width: 100%;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: all 0.15s;
+}
+.btn-reset:hover { border-color: var(--text2); color: var(--text2); }
+
+.calc-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  margin-top: 8px;
+  min-height: 16px;
+  text-align: center;
+}
+
+/* ── 결과 패널 ── */
+#result-panel { display: none; margin-top: 16px; }
+
+.result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.result-matchup {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text1);
+}
+.result-lambda {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+}
+
+/* ── 언오버 바 ── */
+.uo-container {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 10px;
+}
+.uo-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 0.12em;
+  margin-bottom: 12px;
+}
+.uo-bar-wrap {
+  height: 8px;
+  background: rgba(255,59,92,0.2);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.uo-bar-inner {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent2) 100%);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+.uo-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.uo-under {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.uo-over {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--red);
+}
+.uo-label-txt {
+  font-size: 10px;
+  color: var(--text2);
+  letter-spacing: 0.08em;
+}
+.uo-center-info {
+  text-align: center;
+}
+.uo-total-lambda {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--gold);
+}
+.uo-total-label {
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 0.1em;
+}
+
+/* ── 라인별 확률 ── */
+.lines-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.line-cell {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.line-val {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text2);
+  margin-bottom: 4px;
+}
+.line-pct {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* ── 팀 기대득점 ── */
+.team-lambda-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.team-lambda-cell {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px;
+}
+.tlc-name {
+  font-size: 11px;
+  color: var(--text2);
+  margin-bottom: 4px;
+}
+.tlc-val {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 700;
+}
+.tlc-label {
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 0.08em;
+}
+
+/* ── EV 계산 ── */
+.ev-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ev-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ev-result-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ev-val-cell {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ev-val {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+}
+.ev-verdict {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.ev-recommend {
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: center;
+  display: none;
+}
+
+/* ── 디버그 ── */
+.debug-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.debug-toggle {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  padding: 3px 8px;
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+.debug-toggle:hover { color: var(--text2); border-color: var(--border2); }
+.debug-body {
+  display: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+  line-height: 1.8;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 14px;
+}
+
+/* ── 구분선 ── */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0;
+}
+
+/* ── 버튼 소형 ── */
+.btn-ev {
+  padding: 9px 16px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  color: var(--text1);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-ev:hover { border-color: var(--accent); color: var(--accent); }
+
+select option { background: var(--bg2); }
+
+/* ── 탭 네비 ── */
+.tab-nav {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 20px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+}
+.tab-btn {
+  flex: 1;
+  padding: 9px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+.tab-btn:hover { color: var(--text2); }
+.tab-btn.active {
+  background: var(--bg3);
+  color: var(--text1);
+  border: 1px solid var(--border2);
+}
+.tab-btn.active.tab-uo  { color: var(--accent); }
+.tab-btn.active.tab-win { color: var(--green); }
+.tab-btn.active.tab-rec { color: var(--gold); }
+
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* ── 5이닝 승패 결과 ── */
+.win-result-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+.win-prob-grid {
+  display: grid;
+  grid-template-columns: 1fr 60px 1fr;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.win-team-block { padding: 16px 12px; border-radius: 4px; }
+.win-team-block.home-win { background: rgba(79,195,247,0.08); border: 1px solid rgba(79,195,247,0.2); }
+.win-team-block.away-win { background: rgba(187,134,252,0.08); border: 1px solid rgba(187,134,252,0.2); }
+.win-team-name { font-size: 12px; color: var(--text2); margin-bottom: 6px; }
+.win-prob-val  { font-family: var(--mono); font-size: 28px; font-weight: 700; }
+.win-prob-val.home { color: var(--accent); }
+.win-prob-val.away { color: var(--purple); }
+.win-vs-mid { font-family: var(--mono); font-size: 10px; color: var(--text3); text-align: center; }
+.win-favorite {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+/* ── 기록 탭 ── */
+.record-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.record-form-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.btn-save {
+  width: 100%;
+  padding: 11px;
+  background: rgba(0,230,118,0.1);
+  border: 1px solid rgba(0,230,118,0.3);
+  border-radius: 4px;
+  color: var(--green);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-top: 4px;
+}
+.btn-save:hover { background: rgba(0,230,118,0.18); }
+
+/* ── 기록 테이블 ── */
+.record-table-wrap {
+  overflow-x: auto;
+  margin-top: 16px;
+}
+.record-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.record-table th {
+  background: var(--bg3);
+  color: var(--text3);
+  letter-spacing: 0.08em;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border2);
+  white-space: nowrap;
+}
+.record-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text2);
+  white-space: nowrap;
+}
+.record-table tr:hover td { background: var(--bg3); }
+.tag-hit  { color: var(--green); }
+.tag-miss { color: var(--red); }
+.tag-pass { color: var(--text3); }
+
+/* ── 기록 요약 ── */
+.record-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.summary-cell {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 10px;
+  text-align: center;
+}
+.summary-val {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.summary-label {
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 0.1em;
+}
+.btn-del-record {
+  background: transparent;
+  border: none;
+  color: var(--text3);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 6px;
+  transition: color 0.15s;
+}
+.btn-del-record:hover { color: var(--red); }
+
+/* ── 반응형 ── */
+@media (max-width: 640px) {
+  .team-grid { grid-template-columns: 1fr; }
+  .vs-center { padding-top: 0; padding: 4px 0; }
+  .param-grid { grid-template-columns: repeat(3, 1fr); }
+  .lines-grid { grid-template-columns: repeat(2, 1fr); }
+  .record-summary { grid-template-columns: repeat(2, 1fr); }
+  .win-prob-grid { grid-template-columns: 1fr 40px 1fr; }
+}
+
+/* ── EDGE FINDER 전송 버튼 ── */
+.btn-send-ef {
+  width: 100%;
+  padding: 13px;
+  background: transparent;
+  border: 1px solid rgba(79,195,247,0.35);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-send-ef:hover {
+  background: rgba(79,195,247,0.08);
+  border-color: var(--accent);
+}
+.btn-send-ef:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.ef-path-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+.ef-path-input {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text2);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.ef-path-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+</style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<div class="header">
+  <div class="header-logo">KBO F5</div>
+  <div class="header-title">5이닝 언오버 예측 엔진</div>
+  <div class="phase-badge">PHASE 1 · 데이터수집</div>
+</div>
+
+<div class="container">
+
+  <!-- ── 탭 네비 ── -->
+  <div class="tab-nav">
+    <button class="tab-btn tab-uo active" onclick="switchTab('uo')">▸ 언/오버</button>
+    <button class="tab-btn tab-win" onclick="switchTab('win')">▸ 5이닝 승패</button>
+    <button class="tab-btn tab-rec" onclick="switchTab('rec')">▸ 경기 기록</button>
+  </div>
+
+  <!-- ══ TAB: 언오버 ══ -->
+  <div class="tab-pane active" id="tab-uo">
+  <!-- ── 입력 섹션 ── -->
+  <div class="section-label">경기 정보 입력</div>
+
+  <!-- OCR 입력 -->
+  <div class="card" id="ocr-card">
+    <div class="card-title"><span class="dot" style="background:var(--purple)"></span>스탯 자동 입력 <span style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-left:6px;">스탯티즈 / KBO 캡처</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div>
+        <div class="input-label">홈팀 선발 캡처</div>
+        <label id="ocr-home-label" style="display:block;background:var(--bg);border:1px dashed var(--border2);border-radius:4px;padding:10px;text-align:center;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--text3);transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)'">
+          📷 사진 선택
+          <input type="file" accept="image/*" style="display:none" onchange="runOCR('home', this.files[0])">
+        </label>
+        <div id="ocr-home-status" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:4px;min-height:14px;"></div>
+      </div>
+      <div>
+        <div class="input-label">원정팀 선발 캡처</div>
+        <label id="ocr-away-label" style="display:block;background:var(--bg);border:1px dashed var(--border2);border-radius:4px;padding:10px;text-align:center;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--text3);transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--purple)'" onmouseout="this.style.borderColor='var(--border2)'">
+          📷 사진 선택
+          <input type="file" accept="image/*" style="display:none" onchange="runOCR('away', this.files[0])">
+        </label>
+        <div id="ocr-away-status" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:4px;min-height:14px;"></div>
+      </div>
+    </div>
+    <div id="ocr-preview" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:10px;font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.8;margin-bottom:8px;max-height:120px;overflow-y:auto;"></div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">※ 스탯티즈 투수 페이지 또는 KBO 공식 선발 스탯 화면을 캡처해 올리세요. 인식 후 수동 확인이 필요합니다.</div>
+  </div>
+
+  <!-- 구장 선택 -->
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--gold)"></span>구장</div>
+    <div class="park-row">
+      <div>
+        <div class="input-label">구장 선택</div>
+        <select id="park-select" onchange="onParkSelect()">
+          <option value="">— 선택 —</option>
+          <option value="0.930">잠실 (LG·두산) — PF 0.930</option>
+          <option value="0.910">고척 (키움) — PF 0.910</option>
+          <option value="0.960">창원 (NC) — PF 0.960</option>
+          <option value="1.020">대전 (한화) — PF 1.020</option>
+          <option value="1.040">수원 (KT) — PF 1.040</option>
+          <option value="1.080">울산 (롯데) — PF 1.080</option>
+          <option value="1.110">대구 (삼성) — PF 1.110</option>
+          <option value="1.140">광주 (KIA) — PF 1.140</option>
+          <option value="1.180">사직 (롯데) — PF 1.180</option>
+        </select>
+        <div class="park-display" id="park-display"></div>
+      </div>
+      <div>
+        <div class="input-label">직접 입력 <span class="input-hint">선택 시 덮어씀</span></div>
+        <input type="number" id="kbo-home-park" placeholder="0.930" step="0.001" min="0.5" max="1.5">
+      </div>
+    </div>
+  </div>
+
+  <!-- 홈/원정 투수+타선 -->
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>선발 투수 · 타선</div>
+    <div class="team-grid">
+
+      <!-- 홈팀 -->
+      <div class="team-panel home">
+        <div class="team-badge">HOME</div>
+        <div class="input-group">
+          <div class="input-label">팀명</div>
+          <input type="text" id="kbo-home-name" placeholder="LG 트윈스">
+        </div>
+        <div class="input-group">
+          <div class="input-label">선발투수</div>
+          <input type="text" id="kbo-home-pitcher" placeholder="이름">
+        </div>
+        <div class="divider"></div>
+        <div class="input-group">
+          <div class="input-label">시즌 FIP</div>
+          <input type="number" id="kbo-home-fip" placeholder="4.23" step="0.01">
+        </div>
+        <div class="input-group">
+          <div class="input-label">최근 ERA <span class="input-hint">최근 3~5경기 평균</span></div>
+          <input type="number" id="kbo-home-era" placeholder="4.85" step="0.01">
+        </div>
+        <div class="input-group">
+          <div class="input-label">누적 이닝 (IP)</div>
+          <input type="number" id="kbo-home-ip" placeholder="30" step="0.1">
+        </div>
+        <div class="input-group">
+          <div class="input-label">최근 FIP <span class="input-hint">없으면 공백</span></div>
+          <input type="number" id="kbo-home-fip-recent" placeholder="선택" step="0.01">
+        </div>
+        <div class="divider"></div>
+        <div class="input-group">
+          <div class="input-label">타선 OPS <span class="input-hint">팀평균</span></div>
+          <input type="number" id="kbo-home-woba" placeholder="0.757" step="0.001">
+        </div>
+        <div class="input-group">
+          <div class="input-label">라인업 OPS <span class="input-hint">당일, 입력 시 우선</span></div>
+          <input type="number" id="kbo-home-lineup-woba" placeholder="선택" step="0.001">
+        </div>
+      </div>
+
+      <!-- VS -->
+      <div class="vs-center">vs</div>
+
+      <!-- 원정팀 -->
+      <div class="team-panel away">
+        <div class="team-badge">AWAY</div>
+        <div class="input-group">
+          <div class="input-label">팀명</div>
+          <input type="text" id="kbo-away-name" placeholder="두산 베어스">
+        </div>
+        <div class="input-group">
+          <div class="input-label">선발투수</div>
+          <input type="text" id="kbo-away-pitcher" placeholder="이름">
+        </div>
+        <div class="divider"></div>
+        <div class="input-group">
+          <div class="input-label">시즌 FIP</div>
+          <input type="number" id="kbo-away-fip" placeholder="4.30" step="0.01">
+        </div>
+        <div class="input-group">
+          <div class="input-label">최근 ERA <span class="input-hint">최근 3~5경기 평균</span></div>
+          <input type="number" id="kbo-away-era" placeholder="5.54" step="0.01">
+        </div>
+        <div class="input-group">
+          <div class="input-label">누적 이닝 (IP)</div>
+          <input type="number" id="kbo-away-ip" placeholder="26" step="0.1">
+        </div>
+        <div class="input-group">
+          <div class="input-label">최근 FIP <span class="input-hint">없으면 공백</span></div>
+          <input type="number" id="kbo-away-fip-recent" placeholder="선택" step="0.01">
+        </div>
+        <div class="divider"></div>
+        <div class="input-group">
+          <div class="input-label">타선 OPS <span class="input-hint">팀평균</span></div>
+          <input type="number" id="kbo-away-woba" placeholder="0.736" step="0.001">
+        </div>
+        <div class="input-group">
+          <div class="input-label">라인업 OPS <span class="input-hint">당일, 입력 시 우선</span></div>
+          <input type="number" id="kbo-away-lineup-woba" placeholder="선택" step="0.001">
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 파라미터 (접힘 가능) -->
+    <div class="divider"></div>
+    <div class="debug-header">
+      <div class="section-label" style="margin:0">모델 파라미터</div>
+      <button class="debug-toggle" onclick="toggleParams()">접기</button>
+    </div>
+    <div id="param-panel">
+      <div class="param-grid">
+        <div class="input-group">
+          <div class="input-label">α <span class="input-hint">타선 가중</span></div>
+          <input type="number" id="kbo-alpha" value="0.52" step="0.01">
+        </div>
+        <div class="input-group">
+          <div class="input-label">Scale</div>
+          <input type="number" id="kbo-scale" value="1.20" step="0.01">
+        </div>
+        <div class="input-group">
+          <div class="input-label">δ TTO</div>
+          <input type="number" id="kbo-delta-tto" value="0.08" step="0.01">
+        </div>
+        <div class="input-group">
+          <div class="input-label">sig A</div>
+          <input type="number" id="kbo-sig-a" value="1.5" step="0.1">
+        </div>
+        <div class="input-group">
+          <div class="input-label">sig B</div>
+          <input type="number" id="kbo-sig-b" value="0.8" step="0.1">
+        </div>
+      </div>
+    </div>
+
+    <!-- 계산 버튼 -->
+    <button class="btn-calc" onclick="kboCalculate()">▶ 예측 계산</button>
+    <div class="calc-status" id="kbo-calc-status"></div>
+    <button class="btn-reset" onclick="kboReset()">초기화</button>
+  </div>
+
+  <!-- ── 결과 패널 ── -->
+  <div id="result-panel">
+    <div class="section-label">예측 결과</div>
+
+    <!-- 언오버 바 -->
+    <div class="uo-container">
+      <div class="uo-title">UNDER / OVER · 기준선 4.5</div>
+      <div class="uo-bar-wrap">
+        <div class="uo-bar-inner" id="kbo-under-bar" style="width:50%"></div>
+      </div>
+      <div class="uo-labels">
+        <div>
+          <div class="uo-under" id="kbo-under-pct">—</div>
+          <div class="uo-label-txt">UNDER ≤4</div>
+        </div>
+        <div class="uo-center-info">
+          <div class="uo-total-lambda" id="kbo-res-total">—</div>
+          <div class="uo-total-label">합계 λ</div>
+        </div>
+        <div style="text-align:right">
+          <div class="uo-over" id="kbo-over-pct">—</div>
+          <div class="uo-label-txt">OVER ≥5</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 팀별 기대득점 -->
+    <div class="team-lambda-grid">
+      <div class="team-lambda-cell">
+        <div class="tlc-name" id="kbo-res-home-name">홈팀</div>
+        <div class="tlc-val" style="color:var(--accent)" id="kbo-res-home-lambda">—</div>
+        <div class="tlc-label">5이닝 기대득점 (λ)</div>
+      </div>
+      <div class="team-lambda-cell">
+        <div class="tlc-name" id="kbo-res-away-name">원정팀</div>
+        <div class="tlc-val" style="color:var(--purple)" id="kbo-res-away-lambda">—</div>
+        <div class="tlc-label">5이닝 기대득점 (λ)</div>
+      </div>
+    </div>
+
+    <!-- 라인별 확률 -->
+    <div class="lines-grid">
+      <div class="line-cell">
+        <div class="line-val">≤ 3.5 언더</div>
+        <div class="line-pct" id="kbo-p35">—</div>
+      </div>
+      <div class="line-cell">
+        <div class="line-val">≤ 4.5 언더</div>
+        <div class="line-pct" id="kbo-p45">—</div>
+      </div>
+      <div class="line-cell">
+        <div class="line-val">≤ 5.5 언더</div>
+        <div class="line-pct" id="kbo-p55">—</div>
+      </div>
+      <div class="line-cell">
+        <div class="line-val">≤ 6.5 언더</div>
+        <div class="line-pct" id="kbo-p65">—</div>
+      </div>
+    </div>
+
+    <!-- EV 계산 -->
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--gold)"></span>EV 계산</div>
+      <div class="ev-row">
+        <div class="ev-cell">
+          <div class="input-label">언더 배당</div>
+          <input type="number" id="kbo-ev-under-odds" placeholder="1.85" step="0.01">
+        </div>
+        <div class="ev-cell">
+          <div class="input-label">오버 배당</div>
+          <input type="number" id="kbo-ev-over-odds" placeholder="1.95" step="0.01">
+        </div>
+      </div>
+      <button class="btn-ev" onclick="kboCalcEV()" style="width:100%">EV 계산</button>
+
+      <div id="kbo-ev-result" style="display:none; margin-top:12px;">
+        <div class="ev-result-row">
+          <div class="ev-val-cell">
+            <div>
+              <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">언더 EV</div>
+              <div class="ev-val" id="kbo-ev-under">—</div>
+            </div>
+            <div class="ev-verdict" id="kbo-ev-under-verdict"></div>
+          </div>
+          <div class="ev-val-cell">
+            <div>
+              <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">오버 EV</div>
+              <div class="ev-val" id="kbo-ev-over">—</div>
+            </div>
+            <div class="ev-verdict" id="kbo-ev-over-verdict"></div>
+          </div>
+        </div>
+        <div class="ev-recommend" id="kbo-ev-recommend"></div>
+      </div>
+    </div>
+
+    <!-- EDGE FINDER 전송 -->
+    <div class="card" id="ef-send-card-uo">
+      <div class="card-title"><span class="dot" style="background:var(--accent)"></span>EDGE FINDER 전송</div>
+      <div class="ef-path-label">EDGE FINDER 경로 (같은 폴더에 있으면 기본값 그대로)</div>
+      <div class="ef-path-row">
+        <input type="text" id="ef-path-uo" class="ef-path-input" value="./index.html" placeholder="./index.html">
+      </div>
+      <button class="btn-send-ef" onclick="sendToEF('uo')" id="btn-send-ef-uo">
+        ⚾ 언/오버 결과를 EDGE FINDER로 전송
+      </button>
+      <div id="ef-send-status-uo" style="font-family:var(--mono);font-size:10px;color:var(--text3);text-align:center;margin-top:6px;min-height:14px;"></div>
+    </div>
+
+    <!-- 디버그 패널 -->
+    <div class="card">
+      <div class="debug-header">
+        <div class="card-title" style="margin:0"><span class="dot" style="background:var(--text3)"></span>계산 중간값</div>
+        <button class="debug-toggle" id="kbo-debug-toggle" onclick="kboToggleDebug()">펼치기</button>
+      </div>
+      <div class="debug-body" id="kbo-debug-body"></div>
+    </div>
+
+  </div><!-- /result-panel -->
+  </div><!-- /tab-uo -->
+
+  <!-- ══ TAB: 5이닝 승패 ══ -->
+  <div class="tab-pane" id="tab-win">
+    <div class="section-label">5이닝 승패 예측</div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-title"><span class="dot" style="background:var(--green)"></span>계산 방법</div>
+      <p style="font-size:12px;color:var(--text2);line-height:1.8;">언/오버 탭에서 먼저 <strong style="color:var(--text1)">▶ 예측 계산</strong>을 실행하면 아래에 5이닝 승패 확률이 자동으로 표시됩니다.<br>
+      모델: 홈팀 λ vs 원정팀 λ 비교 → Skellam 분포로 득점 차이 확률 계산</p>
+    </div>
+
+    <div id="win-no-data" class="card" style="text-align:center;padding:32px;color:var(--text3);font-family:var(--mono);font-size:12px;">
+      언/오버 탭에서 먼저 예측을 실행하세요
+    </div>
+
+    <div id="win-result" style="display:none;">
+      <!-- 승패 확률 -->
+      <div class="win-result-box">
+        <div class="win-prob-grid">
+          <div class="win-team-block home-win">
+            <div class="win-team-name" id="win-home-name">홈팀</div>
+            <div class="win-prob-val home" id="win-home-prob">—</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:4px;">5이닝 승리</div>
+          </div>
+          <div class="win-vs-mid">vs</div>
+          <div class="win-team-block away-win">
+            <div class="win-team-name" id="win-away-name">원정팀</div>
+            <div class="win-prob-val away" id="win-away-prob">—</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:4px;">5이닝 승리</div>
+          </div>
+        </div>
+        <div id="win-favorite-badge" class="win-favorite"></div>
+      </div>
+
+      <!-- 득점 차이 분포 -->
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--green)"></span>득점 차이 분포</div>
+        <div class="lines-grid" style="grid-template-columns:repeat(5,1fr);">
+          <div class="line-cell">
+            <div class="line-val">홈 +2↑</div>
+            <div class="line-pct" id="win-p-home2">—</div>
+          </div>
+          <div class="line-cell">
+            <div class="line-val">홈 +1</div>
+            <div class="line-pct" id="win-p-home1">—</div>
+          </div>
+          <div class="line-cell" style="border:1px solid var(--border2);">
+            <div class="line-val">무승부</div>
+            <div class="line-pct" id="win-p-draw">—</div>
+          </div>
+          <div class="line-cell">
+            <div class="line-val">원정 +1</div>
+            <div class="line-pct" id="win-p-away1">—</div>
+          </div>
+          <div class="line-cell">
+            <div class="line-val">원정 +2↑</div>
+            <div class="line-pct" id="win-p-away2">—</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:10px;font-family:var(--mono);">
+          * 5이닝 동점 시 베트맨 규정에 따라 처리 (확인 필요)
+        </div>
+      </div>
+
+      <!-- EV 계산 (승패용) -->
+      <div class="card">
+        <div class="card-title"><span class="dot" style="background:var(--gold)"></span>EV 계산 (승패)</div>
+        <div class="ev-row">
+          <div class="ev-cell">
+            <div class="input-label">홈 승 배당</div>
+            <input type="number" id="win-ev-home-odds" placeholder="1.80" step="0.01">
+          </div>
+          <div class="ev-cell">
+            <div class="input-label">원정 승 배당</div>
+            <input type="number" id="win-ev-away-odds" placeholder="2.10" step="0.01">
+          </div>
+        </div>
+        <button class="btn-ev" onclick="calcWinEV()" style="width:100%">EV 계산</button>
+        <div id="win-ev-result" style="display:none;margin-top:12px;">
+          <div class="ev-result-row">
+            <div class="ev-val-cell">
+              <div>
+                <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">홈 승 EV</div>
+                <div class="ev-val" id="win-ev-home">—</div>
+              </div>
+              <div class="ev-verdict" id="win-ev-home-verdict"></div>
+            </div>
+            <div class="ev-val-cell">
+              <div>
+                <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">원정 승 EV</div>
+                <div class="ev-val" id="win-ev-away">—</div>
+              </div>
+              <div class="ev-verdict" id="win-ev-away-verdict"></div>
+            </div>
+          </div>
+          <div class="ev-recommend" id="win-ev-recommend" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EDGE FINDER 전송 (승패) -->
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--green)"></span>EDGE FINDER 전송</div>
+      <div class="ef-path-label">EDGE FINDER 경로</div>
+      <div class="ef-path-row">
+        <input type="text" id="ef-path-win" class="ef-path-input" value="./index.html" placeholder="./index.html">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <button class="btn-send-ef" onclick="sendToEF('win-home')" style="border-color:rgba(79,195,247,0.35);color:var(--accent);">
+          ⚾ 홈 승 → EDGE FINDER
+        </button>
+        <button class="btn-send-ef" onclick="sendToEF('win-away')" style="border-color:rgba(187,134,252,0.35);color:var(--purple);">
+          ⚾ 원정 승 → EDGE FINDER
+        </button>
+      </div>
+      <div id="ef-send-status-win" style="font-family:var(--mono);font-size:10px;color:var(--text3);text-align:center;margin-top:6px;min-height:14px;"></div>
+    </div>
+  </div><!-- /tab-win -->
+
+  <!-- ══ TAB: 경기 기록 ══ -->
+  <div class="tab-pane" id="tab-rec">
+    <div class="section-label">경기 기록 저장</div>
+
+    <!-- 요약 -->
+    <div class="record-summary" id="rec-summary">
+      <div class="summary-cell">
+        <div class="summary-val" id="rec-total">0</div>
+        <div class="summary-label">총 기록</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-val tag-hit" id="rec-hit">0</div>
+        <div class="summary-label">적중</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-val tag-miss" id="rec-miss">0</div>
+        <div class="summary-label">미적중</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-val" id="rec-rate" style="color:var(--gold)">—</div>
+        <div class="summary-label">적중률</div>
+      </div>
+    </div>
+
+    <!-- 기록 입력 폼 -->
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--gold)"></span>경기 추가</div>
+      <div class="record-form-grid">
+        <div class="input-group">
+          <div class="input-label">날짜</div>
+          <input type="text" id="rec-date" placeholder="2025-06-01">
+        </div>
+        <div class="input-group">
+          <div class="input-label">경기</div>
+          <input type="text" id="rec-matchup" placeholder="LG vs 두산">
+        </div>
+      </div>
+      <div class="record-form-grid-3">
+        <div class="input-group">
+          <div class="input-label">베팅 유형</div>
+          <select id="rec-type">
+            <option value="under">언더</option>
+            <option value="over">오버</option>
+            <option value="home">홈 승</option>
+            <option value="away">원정 승</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <div class="input-label">기준선 / 배당</div>
+          <input type="text" id="rec-line" placeholder="4.5 / 1.85">
+        </div>
+        <div class="input-group">
+          <div class="input-label">모델 확률</div>
+          <input type="number" id="rec-model-prob" placeholder="62" step="1">
+        </div>
+      </div>
+      <div class="record-form-grid">
+        <div class="input-group">
+          <div class="input-label">실제 5이닝 득점</div>
+          <input type="text" id="rec-actual" placeholder="홈 2 - 원정 1">
+        </div>
+        <div class="input-group">
+          <div class="input-label">결과</div>
+          <select id="rec-result">
+            <option value="">— 미완료 —</option>
+            <option value="hit">✅ 적중</option>
+            <option value="miss">❌ 미적중</option>
+            <option value="pass">⏭ 패스</option>
+          </select>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-label">메모</div>
+        <input type="text" id="rec-memo" placeholder="선발 교체, 우천 등 특이사항">
+      </div>
+      <button class="btn-save" onclick="saveRecord()">+ 기록 저장</button>
+    </div>
+
+    <!-- 기록 테이블 -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="card-title" style="margin:0"><span class="dot" style="background:var(--text3)"></span>기록 목록</div>
+        <button class="debug-toggle" onclick="clearAllRecords()">전체 삭제</button>
+      </div>
+      <div class="record-table-wrap">
+        <table class="record-table">
+          <thead>
+            <tr>
+              <th>날짜</th>
+              <th>경기</th>
+              <th>유형</th>
+              <th>기준/배당</th>
+              <th>모델%</th>
+              <th>실제득점</th>
+              <th>결과</th>
+              <th>메모</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="rec-tbody">
+            <tr><td colspan="9" style="text-align:center;color:var(--text3);padding:20px;">기록 없음</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /tab-rec -->
+
+</div><!-- /container -->
+
+<script>
+// ── 파크팩터 ──────────────────────────────────────────────────
+function onParkSelect() {
+  const sel = document.getElementById('park-select');
+  const val = sel.value;
+  if (!val) return;
+  document.getElementById('kbo-home-park').value = val;
+  document.getElementById('kbo-away-park') && (document.getElementById('kbo-away-park').value = val);
+  const pf = parseFloat(val);
+  document.getElementById('park-display').textContent = `PF ${pf.toFixed(3)} — ${pf < 1 ? '투수 유리' : '타자 유리'}`;
+}
+
+function toggleParams() {
+  const panel = document.getElementById('param-panel');
+  const btn = event.target;
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? '펼치기' : '접기';
+}
+
+// ── 수학 유틸 ────────────────────────────────────────────────
+function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+
+function poissonPMF(k, lambda) {
+  if (lambda <= 0) return k === 0 ? 1 : 0;
+  let logP = -lambda + k * Math.log(lambda);
+  for (let i = 1; i <= k; i++) logP -= Math.log(i);
+  return Math.exp(logP);
+}
+
+function poissonSumCDF(line, lA, lB) {
+  let p = 0;
+  const maxK = Math.floor(line);
+  for (let i = 0; i <= maxK; i++)
+    for (let j = 0; j <= maxK - i; j++)
+      p += poissonPMF(i, lA) * poissonPMF(j, lB);
+  return Math.min(p, 1);
+}
+
+// ── 핵심 계산 ────────────────────────────────────────────────
+function calcPitcherExp(era, fip, ip, fipRecent, sigA, sigB) {
+  const ipNorm = ip / 100;
+  const recentForm = fipRecent !== null ? (fipRecent - fip) / Math.max(fip, 0.01) : 0;
+  const t = sigmoid(sigA * ipNorm + sigB * recentForm);
+  const pitcherExp = (1 - t) * era + t * fip;
+  return { t, recentForm, pitcherExp };
+}
+
+function calcOffenseF5(woba, scale, deltaTTO) {
+  const offense = woba * scale;
+  const offenseF5 = offense * (1 - deltaTTO);
+  return { offense, offenseF5 };
+}
+
+function calcLambda(offenseF5, pitcherOpp, alpha, park) {
+  const pitcherSafe = Math.max(pitcherOpp, 2.0);
+  const raw = Math.pow(offenseF5, alpha) * Math.pow(pitcherSafe, 1 - alpha);
+  return raw * park;
+}
+
+// ── 메인 계산 ────────────────────────────────────────────────
+function kboCalculate() {
+  const get = id => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? null : v; };
+  const getText = id => document.getElementById(id).value.trim();
+
+  const homeName = getText('kbo-home-name') || '홈팀';
+  const awayName = getText('kbo-away-name') || '원정팀';
+
+  const hERA  = get('kbo-home-era');
+  const hFIP  = get('kbo-home-fip');
+  const hIP   = get('kbo-home-ip');
+  const hFIPR = get('kbo-home-fip-recent');
+  const hWOBA = get('kbo-home-lineup-woba') || get('kbo-home-woba');
+  const hPark = get('kbo-home-park') || 1.0;
+
+  const aERA  = get('kbo-away-era');
+  const aFIP  = get('kbo-away-fip');
+  const aIP   = get('kbo-away-ip');
+  const aFIPR = get('kbo-away-fip-recent');
+  const aWOBA = get('kbo-away-lineup-woba') || get('kbo-away-woba');
+  const aPark = get('kbo-away-park') || hPark;
+
+  const alpha    = get('kbo-alpha')     || 0.52;
+  const scale    = get('kbo-scale')     || 1.20;
+  const deltaTTO = get('kbo-delta-tto') || 0.08;
+  const sigA     = get('kbo-sig-a')     || 1.5;
+  const sigB     = get('kbo-sig-b')     || 0.8;
+
+  const status = document.getElementById('kbo-calc-status');
+  const missing = [];
+  if (!hERA)  missing.push('홈 ERA');
+  if (!hFIP)  missing.push('홈 FIP');
+  if (!hIP)   missing.push('홈 IP');
+  if (!hWOBA) missing.push('홈 타선 OPS');
+  if (!aERA)  missing.push('원정 ERA');
+  if (!aFIP)  missing.push('원정 FIP');
+  if (!aIP)   missing.push('원정 IP');
+  if (!aWOBA) missing.push('원정 타선 OPS');
+
+  if (missing.length > 0) {
+    status.style.color = 'var(--red)';
+    status.textContent = '⚠ 누락: ' + missing.join(', ');
+    return;
+  }
+  status.textContent = '';
+
+  const hPitcher = calcPitcherExp(hERA, hFIP, hIP, hFIPR, sigA, sigB);
+  const aPitcher = calcPitcherExp(aERA, aFIP, aIP, aFIPR, sigA, sigB);
+
+  const hOff = calcOffenseF5(hWOBA, scale, deltaTTO);
+  const aOff = calcOffenseF5(aWOBA, scale, deltaTTO);
+
+  const park = (hPark + aPark) / 2;
+  const lambdaHome = calcLambda(hOff.offenseF5, aPitcher.pitcherExp, alpha, park);
+  const lambdaAway = calcLambda(aOff.offenseF5, hPitcher.pitcherExp, alpha, park);
+  const totalLambda = lambdaHome + lambdaAway;
+
+  const p35 = poissonSumCDF(3.5, lambdaHome, lambdaAway);
+  const p45 = poissonSumCDF(4.5, lambdaHome, lambdaAway);
+  const p55 = poissonSumCDF(5.5, lambdaHome, lambdaAway);
+  const p65 = poissonSumCDF(6.5, lambdaHome, lambdaAway);
+  const pOver = 1 - p45;
+
+  // 렌더링
+  document.getElementById('result-panel').style.display = 'block';
+  document.getElementById('kbo-res-home-name').textContent = homeName;
+  document.getElementById('kbo-res-away-name').textContent = awayName;
+  document.getElementById('kbo-res-home-lambda').textContent = lambdaHome.toFixed(2);
+  document.getElementById('kbo-res-away-lambda').textContent = lambdaAway.toFixed(2);
+  document.getElementById('kbo-res-total').textContent = totalLambda.toFixed(2);
+
+  const underPct = Math.round(p45 * 100);
+  const overPct  = Math.round(pOver * 100);
+  document.getElementById('kbo-under-bar').style.width = underPct + '%';
+  document.getElementById('kbo-under-pct').textContent = underPct + '%';
+  document.getElementById('kbo-over-pct').textContent  = overPct + '%';
+
+  document.getElementById('kbo-p35').textContent = Math.round(p35 * 100) + '%';
+  document.getElementById('kbo-p45').textContent = Math.round(p45 * 100) + '%';
+  document.getElementById('kbo-p55').textContent = Math.round(p55 * 100) + '%';
+  document.getElementById('kbo-p65').textContent = Math.round(p65 * 100) + '%';
+
+  // 색상
+  const uEl = document.getElementById('kbo-under-pct');
+  const oEl = document.getElementById('kbo-over-pct');
+  uEl.style.color = p45 > 0.55 ? 'var(--accent)' : p45 > 0.45 ? 'var(--text2)' : 'var(--red)';
+  oEl.style.color = pOver > 0.55 ? 'var(--red)' : pOver > 0.45 ? 'var(--text2)' : 'var(--accent)';
+
+  // 라인 색상
+  [['kbo-p35', p35], ['kbo-p45', p45], ['kbo-p55', p55], ['kbo-p65', p65]].forEach(([id, p]) => {
+    const el = document.getElementById(id);
+    el.style.color = p > 0.6 ? 'var(--accent)' : p > 0.5 ? 'var(--gold)' : 'var(--text2)';
+  });
+
+  window._kboLastResult = {
+    homeName, awayName,
+    lambdaHome, lambdaAway, totalLambda,
+    p35, p45, p55, p65, pOver,
+    hPitcher, aPitcher, hOff, aOff,
+    alpha, scale, deltaTTO, sigA, sigB, park,
+    hERA, hFIP, hIP, hFIPR, hWOBA,
+    aERA, aFIP, aIP, aFIPR, aWOBA,
+  };
+
+  _kboRenderDebug(window._kboLastResult);
+  document.getElementById('kbo-ev-result').style.display = 'none';
+  document.getElementById('result-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── 디버그 ──────────────────────────────────────────────────
+function _kboRenderDebug(r) {
+  const usingLineup = {
+    home: document.getElementById('kbo-home-lineup-woba').value.trim() !== '',
+    away: document.getElementById('kbo-away-lineup-woba').value.trim() !== '',
+  };
+  const lines = [
+    `── [STEP 1] RecentForm ─────────────────────────────`,
+    `홈  RecentForm = (${r.hFIPR ?? 'N/A'} - ${r.hFIP}) / ${r.hFIP} = ${r.hPitcher.recentForm.toFixed(4)}`,
+    `원정 RecentForm = (${r.aFIPR ?? 'N/A'} - ${r.aFIP}) / ${r.aFIP} = ${r.aPitcher.recentForm.toFixed(4)}`,
+    ``,
+    `── [STEP 2] 동적 t (sigmoid) ───────────────────────`,
+    `홈  t = σ(${r.sigA}×${(r.hIP/100).toFixed(2)} + ${r.sigB}×${r.hPitcher.recentForm.toFixed(3)}) = ${r.hPitcher.t.toFixed(4)}`,
+    `원정 t = σ(${r.sigA}×${(r.aIP/100).toFixed(2)} + ${r.sigB}×${r.aPitcher.recentForm.toFixed(3)}) = ${r.aPitcher.t.toFixed(4)}`,
+    ``,
+    `── [STEP 3] 투수 기대실점 ──────────────────────────`,
+    `홈  Pitcher_exp = (1-${r.hPitcher.t.toFixed(3)})×${r.hERA} + ${r.hPitcher.t.toFixed(3)}×${r.hFIP} = ${r.hPitcher.pitcherExp.toFixed(3)}`,
+    `원정 Pitcher_exp = (1-${r.aPitcher.t.toFixed(3)})×${r.aERA} + ${r.aPitcher.t.toFixed(3)}×${r.aFIP} = ${r.aPitcher.pitcherExp.toFixed(3)}`,
+    ``,
+    `── [STEP 4] 타선 득점력 ────────────────────────────`,
+    `홈  OPS=${r.hWOBA}${usingLineup.home?' (라인업)':''} → F5=${r.hOff.offenseF5.toFixed(4)}`,
+    `원정 OPS=${r.aWOBA}${usingLineup.away?' (라인업)':''} → F5=${r.aOff.offenseF5.toFixed(4)}`,
+    ``,
+    `── [STEP 5] 매치업 λ ───────────────────────────────`,
+    `홈 λ  = ${r.hOff.offenseF5.toFixed(4)}^${r.alpha} × ${r.aPitcher.pitcherExp.toFixed(3)}^${(1-r.alpha).toFixed(2)} × ${r.park.toFixed(3)} = ${r.lambdaHome.toFixed(3)}`,
+    `원정 λ = ${r.aOff.offenseF5.toFixed(4)}^${r.alpha} × ${r.hPitcher.pitcherExp.toFixed(3)}^${(1-r.alpha).toFixed(2)} × ${r.park.toFixed(3)} = ${r.lambdaAway.toFixed(3)}`,
+    `합계 λ = ${r.totalLambda.toFixed(3)}`,
+    ``,
+    `── [STEP 6] Poisson CDF ────────────────────────────`,
+    `P(Total ≤ 3.5) = ${(r.p35*100).toFixed(1)}%`,
+    `P(Total ≤ 4.5) = ${(r.p45*100).toFixed(1)}%  ← 메인 기준`,
+    `P(Total ≤ 5.5) = ${(r.p55*100).toFixed(1)}%`,
+    `P(Total ≤ 6.5) = ${(r.p65*100).toFixed(1)}%`,
+  ];
+  document.getElementById('kbo-debug-body').innerHTML = lines
+    .map(l => l.startsWith('──')
+      ? `<span style="color:var(--accent);opacity:0.6">${l}</span>`
+      : `<span>${l}</span>`)
+    .join('<br>');
+}
+
+// ── EV ──────────────────────────────────────────────────────
+function kboCalcEV() {
+  const r = window._kboLastResult;
+  if (!r) { alert('먼저 예측을 계산하세요'); return; }
+
+  const underOdds = parseFloat(document.getElementById('kbo-ev-under-odds').value);
+  const overOdds  = parseFloat(document.getElementById('kbo-ev-over-odds').value);
+  if (isNaN(underOdds) && isNaN(overOdds)) return;
+
+  document.getElementById('kbo-ev-result').style.display = 'block';
+  const calcEV = (prob, odds) => prob * (odds - 1) - (1 - prob);
+
+  let underEV = -Infinity, overEV = -Infinity;
+
+  if (!isNaN(underOdds)) {
+    underEV = calcEV(r.p45, underOdds);
+    const el = document.getElementById('kbo-ev-under');
+    const vd = document.getElementById('kbo-ev-under-verdict');
+    el.textContent = (underEV >= 0 ? '+' : '') + (underEV * 100).toFixed(1) + '%';
+    el.style.color  = underEV > 0 ? 'var(--green)' : 'var(--red)';
+    vd.textContent  = underEV > 0.03 ? '✅ EV+' : underEV >= 0 ? '🟡 약한 EV+' : '❌ EV-';
+    vd.style.color  = underEV > 0.03 ? 'var(--green)' : underEV >= 0 ? 'var(--gold)' : 'var(--red)';
+  }
+
+  if (!isNaN(overOdds)) {
+    overEV = calcEV(r.pOver, overOdds);
+    const el = document.getElementById('kbo-ev-over');
+    const vd = document.getElementById('kbo-ev-over-verdict');
+    el.textContent = (overEV >= 0 ? '+' : '') + (overEV * 100).toFixed(1) + '%';
+    el.style.color  = overEV > 0 ? 'var(--green)' : 'var(--red)';
+    vd.textContent  = overEV > 0.03 ? '✅ EV+' : overEV >= 0 ? '🟡 약한 EV+' : '❌ EV-';
+    vd.style.color  = overEV > 0.03 ? 'var(--green)' : overEV >= 0 ? 'var(--gold)' : 'var(--red)';
+  }
+
+  const best = Math.max(underEV, overEV);
+  const rec  = document.getElementById('kbo-ev-recommend');
+  rec.style.display = 'block';
+  if (best > 0.05) {
+    const side = underEV > overEV ? '언더' : '오버';
+    rec.style.cssText += ';background:rgba(0,230,118,0.08);border:1px solid rgba(0,230,118,0.25);color:var(--green)';
+    rec.textContent = `⚡ ${side} EV+ ${(best*100).toFixed(1)}% — 베팅 고려`;
+  } else if (best > 0) {
+    rec.style.cssText += ';background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);color:var(--gold)';
+    rec.textContent = `🟡 약한 EV+ — 엣지 미미, 신중하게`;
+  } else {
+    rec.style.cssText += ';background:rgba(255,59,92,0.06);border:1px solid rgba(255,59,92,0.2);color:var(--red)';
+    rec.textContent = `❌ 양쪽 EV- — 패스 권장`;
+  }
+  rec.style.padding = '10px 14px';
+  rec.style.fontFamily = 'var(--mono)';
+  rec.style.fontSize = '12px';
+  rec.style.textAlign = 'center';
+  rec.style.borderRadius = '4px';
+  rec.style.marginTop = '8px';
+}
+
+// ── 디버그 토글 ──────────────────────────────────────────────
+function kboToggleDebug() {
+  const body   = document.getElementById('kbo-debug-body');
+  const toggle = document.getElementById('kbo-debug-toggle');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  toggle.textContent = isOpen ? '펼치기' : '접기';
+}
+
+// ── 초기화 ──────────────────────────────────────────────────
+function kboReset() {
+  ['kbo-home-name','kbo-home-pitcher','kbo-home-era','kbo-home-fip','kbo-home-ip',
+   'kbo-home-fip-recent','kbo-home-woba','kbo-home-lineup-woba',
+   'kbo-away-name','kbo-away-pitcher','kbo-away-era','kbo-away-fip','kbo-away-ip',
+   'kbo-away-fip-recent','kbo-away-woba','kbo-away-lineup-woba',
+   'kbo-home-park','kbo-ev-under-odds','kbo-ev-over-odds'
+  ].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('kbo-alpha').value     = '0.52';
+  document.getElementById('kbo-scale').value     = '1.20';
+  document.getElementById('kbo-delta-tto').value = '0.08';
+  document.getElementById('kbo-sig-a').value     = '1.5';
+  document.getElementById('kbo-sig-b').value     = '0.8';
+  document.getElementById('park-select').value   = '';
+  document.getElementById('park-display').textContent = '';
+  document.getElementById('result-panel').style.display = 'none';
+  document.getElementById('kbo-calc-status').textContent = '';
+  document.getElementById('kbo-ev-result').style.display = 'none';
+  window._kboLastResult = null;
+}
+
+// ── 탭 전환 ─────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelector('.tab-btn.tab-' + name).classList.add('active');
+  // 승패 탭 진입 시 결과 갱신
+  if (name === 'win') renderWinTab();
+  // 기록 탭 진입 시 날짜 자동 입력
+  if (name === 'rec') {
+    const d = document.getElementById('rec-date');
+    if (!d.value) d.value = new Date().toISOString().slice(0,10);
+    // 마지막 계산 경기명 자동 채움
+    if (window._kboLastResult) {
+      const m = document.getElementById('rec-matchup');
+      if (!m.value) m.value = `${window._kboLastResult.homeName} vs ${window._kboLastResult.awayName}`;
+      const mp = document.getElementById('rec-model-prob');
+      if (!mp.value) mp.value = Math.round(window._kboLastResult.p45 * 100);
+    }
+  }
+}
+
+// ── 5이닝 승패 계산 (Skellam 근사) ──────────────────────────
+// Skellam PMF: P(X-Y = k) where X~Pois(lA), Y~Pois(lB)
+// 근사: P(X > Y) = P(X-Y > 0), 시뮬레이션 방식으로 계산
+function calcWinProb(lHome, lAway) {
+  // 직접 합산: P(홈득점 > 원정득점)
+  const MAX = 20;
+  let pHome = 0, pAway = 0, pDraw = 0;
+  for (let h = 0; h <= MAX; h++) {
+    for (let a = 0; a <= MAX; a++) {
+      const p = poissonPMF(h, lHome) * poissonPMF(a, lAway);
+      if (h > a) pHome += p;
+      else if (a > h) pAway += p;
+      else pDraw += p;
+    }
+  }
+  // 득점 차이 분포
+  let pH2 = 0, pH1 = 0, pA1 = 0, pA2 = 0;
+  for (let h = 0; h <= MAX; h++) {
+    for (let a = 0; a <= MAX; a++) {
+      const p = poissonPMF(h, lHome) * poissonPMF(a, lAway);
+      const diff = h - a;
+      if (diff >= 2)  pH2 += p;
+      if (diff === 1) pH1 += p;
+      if (diff === -1) pA1 += p;
+      if (diff <= -2)  pA2 += p;
+    }
+  }
+  return { pHome, pAway, pDraw, pH2, pH1, pA1, pA2 };
+}
+
+function renderWinTab() {
+  const r = window._kboLastResult;
+  const noData = document.getElementById('win-no-data');
+  const winRes = document.getElementById('win-result');
+
+  if (!r) {
+    noData.style.display = 'block';
+    winRes.style.display = 'none';
+    return;
+  }
+  noData.style.display = 'none';
+  winRes.style.display = 'block';
+
+  const w = calcWinProb(r.lambdaHome, r.lambdaAway);
+
+  document.getElementById('win-home-name').textContent = r.homeName;
+  document.getElementById('win-away-name').textContent = r.awayName;
+  document.getElementById('win-home-prob').textContent = Math.round(w.pHome * 100) + '%';
+  document.getElementById('win-away-prob').textContent = Math.round(w.pAway * 100) + '%';
+
+  // 우세팀 배지
+  const fav = document.getElementById('win-favorite-badge');
+  if (w.pHome > w.pAway + 0.05) {
+    fav.textContent = `▲ ${r.homeName} 우세`;
+    fav.style.cssText = 'background:rgba(79,195,247,0.12);border:1px solid rgba(79,195,247,0.3);color:var(--accent);display:inline-block;padding:6px 16px;border-radius:3px;font-family:var(--mono);font-size:12px;font-weight:700;';
+  } else if (w.pAway > w.pHome + 0.05) {
+    fav.textContent = `▲ ${r.awayName} 우세`;
+    fav.style.cssText = 'background:rgba(187,134,252,0.12);border:1px solid rgba(187,134,252,0.3);color:var(--purple);display:inline-block;padding:6px 16px;border-radius:3px;font-family:var(--mono);font-size:12px;font-weight:700;';
+  } else {
+    fav.textContent = '⇌ 팽팽';
+    fav.style.cssText = 'background:rgba(255,215,64,0.08);border:1px solid rgba(255,215,64,0.2);color:var(--gold);display:inline-block;padding:6px 16px;border-radius:3px;font-family:var(--mono);font-size:12px;font-weight:700;';
+  }
+
+  // 득점 차이 분포
+  const fmt = v => Math.round(v * 100) + '%';
+  document.getElementById('win-p-home2').textContent = fmt(w.pH2);
+  document.getElementById('win-p-home1').textContent = fmt(w.pH1);
+  document.getElementById('win-p-draw').textContent  = fmt(w.pDraw);
+  document.getElementById('win-p-away1').textContent = fmt(w.pA1);
+  document.getElementById('win-p-away2').textContent = fmt(w.pA2);
+
+  // 색상
+  document.getElementById('win-home-prob').style.color = w.pHome > 0.5 ? 'var(--accent)' : 'var(--text2)';
+  document.getElementById('win-away-prob').style.color = w.pAway > 0.5 ? 'var(--purple)' : 'var(--text2)';
+
+  // 저장용
+  window._kboWinResult = w;
+}
+
+// ── 승패 EV ─────────────────────────────────────────────────
+function calcWinEV() {
+  const w = window._kboWinResult;
+  if (!w) { alert('먼저 예측을 계산하세요 (언/오버 탭)'); return; }
+
+  const homeOdds = parseFloat(document.getElementById('win-ev-home-odds').value);
+  const awayOdds = parseFloat(document.getElementById('win-ev-away-odds').value);
+  if (isNaN(homeOdds) && isNaN(awayOdds)) return;
+
+  document.getElementById('win-ev-result').style.display = 'block';
+  const calcEV = (prob, odds) => prob * (odds - 1) - (1 - prob);
+
+  let hEV = -Infinity, aEV = -Infinity;
+
+  if (!isNaN(homeOdds)) {
+    hEV = calcEV(w.pHome, homeOdds);
+    const el = document.getElementById('win-ev-home');
+    const vd = document.getElementById('win-ev-home-verdict');
+    el.textContent = (hEV >= 0 ? '+' : '') + (hEV * 100).toFixed(1) + '%';
+    el.style.color = hEV > 0 ? 'var(--green)' : 'var(--red)';
+    vd.textContent = hEV > 0.03 ? '✅ EV+' : hEV >= 0 ? '🟡 약한 EV+' : '❌ EV-';
+    vd.style.color = hEV > 0.03 ? 'var(--green)' : hEV >= 0 ? 'var(--gold)' : 'var(--red)';
+  }
+  if (!isNaN(awayOdds)) {
+    aEV = calcEV(w.pAway, awayOdds);
+    const el = document.getElementById('win-ev-away');
+    const vd = document.getElementById('win-ev-away-verdict');
+    el.textContent = (aEV >= 0 ? '+' : '') + (aEV * 100).toFixed(1) + '%';
+    el.style.color = aEV > 0 ? 'var(--green)' : 'var(--red)';
+    vd.textContent = aEV > 0.03 ? '✅ EV+' : aEV >= 0 ? '🟡 약한 EV+' : '❌ EV-';
+    vd.style.color = aEV > 0.03 ? 'var(--green)' : aEV >= 0 ? 'var(--gold)' : 'var(--red)';
+  }
+
+  const best = Math.max(hEV, aEV);
+  const rec = document.getElementById('win-ev-recommend');
+  rec.style.display = 'block';
+  rec.style.padding = '10px 14px';
+  rec.style.fontFamily = 'var(--mono)';
+  rec.style.fontSize = '12px';
+  rec.style.textAlign = 'center';
+  rec.style.borderRadius = '4px';
+  rec.style.marginTop = '8px';
+  if (best > 0.05) {
+    const side = hEV > aEV ? window._kboLastResult.homeName + ' 승' : window._kboLastResult.awayName + ' 승';
+    rec.style.cssText += ';background:rgba(0,230,118,0.08);border:1px solid rgba(0,230,118,0.25);color:var(--green)';
+    rec.textContent = `⚡ ${side} EV+ ${(best*100).toFixed(1)}% — 베팅 고려`;
+  } else if (best > 0) {
+    rec.style.cssText += ';background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);color:var(--gold)';
+    rec.textContent = `🟡 약한 EV+ — 엣지 미미, 신중하게`;
+  } else {
+    rec.style.cssText += ';background:rgba(255,59,92,0.06);border:1px solid rgba(255,59,92,0.2);color:var(--red)';
+    rec.textContent = `❌ 양쪽 EV- — 패스 권장`;
+  }
+}
+
+// ── 경기 기록 (localStorage) ─────────────────────────────────
+const REC_KEY = 'kbo_f5_records';
+
+function loadRecords() {
+  try { return JSON.parse(localStorage.getItem(REC_KEY) || '[]'); }
+  catch { return []; }
+}
+function saveRecords(records) {
+  localStorage.setItem(REC_KEY, JSON.stringify(records));
+}
+
+function saveRecord() {
+  const date     = document.getElementById('rec-date').value.trim();
+  const matchup  = document.getElementById('rec-matchup').value.trim();
+  const type     = document.getElementById('rec-type').value;
+  const line     = document.getElementById('rec-line').value.trim();
+  const modelP   = document.getElementById('rec-model-prob').value.trim();
+  const actual   = document.getElementById('rec-actual').value.trim();
+  const result   = document.getElementById('rec-result').value;
+  const memo     = document.getElementById('rec-memo').value.trim();
+
+  if (!date || !matchup) {
+    alert('날짜와 경기명은 필수입니다'); return;
+  }
+
+  const records = loadRecords();
+  records.unshift({
+    id: Date.now(),
+    date, matchup, type, line, modelP, actual, result, memo
+  });
+  saveRecords(records);
+  renderRecords();
+
+  // 폼 초기화 (날짜, 경기명 유지)
+  ['rec-line','rec-model-prob','rec-actual','rec-memo'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('rec-result').value = '';
+}
+
+function deleteRecord(id) {
+  const records = loadRecords().filter(r => r.id !== id);
+  saveRecords(records);
+  renderRecords();
+}
+
+function clearAllRecords() {
+  if (!confirm('전체 기록을 삭제하시겠습니까?')) return;
+  saveRecords([]);
+  renderRecords();
+}
+
+const TYPE_LABEL = { under:'언더', over:'오버', home:'홈 승', away:'원정 승' };
+const RES_CLASS  = { hit:'tag-hit', miss:'tag-miss', pass:'tag-pass', '':'tag-pass' };
+const RES_LABEL  = { hit:'✅ 적중', miss:'❌ 미적중', pass:'⏭ 패스', '':'—' };
+
+function renderRecords() {
+  const records = loadRecords();
+  const tbody   = document.getElementById('rec-tbody');
+
+  // 요약
+  const done   = records.filter(r => r.result === 'hit' || r.result === 'miss');
+  const hits   = records.filter(r => r.result === 'hit').length;
+  const misses = records.filter(r => r.result === 'miss').length;
+  document.getElementById('rec-total').textContent = records.length;
+  document.getElementById('rec-hit').textContent   = hits;
+  document.getElementById('rec-miss').textContent  = misses;
+  document.getElementById('rec-rate').textContent  =
+    done.length > 0 ? Math.round(hits / done.length * 100) + '%' : '—';
+
+  if (records.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:20px;">기록 없음</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = records.map(r => `
+    <tr>
+      <td>${r.date}</td>
+      <td>${r.matchup}</td>
+      <td style="color:var(--gold)">${TYPE_LABEL[r.type] || r.type}</td>
+      <td>${r.line || '—'}</td>
+      <td style="color:var(--accent)">${r.modelP ? r.modelP + '%' : '—'}</td>
+      <td>${r.actual || '—'}</td>
+      <td class="${RES_CLASS[r.result]}">${RES_LABEL[r.result]}</td>
+      <td style="color:var(--text3);max-width:120px;overflow:hidden;text-overflow:ellipsis;">${r.memo || ''}</td>
+      <td><button class="btn-del-record" onclick="deleteRecord(${r.id})">✕</button></td>
+    </tr>
+  `).join('');
+}
+
+// ── 계산 후 승패 탭 자동 갱신 훅 ────────────────────────────
+// kboCalculate 완료 후 호출 (언오버 탭에서 계산 시 승패도 준비)
+const _origCalc = kboCalculate;
+window.kboCalculate = function() {
+  _origCalc();
+  // 승패 탭이 활성이면 즉시 갱신
+  if (document.getElementById('tab-win').classList.contains('active')) {
+    renderWinTab();
+  }
+};
+
+// ── 초기 로드 ────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  renderRecords();
+  document.getElementById('rec-date').value = new Date().toISOString().slice(0,10);
+});
+
+// ── EDGE FINDER 전송 ─────────────────────────────────────────
+function sendToEF(mode) {
+  const r = window._kboLastResult;
+  const w = window._kboWinResult;
+
+  if (!r) {
+    alert('먼저 언/오버 탭에서 예측을 계산하세요');
+    return;
+  }
+
+  let prob, odds, type, line, statusId, pathId;
+
+  if (mode === 'uo') {
+    // 언/오버: EV가 더 높은 쪽 자동 선택
+    const underOdds = parseFloat(document.getElementById('kbo-ev-under-odds').value);
+    const overOdds  = parseFloat(document.getElementById('kbo-ev-over-odds').value);
+    const calcEV = (p, o) => isNaN(o) ? -Infinity : p * (o - 1) - (1 - p);
+    const uEV = calcEV(r.p45, underOdds);
+    const oEV = calcEV(r.pOver, overOdds);
+
+    if (uEV >= oEV && !isNaN(underOdds)) {
+      prob  = Math.round(r.p45 * 100);
+      odds  = underOdds;
+      type  = 'under';
+      line  = '4.5';
+    } else if (!isNaN(overOdds)) {
+      prob  = Math.round(r.pOver * 100);
+      odds  = overOdds;
+      type  = 'over';
+      line  = '4.5';
+    } else {
+      // 배당 미입력 시 언더 기본
+      prob  = Math.round(r.p45 * 100);
+      odds  = '';
+      type  = 'under';
+      line  = '4.5';
+    }
+    statusId = 'ef-send-status-uo';
+    pathId   = 'ef-path-uo';
+
+  } else if (mode === 'win-home') {
+    if (!w) { alert('승패 탭에서 먼저 결과를 확인하세요'); return; }
+    prob  = Math.round(w.pHome * 100);
+    odds  = parseFloat(document.getElementById('win-ev-home-odds').value) || '';
+    type  = 'home';
+    line  = '';
+    statusId = 'ef-send-status-win';
+    pathId   = 'ef-path-win';
+
+  } else if (mode === 'win-away') {
+    if (!w) { alert('승패 탭에서 먼저 결과를 확인하세요'); return; }
+    prob  = Math.round(w.pAway * 100);
+    odds  = parseFloat(document.getElementById('win-ev-away-odds').value) || '';
+    type  = 'away';
+    line  = '';
+    statusId = 'ef-send-status-win';
+    pathId   = 'ef-path-win';
+  }
+
+  const matchup = `${r.homeName} vs ${r.awayName}`;
+  const efPath  = document.getElementById(pathId).value.trim() || './index.html';
+
+  // URL 파라미터 조립
+  const params = new URLSearchParams({
+    kbo:     '1',
+    prob:    prob,
+    type:    type,
+    matchup: matchup,
+  });
+  if (odds)  params.set('odds', odds);
+  if (line)  params.set('line', line);
+
+  const url = `${efPath}?${params.toString()}`;
+
+  // 새 탭으로 열기
+  window.open(url, '_blank');
+
+  // 상태 메시지
+  const st = document.getElementById(statusId);
+  st.style.color = 'var(--green)';
+  st.textContent = `✅ EDGE FINDER 전송 완료 — prob:${prob}% / odds:${odds || '미입력'} / ${type}`;
+  setTimeout(() => { st.textContent = ''; }, 5000);
+
+  // 기록 탭에 자동 채움
+  document.getElementById('rec-matchup').value  = matchup;
+  document.getElementById('rec-model-prob').value = prob;
+  document.getElementById('rec-type').value = type;
+  if (line) document.getElementById('rec-line').value =
+    `${line}${odds ? ' / ' + odds : ''}`;
+}
+</script>
+</body>
+</html>

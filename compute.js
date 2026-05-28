@@ -743,10 +743,11 @@ function computeSystemState(scopedBets, allBets, settings, context = {}) {
   const _isAllScope = _scope === 'all';
 
   // finSeason 필터:
-  //   scope='all'  → 시즌 무관 전체 손익 집계 (UI scope가 이미 범위 결정)
-  //   그 외        → 현재 시즌만 (stats 탭 등 시즌 경계 기준 집계)
+  //   항상 현재 시즌(currentFinSeason)만 손익 집계.
+  //   scope='all'이라도 이전 시즌 손익은 포함하지 않음 — 새 시즌 시작의 의미를 유지.
+  //   단, 레거시 데이터(finSeason=0)는 시즌1에서만 포함 (구버전 사용자 호환).
   const moneyResolved = allResolved.filter(b =>
-    (_isAllScope || b.finSeason === _curSeason) &&
+    (b.finSeason === _curSeason || (b.finSeason === 0 && _curSeason === 1)) &&
     b.amount > 0 &&
     Number.isFinite(b.profit)
   );

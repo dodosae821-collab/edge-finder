@@ -5,15 +5,16 @@ function updateStatsAnalysis() {
   // allResolved: 시뮬 제외 전체 실제 기록 (승률·ECE·streak·예측력 기준)
   const allResolved = resolved.filter(b => !b.isSim);
   // resolvedForMoney: 현재 시즌 + 실제 금액 기록만 (손익·ROI·bankroll 기준)
+  // 레거시(finSeason=0) 데이터는 시즌1에서만 포함
   const _curSeason = (Number.isInteger(getSettings().currentFinSeason) && getSettings().currentFinSeason >= 1)
     ? getSettings().currentFinSeason : 1;
   const resolvedForMoney = allResolved.filter(b =>
-    b.finSeason === _curSeason &&
+    (b.finSeason === _curSeason || (b.finSeason === 0 && _curSeason === 1)) &&
     b.amount > 0 &&
     Number.isFinite(b.profit)
   );
-  // ── legacy 카운트 (finSeason:0) — 한 번 계산, 두 곳 재사용 ──
-  const legacyCount    = allResolved.filter(b => b.finSeason === 0).length;
+  // ── legacy 카운트 (finSeason:0) — 시즌1이면 포함됐으므로 hint 표시 안 함 ──
+  const legacyCount    = _curSeason === 1 ? 0 : allResolved.filter(b => b.finSeason === 0).length;
   const prevSeasonCount = allResolved.filter(b => b.finSeason > 0 && b.finSeason < _curSeason).length;
   const excludedCount  = legacyCount + prevSeasonCount;
 

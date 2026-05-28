@@ -79,7 +79,7 @@ function switchTab(name, el) {
   if (name === 'simulator') { calcKelly(); renderKellySlots(bets.filter(b=>b.result!=='PENDING').length % 12, bets.filter(b=>b.result!=='PENDING')); updateSimRoundSeedBanner(); updateKellyHistory(); updateKellyGradeBanner(); try{updateFibonacci();}catch(e){} }
   if (name === 'judgeall')  updateJudgeAll();
   if (name === 'decision')  initDecisionTab();
-  if (name === 'settings')  { loadSettingsDisplay(); updateWeeklySeedStatus(); setTodayKST(); renderPrincipleList(); }
+  if (name === 'settings')  { loadSettingsDisplay(); updateWeeklySeedStatus(); setTodayKST(); renderPrincipleList(); if (typeof renderSeasonHistory === 'function') renderSeasonHistory(); }
   if (name === 'vault')     renderVault();
   if (name === 'strategy')  initSimulator();
   if (name === 'journal')   { loadJournal(); switchJournalTab(_journalTab || 'plan'); }

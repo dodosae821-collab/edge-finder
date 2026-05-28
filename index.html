@@ -4461,14 +4461,97 @@
 <script>
 // ── 앱 초기화 ── 모든 스크립트 로드 완료 후 실행
 document.addEventListener('DOMContentLoaded', function () {
-  // 1. 중앙 엔진 최초 실행
-  if (typeof calcSystemState === 'function') calcSystemState();
-  // 2. 대시보드 차트 초기 렌더
+  // 1. 대시보드 차트 초기화 (refreshAllUI 이전에 먼저 차트 객체 생성)
   if (typeof initCharts === 'function') initCharts();
-  if (typeof updateCharts === 'function') updateCharts();
-  // 3. scope 버튼 active 상태 초기화 (두 위치 모두)
-  if (typeof _syncScopeUI === 'function') _syncScopeUI();
+  // 2. 전체 UI 초기 렌더 (헤더 스탯, KPI 카드, 베팅 목록, scope 버튼 등 일괄 갱신)
+  if (typeof refreshAllUI === 'function') refreshAllUI();
+  // 3. KBO F5 연동 — URL 파라미터 수신
+  _kboF5ReceiveParams();
 });
+
+// ── KBO F5 → EDGE FINDER 파라미터 수신 ──────────────────────
+// 호출 예: index.html?kbo=1&prob=62&odds=1.85&type=under&matchup=LG+vs+두산
+function _kboF5ReceiveParams() {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.get('kbo')) return;
+
+  const prob    = parseFloat(params.get('prob'));
+  const odds    = parseFloat(params.get('odds'));
+  const type    = params.get('type') || '';
+  const matchup = params.get('matchup') || '';
+  const line    = params.get('line') || '';
+
+  if (isNaN(prob)) return;
+
+  // 전략베팅 탭으로 자동 전환
+  const stratTab = document.querySelector('.tab[onclick*="strategy"]');
+  if (stratTab) stratTab.click();
+
+  // 폴더 행 추가 후 값 채움
+  setTimeout(() => {
+    if (typeof addFolderRow === 'function') {
+      addFolderRow();
+      const lastRow = document.querySelector('#folder-rows > div:last-child');
+      if (lastRow) {
+        const oddsInput = lastRow.querySelector('.folder-odds');
+        const probInput = lastRow.querySelector('.folder-prob');
+        const memoInput = lastRow.querySelector('.folder-memo');
+        if (oddsInput && !isNaN(odds)) {
+          oddsInput.value = odds;
+          oddsInput.dispatchEvent(new Event('input'));
+        }
+        if (probInput) {
+          probInput.value = prob;
+          probInput.dispatchEvent(new Event('input'));
+        }
+        if (memoInput && matchup) {
+          const typeLabel = {under:'언더',over:'오버',home:'홈승',away:'원정승'}[type] || type;
+          memoInput.value = `[KBO F5] ${matchup} ${typeLabel}${line ? ' ' + line : ''}`;
+          memoInput.dispatchEvent(new Event('input'));
+        }
+      }
+    }
+  }, 300);
+
+  _kboF5ShowBanner(prob, odds, type, matchup, line);
+}
+
+function _kboF5ShowBanner(prob, odds, type, matchup, line) {
+  const typeLabel = {under:'언더',over:'오버',home:'홈승',away:'원정승'}[type] || type;
+  const banner = document.createElement('div');
+  banner.id = 'kbo-f5-banner';
+  banner.style.cssText = [
+    'position:fixed','top:60px','left:50%','transform:translateX(-50%)',
+    'background:#10141c','border:1px solid rgba(79,195,247,0.4)',
+    'border-left:3px solid #4fc3f7','border-radius:6px',
+    'padding:10px 16px','z-index:9999',
+    'font-family:JetBrains Mono,monospace','font-size:12px',
+    'color:#e8eaf0','display:flex','align-items:center','gap:12px',
+    'box-shadow:0 4px 24px rgba(0,0,0,0.5)',
+    'animation:kboBannerIn 0.3s ease',
+  ].join(';');
+  banner.innerHTML = `
+    <span style="color:#4fc3f7;font-size:14px;">⚾</span>
+    <span>
+      <span style="color:#4fc3f7;font-weight:700;">KBO F5</span>
+      <span style="color:#8892a4;margin:0 6px;">→</span>
+      <span>${matchup || '경기'}</span>
+      <span style="color:#ffd740;margin-left:8px;">${typeLabel}${line ? ' ' + line : ''}</span>
+      <span style="color:#00e676;margin-left:8px;">${prob}%</span>
+      ${!isNaN(odds) ? `<span style="color:#8892a4;margin-left:4px;">/ ${odds}</span>` : ''}
+    </span>
+    <button onclick="document.getElementById('kbo-f5-banner').remove()"
+      style="background:transparent;border:none;color:#4a5568;cursor:pointer;font-size:14px;margin-left:8px;">✕</button>
+  `;
+  if (!document.getElementById('kbo-banner-style')) {
+    const s = document.createElement('style');
+    s.id = 'kbo-banner-style';
+    s.textContent = '@keyframes kboBannerIn{from{opacity:0;transform:translateX(-50%) translateY(-8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+    document.head.appendChild(s);
+  }
+  document.body.appendChild(banner);
+  setTimeout(() => { const b = document.getElementById('kbo-f5-banner'); if(b) b.remove(); }, 6000);
+}
 </script>
 </body>
 </html>
