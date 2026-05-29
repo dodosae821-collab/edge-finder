@@ -35,6 +35,8 @@ console.assert(typeof computeRiskMetrics   === 'function', '[ui_tabs.js] compute
 
 // ── 판단 필터 상태 ───────────────────────────────────────────
 let judgeFilter = 'all';
+// activePage — 현재 활성 탭 이름. F5 후 복원은 DOMContentLoaded에서 처리.
+let activePage = '';
 
 
 // ============================================================
@@ -99,6 +101,8 @@ function switchTabFromDropdown(name, el) {
   if (page) page.classList.add('active');
 
   activePage = name;
+  // F5 후 탭 복원을 위해 마지막 활성 탭 저장
+  try { localStorage.setItem('edge_active_tab', name); } catch(e) {}
   if (name === 'analysis')  { updateStatsAnalysis(); updateTagStats(); }
   if (name === 'analysis2') updateStatsAnalysis();
   if (name === 'analysis3') { updateStatsAnalysis(); updateEvBias(); updateEvMonthly(); updateEvCum(); }
@@ -807,3 +811,4 @@ console.assert(typeof updateRoundHistory     === 'function', '[ui_tabs.js] updat
 console.assert(typeof clearRoundHistory      === 'function', '[ui_tabs.js] clearRoundHistory not defined');
 console.assert(typeof _syncScopeUI           === 'function', '[ui_tabs.js] _syncScopeUI not defined');
 console.assert(typeof _syncRoundStatusUI     === 'function', '[ui_tabs.js] _syncRoundStatusUI not defined');
+

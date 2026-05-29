@@ -1,6 +1,17 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script>
+// ── 전역 에러 핸들러 (F5/새로고침 후 앱 먹통 방지) ──────────
+// 초기화 중 예외가 발생해도 앱 전체가 멈추지 않도록 캐치.
+window.onerror = function(msg, src, line, col, err) {
+  console.error('[global error]', msg, 'at', src, line + ':' + col, err);
+  return false; // 기본 처리(콘솔 출력)는 유지
+};
+window.addEventListener('unhandledrejection', function(e) {
+  console.error('[unhandled promise]', e.reason);
+});
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4467,6 +4478,16 @@ document.addEventListener('DOMContentLoaded', function () {
   if (typeof refreshAllUI === 'function') refreshAllUI();
   // 3. KBO F5 연동 — URL 파라미터 수신
   _kboF5ReceiveParams();
+  // 4. F5/새로고침 후 마지막 활성 탭 복원
+  // ui_tabs.js에도 동일 로직이 있으나, index.html이 마지막 로드되므로
+  // 여기서 실행하면 모든 스크립트가 준비된 후 안전하게 실행됨
+  try {
+    const _savedTab = localStorage.getItem('edge_active_tab');
+    if (_savedTab && _savedTab !== 'dashboard' && document.getElementById('page-' + _savedTab)) {
+      if (typeof switchTab === 'function') switchTab(_savedTab, null);
+      else if (typeof switchTabFromDropdown === 'function') switchTabFromDropdown(_savedTab, null);
+    }
+  } catch(e) {}
 });
 
 // ── KBO F5 → EDGE FINDER 파라미터 수신 ──────────────────────

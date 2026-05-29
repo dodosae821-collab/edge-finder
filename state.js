@@ -204,11 +204,13 @@ function renderPage(page) {
     case 'judgeall':
       if (typeof updateJudgeAll === 'function') updateJudgeAll();
       break;
+    case 'strategy':
+      if (typeof initSimulator === 'function') initSimulator();
+      break;
     case 'simulator':
       if (typeof calcKelly        === 'function') calcKelly();
       if (typeof renderKellySlots === 'function') {
-        const resolved = (typeof getBetsByScope === 'function' ? getBetsByScope() : bets)
-                           .filter(b => b.result !== 'PENDING');
+        const resolved = getBets().filter(b => b.result !== 'PENDING');
         renderKellySlots(resolved.length % 12, resolved);
       }
       if (typeof updateSimRoundSeedBanner === 'function') updateSimRoundSeedBanner();

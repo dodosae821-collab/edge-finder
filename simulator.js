@@ -293,6 +293,8 @@ function simRender() {
   const gb=document.getElementById('sim-goal-banner'); if(gb) gb.style.display=simState.goalReached?'block':'none';
   const gt=document.getElementById('sim-goal-text'); if(gt&&simState.goalReached) gt.textContent=`세이브 100만원 달성! — ${simState.round-1}회차 완료`;
   simRenderHistory();
+  // 홀딩 패널은 simRender 호출 경로와 무관하게 항상 동기화
+  if (typeof simRenderPending === 'function') simRenderPending();
 }
 
 function simMemoInput(input, boxId) {
@@ -411,16 +413,16 @@ function simHold() {
     sv, b2, b3, b4, o2, o3, o4, ex2, ex3, memo, memoB, memoC, folderCount,
     round: simState.round,
     amts: {
-      both:  sv+w2+w3+w4,     // A+B+C 모두 성공
-      ab:    sv+w2+w3-b4,     // A+B만 성공 (C 실패 → C 베팅금 차감)
-      ac:    sv+w2+w4-b3,     // A+C만 성공 (B 실패 → B 베팅금 차감)
-      bc:    sv+w3+w4-b2,     // B+C만 성공 (A 실패 → A 베팅금 차감)
-      onlyA: sv+w2-b3-b4,     // A만 성공 (B,C 베팅금 차감)
-      onlyB: sv+w3-b2-b4,     // B만 성공 (A,C 베팅금 차감)
-      onlyC: sv+w4-b2-b3,     // C만 성공 (A,B 베팅금 차감)
-      only2: sv+w2-b3,        // 2폴더 호환: A만 성공 (B 베팅금 차감)
-      only3: sv+w3-b2,        // 2폴더 호환: B만 성공 (A 베팅금 차감)
-      lose:  sv,              // 모두 실패 (세이브만 남음)
+      both:  sv+w2+w3+w4,  // A+B+C 모두 성공
+      ab:    sv+w2+w3,      // A+B만 성공 (C 베팅금 소멸, 이미 차감)
+      ac:    sv+w2+w4,      // A+C만 성공 (B 베팅금 소멸)
+      bc:    sv+w3+w4,      // B+C만 성공 (A 베팅금 소멸)
+      onlyA: sv+w2,         // A만 성공 (B,C 베팅금 소멸)
+      onlyB: sv+w3,         // B만 성공 (A,C 베팅금 소멸)
+      onlyC: sv+w4,         // C만 성공 (A,B 베팅금 소멸)
+      only2: sv+w2,         // 2폴더: A만 성공 (B 베팅금 소멸)
+      only3: sv+w3,         // 2폴더: B만 성공 (A 베팅금 소멸)
+      lose:  sv,            // 모두 실패 (세이브만 남음)
     }
   };
 
@@ -452,7 +454,9 @@ function simRenderPending() {
   if (infoEl) infoEl.innerHTML = lines.join('<br>');
 
   // 진행중 버튼 동적 생성
-  const hasC  = simState.balance >= 1300000 && (simPending?.b4 || 0) > 0;
+  // C폴더 버튼: b4가 설정된 이상 잔액 조건과 무관하게 표시해야 함
+  // (홀딩 후 F5, 또는 잔액 변동 시에도 잘못된 버튼셋이 렌더되는 버그 수정)
+  const hasC  = (simPending?.b4 || 0) > 0;
   const hasB  = (simPending?.b3 || 0) > 0;
   const pendingBtns = document.getElementById('sim-pending-btns');
   if (pendingBtns) {
@@ -504,7 +508,12 @@ function simApplyPending(key) {
   }
 
   simSnaps.push(JSON.parse(JSON.stringify(simState)));
-  const excessSave = key==='both'?p.ex2+p.ex3:key==='only2'?p.ex2:key==='only3'?p.ex3:0;
+  const excessSave = {
+    both: p.ex2 + p.ex3,
+    only2: p.ex2, onlyA: p.ex2, ab: p.ex2, ac: p.ex2,
+    only3: p.ex3, onlyB: p.ex3, bc: p.ex3,
+    onlyC: 0, lose: 0,
+  }[key] ?? 0;
   simState.history.push({ round:p.round, save:p.sv, bet2:p.b2, bet3:p.b3, bet4:p.b4||0, odds2:p.o2, odds3:p.o3, odds4:p.o4||1, key, before:simState.balance, after:newBal, memo:p.memo, memoB:p.memoB, memoC:p.memoC||'', excessSave, folder:p.folderCount });
 
   if (newBal >= SIM_GOAL && !simState.goalReached) {
@@ -1125,5 +1134,11 @@ document.addEventListener('DOMContentLoaded', () => {
   updateAll();
   renderTemplateList();
   initMobileNav();
+
+  // ── F5/새로고침 시 전략베팅 상태 복원 ───────────────────────
+  // initSimulator()는 strategy 탭 클릭 시에도 호출되지만,
+  // 페이지 로드 즉시도 한 번 실행해야 localStorage 상태가 살아있음.
+  // (strategy 탭이 열린 채로 F5 → simState/simPending 소멸 버그 수정)
+  initSimulator();
 });
 

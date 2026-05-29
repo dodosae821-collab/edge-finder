@@ -69,6 +69,8 @@ function switchTab(name, el) {
   if (el) el.classList.add('active');
   document.getElementById('page-' + name).classList.add('active');
   activePage = name;
+  // F5 후 탭 복원을 위해 마지막 활성 탭 저장
+  try { localStorage.setItem('edge_active_tab', name); } catch(e) {}
   if (name === 'dashboard') { updateCharts(); updateFundCards(); }
   if (name === 'analysis')  updateStatsAnalysis();
   if (name === 'analysis2') { updateStatsAnalysis(); }
@@ -76,7 +78,7 @@ function switchTab(name, el) {
   if (name === 'analyze')   updateAnalyzeTab();
   if (name === 'goal')      { updateRoundHistory(); updateGoalStats(); calcGoal(); }
   if (name === 'predict')   { updateGoalStats(); updatePredictTab(); }
-  if (name === 'simulator') { calcKelly(); renderKellySlots(bets.filter(b=>b.result!=='PENDING').length % 12, bets.filter(b=>b.result!=='PENDING')); updateSimRoundSeedBanner(); updateKellyHistory(); updateKellyGradeBanner(); try{updateFibonacci();}catch(e){} }
+  if (name === 'simulator') { const _b=getBets().filter(b=>b.result!=='PENDING'); calcKelly(); renderKellySlots(_b.length % 12, _b); updateSimRoundSeedBanner(); updateKellyHistory(); updateKellyGradeBanner(); try{updateFibonacci();}catch(e){} }
   if (name === 'judgeall')  updateJudgeAll();
   if (name === 'decision')  initDecisionTab();
   if (name === 'settings')  { loadSettingsDisplay(); updateWeeklySeedStatus(); setTodayKST(); renderPrincipleList(); if (typeof renderSeasonHistory === 'function') renderSeasonHistory(); }
