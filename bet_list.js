@@ -43,7 +43,7 @@ function renderTemplateList() {
 
 let recordPage = 1;
 const RECORD_PAGE_SIZE = 12;
-let recordFiltered = [];
+let recordFiltered = null;
 
 let kellyPage = 1;
 const KELLY_PAGE_SIZE = 12;
@@ -159,7 +159,8 @@ function actualFolderCount(b) {
 
 
 function renderTablePage() {
-  if (!recordFiltered || recordFiltered.length === 0) recordFiltered = getRecordFiltered();
+  // recordFiltered가 설정되지 않은 경우에만 재계산 (null/undefined 체크)
+  if (recordFiltered === null || recordFiltered === undefined) recordFiltered = getRecordFiltered();
   const filtered = recordFiltered;
   const tbody = document.getElementById('record-table');
   if (!tbody) return;
@@ -654,10 +655,11 @@ function renderRecentTable() {
   const tbody = document.getElementById('recent-table');
   if (!tbody) return;
 
-  // window._SS는 이 래퍼에서만 읽음 — 순수 계산은 computeRecentRows에 위임
-  const SS          = window.App._SS;
-  const resolved    = SS ? SS.resolved : (typeof getBetsByScope === 'function' ? getBetsByScope().filter(b => b.result !== 'PENDING') : bets);
-  const pendingBets = typeof getBetsByScope === 'function' ? getBetsByScope().filter(b => b.result === 'PENDING') : [];
+  // _SS가 null이면 직접 getBetsByScope()로 계산 (새로고침 후 초기 렌더 안전 처리)
+  const SS = window.App._SS;
+  const scopedBets  = typeof getBetsByScope === 'function' ? getBetsByScope() : getBets();
+  const resolved    = SS ? SS.resolved : scopedBets.filter(b => b.result !== 'PENDING');
+  const pendingBets = scopedBets.filter(b => b.result === 'PENDING');
   const recent      = computeRecentRows(resolved, pendingBets, 8);
   if (recent.length === 0) {
     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:24px;">베팅 기록이 없습니다.</td></tr>';

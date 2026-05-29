@@ -17,6 +17,38 @@ function getSettings() {
   return appSettings;
 }
 
+// ── 전체 누적 자산 = lifetimeOffset + 현재 시즌 뱅크롤 ──────────
+// lifetimeOffset: 사용자가 직접 입력한 이전 누적 자산
+// getCurrentBankroll(): 현재 시즌 시작자금 + 현재 시즌 손익
+function getTotalLifetimeBankroll() {
+  const offset = Number(appSettings.lifetimeOffset) || 0;
+  return offset + getCurrentBankroll();
+}
+
+// lifetimeOffset만 저장 (전체 누적 자산 직접 수정용)
+function saveLifetimeOffset(newOffset) {
+  const val = parseFloat(String(newOffset).replace(/,/g, '')) || 0;
+  appSettings.lifetimeOffset = val;
+  Storage.setJSON(KEYS.SETTINGS, appSettings);
+  if (typeof calcSystemState === 'function') calcSystemState();
+  if (typeof loadSettingsDisplay === 'function') loadSettingsDisplay();
+  if (typeof updateFundCards === 'function') updateFundCards();
+}
+
+// 현재 회차 시작 자금만 저장 (현재 회차 뱅크롤 직접 수정용)
+function saveRoundStartFund(newStartFund) {
+  const val = parseFloat(String(newStartFund).replace(/,/g, '')) || 0;
+  appSettings.startFund = val;
+  // kellySeed도 새 시작 자금 기준으로 재계산
+  if (appSettings.betRatio > 0) {
+    appSettings.kellySeed = Math.round(val * appSettings.betRatio / 100);
+  }
+  Storage.setJSON(KEYS.SETTINGS, appSettings);
+  if (typeof calcSystemState === 'function') calcSystemState();
+  if (typeof loadSettingsDisplay === 'function') loadSettingsDisplay();
+  if (typeof updateFundCards === 'function') updateFundCards();
+}
+
 // ── Settings restorer (restore.js 전용 — 백업 복원 시 전체 교체) ──
 // NOTE: This is the only sanctioned external write path for appSettings.
 // General-purpose mutation from outside this file is not permitted.
@@ -45,6 +77,7 @@ function saveSettings() {
   appSettings = { startFund, targetFund, kellySeed, betRatio, dailyLimit, weeklyLimit,
     maxBetPct, kellyGradeAdj,
     showJournal, showEVCalc,
+    lifetimeOffset: Number(appSettings.lifetimeOffset) || 0,  // 전체 누적 오프셋 보존
     roundType: appSettings.roundType || 'manual',
     roundNbet: parseInt(document.getElementById('settings-round-nbet')?.value) || 12,
     currentFinSeason: Number.isInteger(appSettings.currentFinSeason) && appSettings.currentFinSeason >= 1
@@ -52,6 +85,8 @@ function saveSettings() {
       : 1  // 기존 사용자 최초 접근 시 시즌 1로 초기화
   };
   Storage.setJSON(KEYS.SETTINGS, appSettings);
+  // 설정 변경 후 _SS 재계산 → 뱅크롤/seed 값이 즉시 반영되도록
+  if (typeof calcSystemState === 'function') calcSystemState();
   loadSettingsDisplay();
   checkLossWarning();
   updateFundCards();
@@ -64,9 +99,11 @@ function saveSettings() {
 function loadSettingsDisplay() {
   const { startFund = 0, targetFund = 0, kellySeed = 0, betRatio = 0 } = appSettings;
   const diff = targetFund - startFund;
+  const lifetimeOffset = Number(appSettings.lifetimeOffset) || 0;
 
   // 현재 뱅크롤 계산
   const currentBankroll = getCurrentBankroll();
+  const totalLifetime   = getTotalLifetimeBankroll();
   const betSeed = getBetSeed();
 
   // 설정 확인 카드
@@ -77,10 +114,24 @@ function loadSettingsDisplay() {
   const _dt = document.getElementById('settings-display-target');     if (_dt) _dt.textContent  = targetFund > 0 ? '₩' + targetFund.toLocaleString() : '미설정';
   const _dd = document.getElementById('settings-display-diff');       if (_dd) _dd.textContent  = diff > 0 ? '+₩' + diff.toLocaleString() : '미설정';
   const _dsd = document.getElementById('settings-display-seed'); if (_dsd) _dsd.textContent = kellySeed > 0 ? '₩' + kellySeed.toLocaleString() : '미설정';
-  // 입력칸 복원
-  const _sf = document.getElementById('settings-start-fund');   if (_sf && startFund > 0) _sf.value = startFund;
-  const _tf = document.getElementById('settings-target-fund');  if (_tf && targetFund > 0) _tf.value = targetFund;
-  const _br = document.getElementById('settings-bet-ratio');    if (_br && betRatio > 0) _br.value = betRatio;
+
+  // 전체 누적 자산 표시
+  const _dlt = document.getElementById('settings-display-lifetime');
+  if (_dlt) _dlt.textContent = totalLifetime > 0 ? '₩' + Math.round(totalLifetime).toLocaleString() : (startFund > 0 ? '₩' + Math.round(currentBankroll).toLocaleString() : '미설정');
+  const _dlo = document.getElementById('settings-display-lifetime-offset');
+  if (_dlo) _dlo.textContent = lifetimeOffset > 0 ? '₩' + Math.round(lifetimeOffset).toLocaleString() : '—';
+
+  // 확인 카드 (하단 그리드)
+  const _dbConf = document.getElementById('settings-display-bankroll-confirm');
+  if (_dbConf) _dbConf.textContent = currentBankroll > 0 ? '₩' + Math.round(currentBankroll).toLocaleString() : '미설정';
+  const _dltConf = document.getElementById('settings-display-lifetime-confirm');
+  if (_dltConf) _dltConf.textContent = totalLifetime > 0 ? '₩' + Math.round(totalLifetime).toLocaleString() : (startFund > 0 ? '₩' + Math.round(currentBankroll).toLocaleString() : '미설정');
+
+  // 입력칸 복원 (값이 0이면 빈 칸으로 표시)
+  const _sf = document.getElementById('settings-start-fund');   if (_sf) _sf.value = startFund > 0 ? startFund : '';
+  const _tf = document.getElementById('settings-target-fund');  if (_tf) _tf.value = targetFund > 0 ? targetFund : '';
+  const _br = document.getElementById('settings-bet-ratio');    if (_br) _br.value = betRatio > 0 ? betRatio : '';
+  const _lo = document.getElementById('settings-lifetime-offset'); if (_lo) _lo.value = lifetimeOffset > 0 ? lifetimeOffset : '';
 
   // 손실 한도 표시
   const { dailyLimit = 0, weeklyLimit = 0 } = appSettings;
@@ -442,6 +493,33 @@ function updateGoalBankrollDisplay() {
   if (gt) gt.value = targetFund > 0 ? targetFund : '';
 }
 
+// ── 현재 회차 시작 자금 즉시 적용 버튼 핸들러 ─────────────────
+function applyRoundStartFund() {
+  const input = document.getElementById('settings-start-fund');
+  const val = input ? parseFloat(String(input.value).replace(/,/g, '')) : 0;
+  if (!val || val <= 0) {
+    showToast('현재 회차 시작 자금을 입력해주세요.', 'error');
+    return;
+  }
+  const prev = appSettings.startFund || 0;
+  saveRoundStartFund(val);
+  showToast(`✅ 현재 회차 시작 자금 ₩${Math.round(val).toLocaleString()} 적용됨${prev > 0 && prev !== val ? ` (이전 ₩${Math.round(prev).toLocaleString()})` : ''}`, 'success');
+}
+
+// ── 전체 누적 자산 오프셋 즉시 적용 버튼 핸들러 ────────────────
+function applyLifetimeOffset() {
+  const input = document.getElementById('settings-lifetime-offset');
+  const val = input ? parseFloat(String(input.value).replace(/,/g, '')) : 0;
+  if (val < 0) {
+    showToast('이전 누적 자산은 0 이상이어야 합니다.', 'error');
+    return;
+  }
+  const prev = Number(appSettings.lifetimeOffset) || 0;
+  saveLifetimeOffset(val);
+  const total = getTotalLifetimeBankroll();
+  showToast(`✅ 이전 누적 ₩${Math.round(val).toLocaleString()} 적용 → 전체 누적 자산 ₩${Math.round(total).toLocaleString()}`, 'success');
+}
+
 function previewBetSeed() {
   const ratio = parseFloat(document.getElementById('settings-bet-ratio')?.value) || 0;
   const preview = document.getElementById('bet-seed-preview');
@@ -635,9 +713,12 @@ function calcRecommendedBetSize(best) {
 }
 
 function updateFundCards() {
-  // 뱅크롤 공통 갱신
+  // 현재 회차 뱅크롤 (현재 시즌 기준)
   const br = getCurrentBankroll();
+  // 전체 누적 자산 (lifetimeOffset + 현재 회차)
+  const totalBr = getTotalLifetimeBankroll();
   const { startFund: _sf = 0 } = appSettings;
+  const lifetimeOffset = Number(appSettings.lifetimeOffset) || 0;
 
   function renderBankroll(el, showDiff) {
     if (!el) return;
@@ -648,7 +729,6 @@ function updateFundCards() {
       return;
     }
     const diff = br - _sf;
-    const sign = diff > 0 ? '+' : diff < 0 ? '' : '';
     el.textContent = (br < 0 ? '-₩' : '₩') + Math.abs(Math.round(br)).toLocaleString()
       + (showDiff && diff !== 0 ? (diff > 0 ? ' (▲+₩' : ' (▼-₩') + Math.abs(Math.round(diff)).toLocaleString() + ')' : '');
     el.style.color = br > _sf ? 'var(--gold)' : br < 0 ? 'var(--red)' : br === _sf ? 'var(--text2)' : 'var(--red)';
@@ -663,9 +743,9 @@ function updateFundCards() {
   renderBankroll(document.getElementById('ev-bankroll-display'), false);
 
   const { startFund = 0, targetFund = 0 } = appSettings;
-  const _SS = window.App._SS;
-  const totalProfit  = _SS ? _SS.totalProfit : bets.filter(b => b.result !== 'PENDING').reduce((s, b) => s + b.profit, 0);
-  const currentFund  = startFund + totalProfit;
+  const currentBankrollCalc = getCurrentBankroll();
+  const totalProfit  = currentBankrollCalc - startFund;
+  const currentFund  = currentBankrollCalc;
   const targetProfit = targetFund - startFund;
   const progressPct  = targetProfit > 0 ? Math.min(100, Math.max(0, totalProfit / targetProfit * 100)) : 0;
 
@@ -678,31 +758,48 @@ function updateFundCards() {
 
   if (startEl)   startEl.textContent   = startFund  > 0 ? '₩' + startFund.toLocaleString()  : '미설정';
   if (targetEl)  targetEl.textContent  = targetFund > 0 ? '₩' + targetFund.toLocaleString() : '미설정';
-  // ── [수정 2] 뱅크롤 카드 — scope 분기 (핵심) ──
-  // scope=round → activeRound.remaining / scope=all → 기존 bankroll
+
   const _scope       = typeof getCurrentScope  === 'function' ? getCurrentScope()  : 'all';
   const _activeRound = typeof getActiveRound   === 'function' ? getActiveRound()   : null;
 
   if (currentEl) {
     if (_scope === 'round' && _activeRound) {
-      // 회차 잔액
+      // 현재 회차: 회차 잔액 표시
       const remColor = _activeRound.remaining > _activeRound.seed * 0.3 ? 'var(--green)' : 'var(--red)';
       currentEl.textContent = '₩' + Math.round(_activeRound.remaining).toLocaleString();
       currentEl.style.color = remColor;
     } else {
-      // 총 자산 (기존 로직 유지)
+      // 전체: 현재 회차 뱅크롤 표시
       currentEl.textContent = startFund > 0 ? '₩' + Math.round(currentFund).toLocaleString() : '—';
       currentEl.style.color = currentFund >= startFund ? 'var(--green)' : 'var(--red)';
     }
   }
+
+  // 전체 누적 자산 카드 (별도 element)
+  const lifetimeEl    = document.getElementById('d-lifetime-fund');
+  const lifetimeLblEl = document.getElementById('d-lifetime-label');
+  if (lifetimeEl) {
+    if (startFund > 0) {
+      lifetimeEl.textContent = '₩' + Math.round(totalBr).toLocaleString();
+      lifetimeEl.style.color = totalBr >= (lifetimeOffset + startFund) ? 'var(--gold)' : 'var(--red)';
+    } else {
+      lifetimeEl.textContent = '—';
+      lifetimeEl.style.color = 'var(--text3)';
+    }
+  }
+  if (lifetimeLblEl) {
+    lifetimeLblEl.textContent = _scope === 'round' && _activeRound
+      ? '이전 누적 + 현재 회차'
+      : lifetimeOffset > 0 ? `이전 ₩${Math.round(lifetimeOffset).toLocaleString()} + 현재` : '현재 회차 기준';
+  }
+
   if (pctEl)  pctEl.textContent  = targetProfit > 0 ? progressPct.toFixed(1) + '%' : '—';
   if (fillEl) fillEl.style.width = progressPct + '%';
-  // ── [수정 2] d-target-label — scope에 맞게 변경 ──
   if (labelEl) {
     if (_scope === 'round' && _activeRound) {
       labelEl.textContent = '회차 잔액';
     } else {
-      labelEl.textContent = '총 자산';
+      labelEl.textContent = '현재 회차 뱅크롤';
     }
   }
   const progressTargetEl = document.getElementById('d-progress-target');
@@ -726,8 +823,8 @@ function updateFundCards() {
 
 /** 새 금액 시즌 시작 — 기존 데이터 보존, currentFinSeason만 증가 */
 function startNewFinSeason() {
-  const bets = getBets();
-  if (!bets.length) {
+  const allBets = getBets();
+  if (!allBets.length) {
     showToast('베팅 기록이 없습니다.', 'info');
     return;
   }
@@ -736,10 +833,12 @@ function startNewFinSeason() {
     ? appSettings.currentFinSeason
     : 1;
   const next = cur + 1;
+  const currentBankroll = getCurrentBankroll();
 
   const ok = confirm(
     `💰 새 금액 시즌을 시작합니다.\n\n` +
     `현재 시즌: ${cur}  →  새 시즌: ${next}\n\n` +
+    `현재 뱅크롤: ₩${Math.round(currentBankroll).toLocaleString()}\n\n` +
     `✅ 유지되는 것:\n` +
     `  · 전체 베팅 기록 (삭제 없음)\n` +
     `  · 적중률 · 예측력 · ECE 등 학습 지표\n\n` +
@@ -753,20 +852,38 @@ function startNewFinSeason() {
   if (input === null) { return; }
   if (input !== 'NEWSEASON') { showToast('입력이 일치하지 않습니다.', 'error'); return; }
 
-  // currentFinSeason 증가 후 저장
+  // 새 시즌 시작 자금 입력 (현재 뱅크롤이 기본값)
+  const newStartStr = prompt(
+    `새 시즌 시작 자금을 입력하세요.\n현재 뱅크롤 ₩${Math.round(currentBankroll).toLocaleString()}이 기본값입니다.\n(취소하면 현재 뱅크롤 그대로 사용)`,
+    Math.round(currentBankroll)
+  );
+  const newStartFund = newStartStr !== null
+    ? (parseFloat(String(newStartStr).replace(/,/g, '')) || Math.round(currentBankroll))
+    : Math.round(currentBankroll);
+
+  // currentFinSeason 증가 + startFund 갱신 후 저장
+  // 새 시즌 시작 전 현재 뱅크롤을 lifetimeOffset에 누적
+  const prevLifetimeOffset = Number(appSettings.lifetimeOffset) || 0;
+  appSettings.lifetimeOffset = prevLifetimeOffset + currentBankroll; // 이전 누적 + 이번 회차 결과
   appSettings.currentFinSeason = next;
+  appSettings.startFund = newStartFund;
+  // kellySeed도 새 시작 자금 기준으로 재계산
+  if (appSettings.betRatio > 0) {
+    appSettings.kellySeed = Math.round(newStartFund * appSettings.betRatio / 100);
+  }
   Storage.setJSON(KEYS.SETTINGS, appSettings);
 
-  // saveBets 호출 → normalize가 신규 기록부터 next 시즌 자동 부여
-  // 기존 기록은 이미 finSeason이 설정되어 있으므로 변경 없음
+  // _SS 재계산 후 saveBets → normalize가 신규 기록부터 next 시즌 자동 부여
+  if (typeof calcSystemState === 'function') calcSystemState();
   saveBets(getBets(), { refresh: true });
 
   // 설정 탭 UI 갱신
   if (typeof loadSettingsDisplay  === 'function') loadSettingsDisplay();
   if (typeof renderSeasonHistory  === 'function') renderSeasonHistory();
   if (typeof updateWeeklySeedStatus === 'function') updateWeeklySeedStatus();
+  if (typeof updateFundCards === 'function') updateFundCards();
 
-  showToast(`✅ 시즌 ${next} 시작됐습니다.`, 'success');
+  showToast(`✅ 시즌 ${next} 시작됐습니다. 시작자금 ₩${Math.round(newStartFund).toLocaleString()}`, 'success');
 }
 
 // 하위 호환: 기존 금액 초기화 함수 호출 시 새 시즌 안내로 대체

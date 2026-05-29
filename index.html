@@ -366,9 +366,15 @@ window.addEventListener('unhandledrejection', function(e) {
       </div>
       <!-- 현재 뱅크롤 -->
       <div class="card" style="border-color:rgba(0,229,255,0.3);">
-        <div class="card-title">💵 <span>현재 뱅크롤</span></div>
+        <div class="card-title">💵 <span>현재 회차 뱅크롤</span></div>
         <div class="stat-val accent" id="d-current-fund">—</div>
-        <div class="stat-label" id="d-target-label">시작자금 + 누적손익</div>
+        <div class="stat-label" id="d-target-label">현재 회차 뱅크롤</div>
+      </div>
+      <!-- 전체 누적 자산 -->
+      <div class="card" style="border-color:rgba(255,215,0,0.35);">
+        <div class="card-title">🏦 <span>전체 누적 자산</span></div>
+        <div class="stat-val" id="d-lifetime-fund" style="color:var(--gold);">—</div>
+        <div class="stat-label" id="d-lifetime-label">이전 누적 + 현재 회차</div>
       </div>
       <!-- 목표 달성률 -->
       <div class="card" style="border-color:rgba(0,230,118,0.2);">
@@ -3220,15 +3226,51 @@ window.addEventListener('unhandledrejection', function(e) {
       <!-- 열1: 기본 자금 설정 -->
       <div class="card">
         <div class="card-title">🏦 <span>자금 설정</span></div>
-        <div style="font-size:12px;color:var(--text3);margin-bottom:16px;">시작 자금과 목표 자금은 대시보드 및 목표 추적에 고정 적용됩니다.</div>
-        <div class="form-group">
-          <label>시작 자금 (₩)</label>
-          <input type="number" id="settings-start-fund" placeholder="예: 300000" step="10000"
-            style="font-size:16px;padding:12px;font-family:'JetBrains Mono',monospace;width:100%;box-sizing:border-box;">
+
+        <!-- ① 현재 회차 자금 -->
+        <div style="margin-bottom:16px;padding:12px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:8px;">
+          <div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:10px;letter-spacing:0.5px;">⚡ 현재 회차 자금</div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.6;">켈리 계산·손익 기준으로 쓰이는 이번 회차 시작 자금입니다.</div>
+          <div class="form-group" style="margin-bottom:8px;">
+            <label style="font-size:11px;">현재 회차 시작 자금 (₩)</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="number" id="settings-start-fund" placeholder="예: 10000" step="1000"
+                style="font-size:15px;padding:10px;font-family:'JetBrains Mono',monospace;flex:1;box-sizing:border-box;">
+              <button onclick="applyRoundStartFund()" style="padding:10px 14px;background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.35);border-radius:6px;color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">적용</button>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg3);border-radius:6px;">
+            <span style="font-size:10px;color:var(--text3);">현재 회차 뱅크롤</span>
+            <span class="mono" id="settings-display-bankroll" style="font-size:14px;font-weight:700;color:var(--accent);">미설정</span>
+          </div>
         </div>
+
+        <!-- ② 전체 누적 자산 오프셋 -->
+        <div style="margin-bottom:16px;padding:12px;background:rgba(255,215,0,0.04);border:1px solid rgba(255,215,0,0.2);border-radius:8px;">
+          <div style="font-size:11px;color:var(--gold);font-weight:700;margin-bottom:10px;letter-spacing:0.5px;">🏦 전체 누적 자산</div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.6;">이전 시즌/기록에서 가져오는 누적 자산입니다.<br>전체 누적 = 여기 입력한 값 + 현재 회차 뱅크롤</div>
+          <div class="form-group" style="margin-bottom:8px;">
+            <label style="font-size:11px;">이전 누적 자산 오프셋 (₩)</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="number" id="settings-lifetime-offset" placeholder="예: 150000" step="1000"
+                style="font-size:15px;padding:10px;font-family:'JetBrains Mono',monospace;flex:1;box-sizing:border-box;">
+              <button onclick="applyLifetimeOffset()" style="padding:10px 14px;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.35);border-radius:6px;color:var(--gold);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">적용</button>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg3);border-radius:6px;margin-bottom:6px;">
+            <span style="font-size:10px;color:var(--text3);">이전 누적</span>
+            <span class="mono" id="settings-display-lifetime-offset" style="font-size:13px;font-weight:700;color:var(--gold);">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.15);border-radius:6px;">
+            <span style="font-size:10px;color:var(--gold);font-weight:600;">전체 누적 자산</span>
+            <span class="mono" id="settings-display-lifetime" style="font-size:15px;font-weight:700;color:var(--gold);">미설정</span>
+          </div>
+        </div>
+
+        <!-- ③ 베팅 비율 + 목표 -->
         <div class="form-group">
           <label>베팅 자금 비율 (%)
-            <span style="font-size:10px;color:var(--text3);font-weight:400;"> — 뱅크롤 중 베팅에 쓸 비율</span>
+            <span style="font-size:10px;color:var(--text3);font-weight:400;"> — 현재 회차 뱅크롤 중 베팅에 쓸 비율</span>
           </label>
           <div style="display:flex;align-items:center;gap:8px;">
             <input type="number" id="settings-bet-ratio" placeholder="예: 30" step="5" min="1" max="100"
@@ -3237,7 +3279,7 @@ window.addEventListener('unhandledrejection', function(e) {
             <span style="font-size:16px;color:var(--text2);font-weight:700;">%</span>
           </div>
           <div id="bet-seed-preview" style="margin-top:8px;padding:10px 12px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:6px;display:none;">
-            <span style="font-size:11px;color:var(--text3);">현재 뱅크롤 기준 베팅 시드 → </span>
+            <span style="font-size:11px;color:var(--text3);">현재 회차 뱅크롤 기준 베팅 시드 → </span>
             <span id="bet-seed-preview-val" class="mono" style="font-size:14px;font-weight:700;color:var(--accent);">—</span>
           </div>
         </div>
@@ -3547,13 +3589,17 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="card">
       <div class="card-title" style="margin-bottom:12px;">📊 <span>현재 설정 확인</span></div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
-        <div style="padding:12px;background:var(--bg3);border-radius:6px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">시작 자금</div>
-          <div class="mono" style="font-size:16px;font-weight:700;color:var(--gold);" id="settings-display-start">미설정</div>
+        <div style="padding:12px;background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.25);border-radius:6px;text-align:center;">
+          <div style="font-size:10px;color:var(--accent);margin-bottom:5px;font-weight:600;">⚡ 현재 회차 시작</div>
+          <div class="mono" style="font-size:16px;font-weight:700;color:var(--accent);" id="settings-display-start">미설정</div>
         </div>
-        <div style="padding:12px;background:var(--bg3);border-radius:6px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">현재 뱅크롤</div>
-          <div class="mono" style="font-size:16px;font-weight:700;color:var(--green);" id="settings-display-bankroll">미설정</div>
+        <div style="padding:12px;background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.15);border-radius:6px;text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">현재 회차 뱅크롤</div>
+          <div class="mono" style="font-size:16px;font-weight:700;color:var(--green);" id="settings-display-bankroll-confirm">미설정</div>
+        </div>
+        <div style="padding:12px;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.3);border-radius:6px;text-align:center;">
+          <div style="font-size:10px;color:var(--gold);margin-bottom:5px;font-weight:600;">🏦 전체 누적 자산</div>
+          <div class="mono" style="font-size:16px;font-weight:700;color:var(--gold);" id="settings-display-lifetime-confirm">미설정</div>
         </div>
         <div style="padding:12px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:6px;text-align:center;">
           <div style="font-size:10px;color:var(--accent);margin-bottom:5px;">베팅 시드 <span id="settings-display-ratio-badge" style="font-size:9px;"></span></div>
@@ -3574,10 +3620,6 @@ window.addEventListener('unhandledrejection', function(e) {
         <div style="padding:12px;background:var(--bg3);border-radius:6px;text-align:center;border:1px solid rgba(255,59,92,0.2);">
           <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">주간 손실 한도</div>
           <div class="mono" style="font-size:16px;font-weight:700;color:var(--red);" id="settings-display-weekly">미설정</div>
-        </div>
-        <div style="padding:12px;background:var(--bg3);border-radius:6px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">베팅 시드 (고정값)</div>
-          <div class="mono" style="font-size:16px;font-weight:700;color:var(--text2);" id="settings-display-seed">미설정</div>
         </div>
       </div>
     </div>
@@ -4472,6 +4514,8 @@ window.addEventListener('unhandledrejection', function(e) {
 <script>
 // ── 앱 초기화 ── 모든 스크립트 로드 완료 후 실행
 document.addEventListener('DOMContentLoaded', function () {
+  // 0. _SS 초기 계산 — refreshAllUI 이전에 반드시 실행 (새로고침 후 null 방지)
+  if (typeof calcSystemState === 'function') calcSystemState();
   // 1. 대시보드 차트 초기화 (refreshAllUI 이전에 먼저 차트 객체 생성)
   if (typeof initCharts === 'function') initCharts();
   // 2. 전체 UI 초기 렌더 (헤더 스탯, KPI 카드, 베팅 목록, scope 버튼 등 일괄 갱신)
