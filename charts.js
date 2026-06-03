@@ -109,10 +109,37 @@ function updateCharts() {
       sportCounts[sp] = (sportCounts[sp] || 0) + 1;
     });
   });
-  const sportColors = { NBA:'#00e5ff', KBL:'#ff6b35', MLB:'#39ff14', KBO:'#ffd700', NPB:'#bb86fc', '기타':'#8892a4' };
+  const sportColorMap = {
+    'NBA':'#00e5ff', 'KBL':'#ff6b35', 'MLB':'#39ff14', 'KBO':'#ffd700',
+    'NPB':'#bb86fc', 'EPL':'#4caf50', '프리미어리그':'#4caf50',
+    'NBA G리그':'#0097a7', 'WNBA':'#ff4081',
+    'KBO':'#ffd700', '한국프로야구':'#ffd700',
+    'UFC':'#f44336', 'MMA':'#e91e63',
+    'NHL':'#2196f3', '아이스하키':'#2196f3',
+    'NFL':'#ff9800', '미식축구':'#ff9800',
+    '해외축구':'#66bb6a', '축구':'#66bb6a', '유럽축구':'#66bb6a',
+    'K리그':'#a5d6a7', '국내축구':'#a5d6a7',
+    'ATP':'#ffeb3b', 'WTA':'#fff176', '테니스':'#ffee58',
+    'NBA2K':'#80deea', 'e스포츠':'#80deea', 'eSports':'#80deea',
+    '배구':'#ce93d8', 'V리그':'#ce93d8', '배드민턴':'#f48fb1',
+    '골프':'#a5d6a7', 'PGA':'#c8e6c9',
+    '기타':'#8892a4',
+  };
+  // 팔레트에 없는 종목은 순환 색상 자동 부여
+  const _palette = ['#00e5ff','#ff6b35','#ffd700','#bb86fc','#39ff14','#ff4081',
+    '#4fc3f7','#ffb74d','#a1c45a','#f06292','#4dd0e1','#aed581',
+    '#ff8a65','#9575cd','#4db6ac','#e57373','#81c784','#64b5f6'];
+  let _palIdx = 0;
+  const _assignedColors = {};
   const sportLabels = Object.keys(sportCounts);
   const sportData   = sportLabels.map(k => sportCounts[k]);
-  const sportBgs    = sportLabels.map(k => sportColors[k] || '#8892a4');
+  const sportBgs    = sportLabels.map(k => {
+    if (sportColorMap[k]) return sportColorMap[k];
+    if (_assignedColors[k]) return _assignedColors[k];
+    const c = _palette[_palIdx % _palette.length]; _palIdx++;
+    _assignedColors[k] = c;
+    return c;
+  });
   charts.sport.data.labels = sportLabels;
   charts.sport.data.datasets[0].data = sportData;
   charts.sport.data.datasets[0].backgroundColor = sportBgs;

@@ -60,9 +60,9 @@ function saveSettings() {
   const dailyLimit  = parseFloat(document.getElementById('settings-daily-limit').value) || 0;
   const weeklyLimit = parseFloat(document.getElementById('settings-weekly-limit').value)|| 0;
 
-  // kellySeed = 현재 뱅크롤 × 베팅 비율 자동 계산 (1/12 시드 = 베팅 시드)
-  const currentBankroll = getCurrentBankroll() || startFund;
-  const kellySeed = betRatio > 0 ? Math.round(currentBankroll * betRatio / 100) : 0;
+  // kellySeed = 새로 입력한 startFund 기준으로 계산 (저장 전이므로 입력값 직접 사용)
+  // getCurrentBankroll()은 아직 이전 startFund 기준이므로 사용하지 않음
+  const kellySeed = betRatio > 0 ? Math.round((startFund || getCurrentBankroll()) * betRatio / 100) : 0;
 
   const maxBetPct = parseFloat(document.getElementById('settings-max-bet-pct')?.value) || 5;
   const kellyGradeAdj = document.getElementById('kelly-grade-toggle-ui')?.dataset.active === 'true';
@@ -748,14 +748,18 @@ function updateFundCards() {
   const progressPct  = targetProfit > 0 ? Math.min(100, Math.max(0, totalProfit / targetProfit * 100)) : 0;
 
   // 현재 회차 뱅크롤 (전체 카드)
+  // 현재 회차 뱅크롤: startFund 없으면 '—', 있으면 손익 기준 색상
   _setEl('d-current-fund',
     startFund > 0 ? '₩' + Math.round(br).toLocaleString() : '—',
-    br >= startFund ? 'var(--green)' : 'var(--red)');
+    startFund > 0 ? (br >= startFund ? 'var(--green)' : 'var(--red)') : 'var(--text3)');
 
-  // 전체 누적 자산
-  _setEl('d-lifetime-fund',
-    startFund > 0 ? '₩' + Math.round(totalBr).toLocaleString() : '—',
-    totalBr >= (lifetimeOffset + startFund) ? 'var(--gold)' : 'var(--red)');
+  // 전체 누적 자산: lifetimeOffset만 있어도 표시, 색상은 손익 기준
+  const _lifetimeText = (startFund > 0 || lifetimeOffset > 0)
+    ? '₩' + Math.round(totalBr).toLocaleString() : '—';
+  const _lifetimeBase = lifetimeOffset + startFund; // 기준: 오프셋 + 시작자금
+  const _lifetimeColor = (startFund > 0 || lifetimeOffset > 0)
+    ? (totalBr >= _lifetimeBase ? 'var(--gold)' : 'var(--red)') : 'var(--text3)';
+  _setEl('d-lifetime-fund', _lifetimeText, _lifetimeColor);
   _setEl('d-lifetime-label',
     lifetimeOffset > 0 ? `이전 ₩${Math.round(lifetimeOffset).toLocaleString()} + 현재` : '현재 회차 기준');
 
