@@ -616,38 +616,70 @@ function updateDashboardKPI() {
   if (!kpi) return;
 
   const { totalBets, winRate, totalProfit, totalInvested, roi, avgOdds, valueWinRate, oddsCount } = kpi;
+  const _scope = typeof getCurrentScope === 'function' ? getCurrentScope() : 'all';
+  const isRound = _scope === 'round';
 
-  // Header
-  const _htb = document.getElementById('h-total-bets'); if (_htb) _htb.textContent = totalBets;
-  const _hwr = document.getElementById('h-win-rate');   if (_hwr) _hwr.textContent = `${winRate.toFixed(1)}%`;
-  const hProfit = document.getElementById('h-profit');
-  if (hProfit) { hProfit.textContent = `${totalProfit >= 0 ? '+₩' : '-₩'}${Math.abs(Math.round(totalProfit)).toLocaleString()}`; hProfit.className = `hstat-val ${totalProfit >= 0 ? 'positive' : 'negative'}`; }
-  const hRoi = document.getElementById('h-roi');
-  if (hRoi) { hRoi.textContent = `${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`; hRoi.className = `hstat-val ${roi >= 0 ? 'positive' : 'negative'}`; }
-
-  // Dashboard
-  const _dp = document.getElementById('d-profit');
-  if (_dp) { _dp.textContent = `${totalProfit >= 0 ? '+₩' : '-₩'}${Math.abs(Math.round(totalProfit)).toLocaleString()}`; _dp.className = `stat-val ${totalProfit >= 0 ? 'green' : 'red'}`; }
-  const dProfitChange = document.getElementById('d-profit-change');
-  if (dProfitChange) {
-    if (totalInvested > 0) {
-      dProfitChange.textContent = `투자금 ₩${Math.round(totalInvested).toLocaleString()} 대비 ${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`;
-      dProfitChange.className = `stat-change ${roi >= 0 ? 'up' : 'down'}`;
-    } else {
-      dProfitChange.textContent = '—';
-    }
+  function _set(id, text, cls) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    if (cls !== undefined) el.className = cls;
   }
 
-  const _dao = document.getElementById('d-avg-odds');
-  const _daol = document.getElementById('d-avg-odds-label');
-  if (_dao)  { _dao.textContent  = avgOdds > 0 ? avgOdds.toFixed(2) : '—'; }
-  if (_daol) { _daol.textContent = oddsCount > 0 ? `${oddsCount}건 평균` : '결과 있는 베팅 기준'; }
+  // ── Header (항상 현재 scope 기준) ──
+  _set('h-total-bets', totalBets);
+  _set('h-win-rate', `${winRate.toFixed(1)}%`);
+  _set('h-profit',
+    `${totalProfit >= 0 ? '+₩' : '-₩'}${Math.abs(Math.round(totalProfit)).toLocaleString()}`,
+    `hstat-val ${totalProfit >= 0 ? 'positive' : 'negative'}`);
+  _set('h-roi',
+    `${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`,
+    `hstat-val ${roi >= 0 ? 'positive' : 'negative'}`);
 
-  const _dvw = document.getElementById('d-value-winrate'); if (_dvw) _dvw.textContent = `${valueWinRate.toFixed(1)}%`;
-  const _dvf = document.getElementById('d-value-fill');    if (_dvf) _dvf.style.width  = `${valueWinRate}%`;
-  const dRoi = document.getElementById('d-roi');
-  if (dRoi) { dRoi.textContent = `${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`; dRoi.className = `stat-val ${roi >= 0 ? 'green' : 'red'}`; }
-  const _drn = document.getElementById('d-roi-note'); if (_drn) _drn.textContent = totalBets > 0 ? `${totalBets}경기 기준` : '베팅 기록을 추가하세요';
+  if (!isRound) {
+    // ── 전체 scope 카드 ──
+    // 전체 투자금액
+    _set('d-total-invested',
+      totalInvested > 0 ? '₩' + Math.round(totalInvested).toLocaleString() : '—');
+    // 누적 손익
+    _set('d-profit',
+      `${totalProfit >= 0 ? '+₩' : '-₩'}${Math.abs(Math.round(totalProfit)).toLocaleString()}`,
+      `stat-val ${totalProfit >= 0 ? 'green' : 'red'}`);
+    // 전체 평균 배당
+    _set('d-avg-odds', avgOdds > 0 ? avgOdds.toFixed(2) : '—');
+    _set('d-avg-odds-label', oddsCount > 0 ? `${oddsCount}건 평균` : '결과 있는 베팅 기준');
+    // 전체 밸류 적중률
+    _set('d-value-winrate', `${valueWinRate.toFixed(1)}%`);
+    const _dvf = document.getElementById('d-value-fill');
+    if (_dvf) _dvf.style.width = `${valueWinRate}%`;
+    // 전체 ROI
+    _set('d-roi',
+      `${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`,
+      `stat-val ${roi >= 0 ? 'green' : 'red'}`);
+    _set('d-roi-note', totalBets > 0 ? `${totalBets}경기 기준` : '베팅 기록을 추가하세요');
+  } else {
+    // ── 현재 회차 scope 카드 ──
+    // 이번 회차 손익 (journal.js의 d-round-profit과 별개로 KPI도 업데이트)
+    // 누적 손익 (전체 기준 — SS가 round scope이면 전체 SS를 별도 계산)
+    const allBets = getBets();
+    const allResolved = allBets.filter(b => b.result === 'WIN' || b.result === 'LOSE');
+    const allProfit = allResolved.reduce((s, b) => s + (b.profit || 0), 0);
+    _set('d-round-cumul-profit',
+      `${allProfit >= 0 ? '+₩' : '-₩'}${Math.abs(Math.round(allProfit)).toLocaleString()}`,
+      `stat-val ${allProfit >= 0 ? 'green' : 'red'}`);
+    // 이번 회차 평균 배당
+    _set('d-round-avg-odds', avgOdds > 0 ? avgOdds.toFixed(2) : '—');
+    _set('d-round-avg-odds-label', oddsCount > 0 ? `${oddsCount}건 평균` : '이번 회차 기준');
+    // 이번 회차 밸류 적중률
+    _set('d-round-value-winrate', `${valueWinRate.toFixed(1)}%`);
+    const _rvf = document.getElementById('d-round-value-fill');
+    if (_rvf) _rvf.style.width = `${valueWinRate}%`;
+    // 이번 회차 ROI
+    _set('d-round-roi',
+      `${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`,
+      `stat-val ${roi >= 0 ? 'green' : 'red'}`);
+    _set('d-round-roi-note', totalBets > 0 ? `${totalBets}경기 기준` : '베팅 기록을 추가하세요');
+  }
 }
 
 

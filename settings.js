@@ -30,23 +30,18 @@ function saveLifetimeOffset(newOffset) {
   const val = parseFloat(String(newOffset).replace(/,/g, '')) || 0;
   appSettings.lifetimeOffset = val;
   Storage.setJSON(KEYS.SETTINGS, appSettings);
-  if (typeof calcSystemState === 'function') calcSystemState();
-  if (typeof loadSettingsDisplay === 'function') loadSettingsDisplay();
-  if (typeof updateFundCards === 'function') updateFundCards();
+  if (typeof refreshAllUI === 'function') refreshAllUI();
 }
 
 // 현재 회차 시작 자금만 저장 (현재 회차 뱅크롤 직접 수정용)
 function saveRoundStartFund(newStartFund) {
   const val = parseFloat(String(newStartFund).replace(/,/g, '')) || 0;
   appSettings.startFund = val;
-  // kellySeed도 새 시작 자금 기준으로 재계산
   if (appSettings.betRatio > 0) {
     appSettings.kellySeed = Math.round(val * appSettings.betRatio / 100);
   }
   Storage.setJSON(KEYS.SETTINGS, appSettings);
-  if (typeof calcSystemState === 'function') calcSystemState();
-  if (typeof loadSettingsDisplay === 'function') loadSettingsDisplay();
-  if (typeof updateFundCards === 'function') updateFundCards();
+  if (typeof refreshAllUI === 'function') refreshAllUI();
 }
 
 // ── Settings restorer (restore.js 전용 — 백업 복원 시 전체 교체) ──
@@ -713,97 +708,80 @@ function calcRecommendedBetSize(best) {
 }
 
 function updateFundCards() {
-  // 현재 회차 뱅크롤 (현재 시즌 기준)
-  const br = getCurrentBankroll();
-  // 전체 누적 자산 (lifetimeOffset + 현재 회차)
-  const totalBr = getTotalLifetimeBankroll();
-  const { startFund: _sf = 0 } = appSettings;
-  const lifetimeOffset = Number(appSettings.lifetimeOffset) || 0;
-
-  function renderBankroll(el, showDiff) {
-    if (!el) return;
-    if (!_sf) {
-      el.textContent = '미설정';
-      el.style.color = 'var(--text3)';
-      el.className = el.className.replace(/positive|negative/g, '').trim();
-      return;
-    }
-    const diff = br - _sf;
-    el.textContent = (br < 0 ? '-₩' : '₩') + Math.abs(Math.round(br)).toLocaleString()
-      + (showDiff && diff !== 0 ? (diff > 0 ? ' (▲+₩' : ' (▼-₩') + Math.abs(Math.round(diff)).toLocaleString() + ')' : '');
-    el.style.color = br > _sf ? 'var(--gold)' : br < 0 ? 'var(--red)' : br === _sf ? 'var(--text2)' : 'var(--red)';
-    if (el.classList.contains('hstat-val')) {
-      el.classList.remove('positive', 'negative');
-      el.classList.add(br >= _sf ? 'positive' : 'negative');
-    }
-  }
-
-  renderBankroll(document.getElementById('ev-bankroll-fixed'), true);
-  renderBankroll(document.getElementById('h-bankroll'), false);
-  renderBankroll(document.getElementById('ev-bankroll-display'), false);
-
+  const br         = getCurrentBankroll();
+  const totalBr    = getTotalLifetimeBankroll();
   const { startFund = 0, targetFund = 0 } = appSettings;
-  const currentBankrollCalc = getCurrentBankroll();
-  const totalProfit  = currentBankrollCalc - startFund;
-  const currentFund  = currentBankrollCalc;
+  const lifetimeOffset = Number(appSettings.lifetimeOffset) || 0;
+  const _scope       = typeof getCurrentScope === 'function' ? getCurrentScope() : 'all';
+  const _activeRound = typeof getActiveRound  === 'function' ? getActiveRound()  : null;
+  const isRound      = _scope === 'round' && _activeRound;
+
+  // ── scope에 따라 카드 그룹 전환 ──
+  const cardsAll   = document.getElementById('cards-all');
+  const cardsRound = document.getElementById('cards-round');
+  if (cardsAll)   cardsAll.style.display   = isRound ? 'none' : '';
+  if (cardsRound) cardsRound.style.display = isRound ? ''     : 'none';
+
+  // ── 헤더 뱅크롤 (공통) ──
+  function _setEl(id, text, color) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    if (color) el.style.color = color;
+  }
+  const brText  = startFund > 0 ? (br < 0 ? '-₩' : '₩') + Math.abs(Math.round(br)).toLocaleString() : '미설정';
+  const brColor = br > startFund ? 'var(--gold)' : br < startFund ? 'var(--red)' : 'var(--text2)';
+  ['ev-bankroll-fixed','h-bankroll','ev-bankroll-display'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = brText;
+    el.style.color = brColor;
+    if (el.classList.contains('hstat-val')) {
+      el.classList.remove('positive','negative');
+      el.classList.add(br >= startFund ? 'positive' : 'negative');
+    }
+  });
+
+  // ── 전체 scope 카드 업데이트 ──
+  const totalProfit  = br - startFund;
   const targetProfit = targetFund - startFund;
   const progressPct  = targetProfit > 0 ? Math.min(100, Math.max(0, totalProfit / targetProfit * 100)) : 0;
 
-  const startEl   = document.getElementById('d-start-fund');
-  const targetEl  = document.getElementById('d-target-fund');
-  const currentEl = document.getElementById('d-current-fund');
-  const pctEl     = document.getElementById('d-progress-pct');
-  const fillEl    = document.getElementById('d-progress-fill');
-  const labelEl   = document.getElementById('d-target-label');
+  // 현재 회차 뱅크롤 (전체 카드)
+  _setEl('d-current-fund',
+    startFund > 0 ? '₩' + Math.round(br).toLocaleString() : '—',
+    br >= startFund ? 'var(--green)' : 'var(--red)');
 
-  if (startEl)   startEl.textContent   = startFund  > 0 ? '₩' + startFund.toLocaleString()  : '미설정';
-  if (targetEl)  targetEl.textContent  = targetFund > 0 ? '₩' + targetFund.toLocaleString() : '미설정';
+  // 전체 누적 자산
+  _setEl('d-lifetime-fund',
+    startFund > 0 ? '₩' + Math.round(totalBr).toLocaleString() : '—',
+    totalBr >= (lifetimeOffset + startFund) ? 'var(--gold)' : 'var(--red)');
+  _setEl('d-lifetime-label',
+    lifetimeOffset > 0 ? `이전 ₩${Math.round(lifetimeOffset).toLocaleString()} + 현재` : '현재 회차 기준');
 
-  const _scope       = typeof getCurrentScope  === 'function' ? getCurrentScope()  : 'all';
-  const _activeRound = typeof getActiveRound   === 'function' ? getActiveRound()   : null;
-
-  if (currentEl) {
-    if (_scope === 'round' && _activeRound) {
-      // 현재 회차: 회차 잔액 표시
-      const remColor = _activeRound.remaining > _activeRound.seed * 0.3 ? 'var(--green)' : 'var(--red)';
-      currentEl.textContent = '₩' + Math.round(_activeRound.remaining).toLocaleString();
-      currentEl.style.color = remColor;
-    } else {
-      // 전체: 현재 회차 뱅크롤 표시
-      currentEl.textContent = startFund > 0 ? '₩' + Math.round(currentFund).toLocaleString() : '—';
-      currentEl.style.color = currentFund >= startFund ? 'var(--green)' : 'var(--red)';
-    }
-  }
-
-  // 전체 누적 자산 카드 (별도 element)
-  const lifetimeEl    = document.getElementById('d-lifetime-fund');
-  const lifetimeLblEl = document.getElementById('d-lifetime-label');
-  if (lifetimeEl) {
-    if (startFund > 0) {
-      lifetimeEl.textContent = '₩' + Math.round(totalBr).toLocaleString();
-      lifetimeEl.style.color = totalBr >= (lifetimeOffset + startFund) ? 'var(--gold)' : 'var(--red)';
-    } else {
-      lifetimeEl.textContent = '—';
-      lifetimeEl.style.color = 'var(--text3)';
-    }
-  }
-  if (lifetimeLblEl) {
-    lifetimeLblEl.textContent = _scope === 'round' && _activeRound
-      ? '이전 누적 + 현재 회차'
-      : lifetimeOffset > 0 ? `이전 ₩${Math.round(lifetimeOffset).toLocaleString()} + 현재` : '현재 회차 기준';
-  }
-
-  if (pctEl)  pctEl.textContent  = targetProfit > 0 ? progressPct.toFixed(1) + '%' : '—';
+  // 목표 달성률 (전체)
+  _setEl('d-progress-pct', targetProfit > 0 ? progressPct.toFixed(1) + '%' : '—');
+  const fillEl = document.getElementById('d-progress-fill');
   if (fillEl) fillEl.style.width = progressPct + '%';
-  if (labelEl) {
-    if (_scope === 'round' && _activeRound) {
-      labelEl.textContent = '회차 잔액';
-    } else {
-      labelEl.textContent = '현재 회차 뱅크롤';
-    }
+  _setEl('d-progress-target', targetFund > 0 ? `목표 ₩${targetFund.toLocaleString()}` : '목표 미설정');
+
+  // ── 현재 회차 scope 카드 업데이트 ──
+  if (isRound) {
+    const roundBr = startFund > 0 ? br : 0;
+    _setEl('d-round-current-fund',
+      startFund > 0 ? '₩' + Math.round(roundBr).toLocaleString() : '—',
+      roundBr >= startFund ? 'var(--green)' : 'var(--red)');
+    _setEl('d-round-progress-pct', targetProfit > 0 ? progressPct.toFixed(1) + '%' : '—');
+    const roundFill = document.getElementById('d-round-progress-fill');
+    if (roundFill) roundFill.style.width = progressPct + '%';
+    _setEl('d-round-progress-target', targetFund > 0 ? `목표 ₩${targetFund.toLocaleString()}` : '목표 미설정');
   }
-  const progressTargetEl = document.getElementById('d-progress-target');
-  if (progressTargetEl) progressTargetEl.textContent = targetFund > 0 ? `목표 ₩${targetFund.toLocaleString()}` : '목표 미설정';
+
+  // 설정 확인 카드
+  const _ds = document.getElementById('d-start-fund');         if (_ds) _ds.textContent = startFund > 0 ? '₩' + startFund.toLocaleString() : '미설정';
+  const _dt = document.getElementById('d-target-fund');        if (_dt) _dt.textContent = targetFund > 0 ? '₩' + targetFund.toLocaleString() : '미설정';
+  const _progressT = document.getElementById('d-progress-target');
+  if (_progressT) _progressT.textContent = targetFund > 0 ? `목표 ₩${targetFund.toLocaleString()}` : '목표 미설정';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

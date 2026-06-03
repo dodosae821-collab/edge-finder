@@ -339,9 +339,69 @@ window.addEventListener('unhandledrejection', function(e) {
       <button onclick="document.getElementById('round-notify-banner').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0 4px;">✕</button>
     </div>
 
-    <!-- 자금 현황 -->
-    <div class="grid-4" style="margin-bottom:16px;" id="fund-cards">
-      <!-- 회차 시드 현황 -->
+    <!-- 자금 현황 (scope에 따라 카드 전환) -->
+    <div style="display:none;"><span id="d-start-fund"></span><span id="d-target-fund"></span></div>
+    <!-- 숨김 elements (journal.js 등 기존 코드 호환) -->
+    <div style="display:none;"></div>
+
+    <!-- ── 전체 scope 카드 8개 ── -->
+    <div class="grid-4" style="margin-bottom:16px;" id="cards-all">
+      <!-- 1 전체 투자금액 -->
+      <div class="card">
+        <div class="card-title">💳 <span>전체 투자금액</span></div>
+        <div class="stat-val" id="d-total-invested">—</div>
+        <div class="stat-label" id="d-profit-change">총 베팅 투입금</div>
+      </div>
+      <!-- 2 누적 손익 -->
+      <div class="card">
+        <div class="card-title">💰 <span>누적 손익</span></div>
+        <div class="stat-val" id="d-profit">₩0</div>
+        <div class="stat-label">총 투자 대비</div>
+      </div>
+      <!-- 3 현재 회차 뱅크롤 -->
+      <div class="card" style="border-color:rgba(0,229,255,0.3);">
+        <div class="card-title">💵 <span>현재 회차 뱅크롤</span></div>
+        <div class="stat-val accent" id="d-current-fund">—</div>
+        <div class="stat-label" id="d-target-label">시작자금 + 손익</div>
+      </div>
+      <!-- 4 전체 누적 자산 -->
+      <div class="card" style="border-color:rgba(255,215,0,0.35);">
+        <div class="card-title">🏦 <span>전체 누적 자산</span></div>
+        <div class="stat-val" id="d-lifetime-fund" style="color:var(--gold);">—</div>
+        <div class="stat-label" id="d-lifetime-label">이전 누적 + 현재 회차</div>
+      </div>
+      <!-- 5 전체 평균 배당 -->
+      <div class="card">
+        <div class="card-title">🎲 <span>전체 평균 배당</span></div>
+        <div class="stat-val gold" id="d-avg-odds">—</div>
+        <div class="stat-label" id="d-avg-odds-label">결과 있는 베팅 기준</div>
+      </div>
+      <!-- 6 목표 달성률 -->
+      <div class="card" style="border-color:rgba(0,230,118,0.2);">
+        <div class="card-title">🎯 <span>목표 달성률</span></div>
+        <div class="stat-val green" id="d-progress-pct">—</div>
+        <div class="stat-label" id="d-progress-target" style="margin-top:3px;">목표 미설정</div>
+        <div class="value-meter" style="margin-top:6px;"><div class="value-fill" id="d-progress-fill" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <!-- 7 전체 밸류 적중률 -->
+      <div class="card accent3">
+        <div class="card-title">⚡ <span>전체 밸류 적중률</span></div>
+        <div class="stat-val green" id="d-value-winrate">0%</div>
+        <div class="stat-label">밸류베팅만 집계</div>
+        <div class="value-meter"><div class="value-fill" id="d-value-fill" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <!-- 8 전체 ROI -->
+      <div class="card gold">
+        <div class="card-title">📈 <span>전체 ROI</span></div>
+        <div class="stat-val gold" id="d-roi">0%</div>
+        <div class="stat-label">투자수익률</div>
+        <div class="stat-change" id="d-roi-note" style="color:var(--text2);font-size:11px;">베팅 기록을 추가하세요</div>
+      </div>
+    </div>
+
+    <!-- ── 현재 회차 scope 카드 8개 ── -->
+    <div class="grid-4" style="margin-bottom:16px;display:none;" id="cards-round">
+      <!-- 1 회차 시드 -->
       <div class="card" style="border-color:rgba(255,215,0,0.3);">
         <div class="card-title">🔒 <span>회차 시드</span></div>
         <div class="stat-val gold" id="d-round-seed">—</div>
@@ -357,58 +417,51 @@ window.addEventListener('unhandledrejection', function(e) {
         </div>
         <div id="d-round-seed-rounded-note" style="display:none;margin-top:4px;font-size:10px;color:var(--text3);"></div>
       </div>
-      <!-- 이번 회차 손익 -->
+      <!-- 2 이번 회차 손익 -->
       <div class="card" style="border-color:rgba(0,230,118,0.3);">
         <div class="card-title">⚡ <span id="d-round-profit-title">이번 회차 손익</span></div>
         <div class="stat-val" id="d-round-profit">—</div>
         <div class="stat-label" id="d-round-profit-label">회차 시드 고정 후 기준</div>
         <div id="d-round-bet-count" style="font-size:10px;color:var(--text3);margin-top:4px;"></div>
       </div>
-      <!-- 현재 뱅크롤 -->
+      <!-- 3 현재 회차 뱅크롤 -->
       <div class="card" style="border-color:rgba(0,229,255,0.3);">
         <div class="card-title">💵 <span>현재 회차 뱅크롤</span></div>
-        <div class="stat-val accent" id="d-current-fund">—</div>
-        <div class="stat-label" id="d-target-label">현재 회차 뱅크롤</div>
+        <div class="stat-val accent" id="d-round-current-fund">—</div>
+        <div class="stat-label">시작자금 + 회차손익</div>
       </div>
-      <!-- 전체 누적 자산 -->
-      <div class="card" style="border-color:rgba(255,215,0,0.35);">
-        <div class="card-title">🏦 <span>전체 누적 자산</span></div>
-        <div class="stat-val" id="d-lifetime-fund" style="color:var(--gold);">—</div>
-        <div class="stat-label" id="d-lifetime-label">이전 누적 + 현재 회차</div>
-      </div>
-      <!-- 목표 달성률 -->
+      <!-- 4 목표 달성률 -->
       <div class="card" style="border-color:rgba(0,230,118,0.2);">
         <div class="card-title">🎯 <span>목표 달성률</span></div>
-        <div class="stat-val green" id="d-progress-pct">—</div>
-        <div class="stat-label" id="d-progress-target" style="margin-top:3px;">목표 미설정</div>
-        <div class="value-meter" style="margin-top:6px;"><div class="value-fill" id="d-progress-fill" style="width:0%;background:var(--green)"></div></div>
+        <div class="stat-val green" id="d-round-progress-pct">—</div>
+        <div class="stat-label" id="d-round-progress-target">목표 미설정</div>
+        <div class="value-meter" style="margin-top:6px;"><div class="value-fill" id="d-round-progress-fill" style="width:0%;background:var(--green)"></div></div>
       </div>
-    </div>
-    <div style="display:none;"><span id="d-start-fund"></span><span id="d-target-fund"></span></div>
-
-    <div class="grid-4">
+      <!-- 5 누적 손익 -->
       <div class="card">
-        <div class="card-title">💰 누적 손익</div>
-        <div class="stat-val" id="d-profit">₩0</div>
-        <div class="stat-label">총 투자 대비</div>
-        <div class="stat-change up" id="d-profit-change">—</div>
+        <div class="card-title">💰 <span>누적 손익</span></div>
+        <div class="stat-val" id="d-round-cumul-profit">₩0</div>
+        <div class="stat-label">전체 기준</div>
       </div>
+      <!-- 6 이번 회차 평균 배당 -->
       <div class="card">
-        <div class="card-title">🎲 평균 배당</div>
-        <div class="stat-val gold" id="d-avg-odds">—</div>
-        <div class="stat-label" id="d-avg-odds-label">결과 있는 베팅 기준</div>
+        <div class="card-title">🎲 <span>이번 회차 평균 배당</span></div>
+        <div class="stat-val gold" id="d-round-avg-odds">—</div>
+        <div class="stat-label" id="d-round-avg-odds-label">이번 회차 기준</div>
       </div>
+      <!-- 7 이번 회차 밸류 적중률 -->
       <div class="card accent3">
-        <div class="card-title">⚡ 밸류 적중률</div>
-        <div class="stat-val green" id="d-value-winrate">0%</div>
-        <div class="stat-label">밸류베팅만 집계</div>
-        <div class="value-meter"><div class="value-fill" id="d-value-fill" style="width:0%;background:var(--green)"></div></div>
+        <div class="card-title">⚡ <span>이번 회차 밸류 적중률</span></div>
+        <div class="stat-val green" id="d-round-value-winrate">0%</div>
+        <div class="stat-label">이번 회차 밸류베팅</div>
+        <div class="value-meter"><div class="value-fill" id="d-round-value-fill" style="width:0%;background:var(--green)"></div></div>
       </div>
+      <!-- 8 이번 회차 ROI -->
       <div class="card gold">
-        <div class="card-title">📈 ROI</div>
-        <div class="stat-val gold" id="d-roi">0%</div>
-        <div class="stat-label">투자수익률</div>
-        <div class="stat-change" id="d-roi-note" style="color:var(--text2);font-size:11px;">베팅 기록을 추가하세요</div>
+        <div class="card-title">📈 <span>이번 회차 ROI</span></div>
+        <div class="stat-val gold" id="d-round-roi">0%</div>
+        <div class="stat-label">이번 회차 투자수익률</div>
+        <div class="stat-change" id="d-round-roi-note" style="color:var(--text2);font-size:11px;">베팅 기록을 추가하세요</div>
       </div>
     </div>
 
@@ -3604,6 +3657,10 @@ window.addEventListener('unhandledrejection', function(e) {
         <div style="padding:12px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:6px;text-align:center;">
           <div style="font-size:10px;color:var(--accent);margin-bottom:5px;">베팅 시드 <span id="settings-display-ratio-badge" style="font-size:9px;"></span></div>
           <div class="mono" style="font-size:16px;font-weight:700;color:var(--accent);" id="settings-display-bet-seed">미설정</div>
+        </div>
+        <div style="padding:12px;background:var(--bg3);border-radius:6px;text-align:center;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">고정 시드값</div>
+          <div class="mono" style="font-size:16px;font-weight:700;color:var(--text2);" id="settings-display-seed">미설정</div>
         </div>
         <div style="padding:12px;background:var(--bg3);border-radius:6px;text-align:center;">
           <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">목표 자금</div>

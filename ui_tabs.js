@@ -740,13 +740,10 @@ function _syncScopeUI() {
   }
 
   _syncRoundStatusUI();
-  // scope 전환 후 설정 탭 뱅크롤·시작자금 표시 동기화
-  if (typeof loadSettingsDisplay === 'function') {
-    try { loadSettingsDisplay(); } catch(e) {}
-  }
-  if (typeof updateFundCards === 'function') {
-    try { updateFundCards(); } catch(e) {}
-  }
+  // scope 전환 후 카드 전환 + 데이터 갱신
+  if (typeof updateFundCards     === 'function') { try { updateFundCards();     } catch(e) {} }
+  if (typeof updateDashboardKPI  === 'function') { try { updateDashboardKPI();  } catch(e) {} }
+  if (typeof loadSettingsDisplay === 'function') { try { loadSettingsDisplay(); } catch(e) {} }
 }
 
 
