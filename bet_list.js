@@ -74,7 +74,7 @@ function getRecordFiltered() {
     return true;
   }
 
-  return [...bets].reverse().filter(b =>
+  return [...getBets()].reverse().filter(b =>
     (filterSport  === 'ALL' || (b.sport || '').includes(filterSport)) &&
     (filterResult === 'ALL' || b.result === filterResult) &&
     (filterFolder === 'ALL' ||
@@ -362,7 +362,7 @@ function getVaultFiltered() {
     }
     return true;
   }
-  return [...bets].reverse().filter(b => {
+  return [...getBets()].reverse().filter(b => {
     const sportMatch = fSport === 'ALL'
       || (b.sport || '').includes(fSport)
       || (b.folderSports && b.folderSports.some(s => s === fSport));

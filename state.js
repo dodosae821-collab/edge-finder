@@ -229,6 +229,10 @@ function renderPage(page) {
     case 'round-report':
       if (typeof updateRoundReport === 'function') updateRoundReport();
       break;
+    case 'record':
+      if (typeof renderTable        === 'function') renderTable();
+      if (typeof renderRecentTable  === 'function') renderRecentTable();
+      break;
     case 'vault':
       if (typeof renderVault === 'function') renderVault();
       break;

@@ -618,7 +618,7 @@ function getCurrentBankroll() {
   if (!startFund) return 0;
   const _curSeason = (Number.isInteger(appSettings.currentFinSeason) && appSettings.currentFinSeason >= 1)
     ? appSettings.currentFinSeason : 1;
-  const resolved = bets.filter(b =>
+  const resolved = getBets().filter(b =>
     (b.result === 'WIN' || b.result === 'LOSE') &&
     !b.isSim &&
     // 현재 시즌 또는 레거시(finSeason=0)는 시즌1에서 포함

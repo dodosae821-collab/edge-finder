@@ -740,9 +740,14 @@ function _syncScopeUI() {
   }
 
   _syncRoundStatusUI();
-  // scope 전환 후 카드 전환 + 데이터 갱신
+  // scope 전환 후 카드 전환 + 데이터 전체 갱신
+  if (typeof calcSystemState     === 'function') { try { calcSystemState();     } catch(e) {} }
   if (typeof updateFundCards     === 'function') { try { updateFundCards();     } catch(e) {} }
   if (typeof updateDashboardKPI  === 'function') { try { updateDashboardKPI();  } catch(e) {} }
+  if (typeof updateDashboardRoundStats === 'function') { try { updateDashboardRoundStats(); } catch(e) {} }
+  if (typeof renderTable         === 'function') { try { renderTable();         } catch(e) {} }
+  if (typeof renderRecentTable   === 'function') { try { renderRecentTable();   } catch(e) {} }
+  if (typeof updateCharts        === 'function') { try { updateCharts();        } catch(e) {} }
   if (typeof loadSettingsDisplay === 'function') { try { loadSettingsDisplay(); } catch(e) {} }
 }
 

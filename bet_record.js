@@ -82,6 +82,7 @@ function switchTab(name, el) {
   if (name === 'judgeall')  updateJudgeAll();
   if (name === 'decision')  initDecisionTab();
   if (name === 'settings')  { loadSettingsDisplay(); updateWeeklySeedStatus(); setTodayKST(); renderPrincipleList(); if (typeof renderSeasonHistory === 'function') renderSeasonHistory(); }
+  if (name === 'record')    { renderTable(); renderRecentTable(); }
   if (name === 'vault')     renderVault();
   if (name === 'strategy')  initSimulator();
   if (name === 'journal')   { loadJournal(); switchJournalTab(_journalTab || 'plan'); }
