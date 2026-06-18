@@ -261,7 +261,7 @@ function strSimilarity(a, b) {
 function getKnownTeams() {
   const bets = getBets();
   const teams = new Set();
-  bets.forEach(b => {
+  getBets().forEach(b => {
     if (b.game && b.game !== '-') {
       // "전북 vs 서울", "전북/서울" 등 분리
       const parts = b.game.split(/\s+vs\s+|\s+VS\s+|\/|,/i);
@@ -714,7 +714,7 @@ function oddsMatches(ocrOdds, betOdds) {
 
 function matchBetToOcr(parsed, imageDate, ocrConf) {
   const bets = getBets();
-  const pendingBets = bets.filter(b => b.result === 'PENDING');
+  const pendingBets = getBets().filter(b => b.result === 'PENDING');
 
   // 날짜 필터
   const dateCandidates = imageDate

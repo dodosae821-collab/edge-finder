@@ -2,7 +2,7 @@ let _retroQueue = [];
 let _retroIdx   = 0;
 
 function getRetroTargets() {
-  return bets.filter(b =>
+  return getBets().filter(b =>
     b.mode === 'multi' &&
     b.result === 'LOSE' &&
     b.folderOdds && b.folderOdds.length >= 2 &&
@@ -14,7 +14,7 @@ function updateSlumpBanner() {
   const banner = document.getElementById('slump-banner');
   if (!banner) return;
 
-  const resolved = bets.filter(b => b.result === 'WIN' || b.result === 'LOSE');
+  const resolved = getBets().filter(b => b.result === 'WIN' || b.result === 'LOSE');
   if (resolved.length < 10) { banner.style.display = 'none'; return; }
 
   const _SS = window.App._SS;
@@ -255,7 +255,7 @@ function updateTagStats() {
 }
 
 function getTagStatRows() {
-  const resolved = bets.filter(b => b.result !== 'PENDING');
+  const resolved = getBets().filter(b => b.result !== 'PENDING');
   const groupMap = {};
   resolved.forEach(b => {
     const memos = [

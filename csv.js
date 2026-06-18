@@ -10,9 +10,9 @@
 // ============================================================
 
 function exportCSV() {
-  if (bets.length === 0) { showToast('내보낼 베팅 기록이 없습니다.', 'info'); return; }
+  if (getBets().length === 0) { showToast('내보낼 베팅 기록이 없습니다.', 'info'); return; }
   const headers = ['날짜','경기','종목','형식','방식','배당','베팅금','결과','손익','메모'];
-  const rows = bets.map(b => [
+  const rows = getBets().map(b => [
     b.date || '',
     (b.game || '').replace(/,/g, ';'),
     (b.sport || '').replace(/,/g, ';'),

@@ -75,7 +75,7 @@ function renderVerifyPage() {
   destroyVerifyCharts();
 
   const bets     = getBets();
-  const resolved = bets.filter(b => b.result === 'WIN' || b.result === 'LOSE');
+  const resolved = getBets().filter(b => b.result === 'WIN' || b.result === 'LOSE');
   const statusEl = document.getElementById('verify-status');
 
   if (resolved.length < VERIFY_MIN) {

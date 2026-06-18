@@ -223,7 +223,7 @@ function checkAutoRoundReset() {
     const n = appSettings.roundNbet || 12;
     if (!locked) return;
     // 고정 이후 결산된 베팅 수
-    const resolved = bets.filter(b =>
+    const resolved = getBets().filter(b =>
       (b.result === 'WIN' || b.result === 'LOSE') && b.date >= locked.date
     );
     if (resolved.length >= n) {
@@ -253,13 +253,13 @@ function lockWeeklySeed() {
   if (prev && prev.date && prev.date !== dateStr) {
     const prevLockDate = new Date(prev.date); prevLockDate.setHours(0,0,0,0);
     const newLockDate  = new Date(dateStr);   newLockDate.setHours(0,0,0,0);
-    const roundBets = bets.filter(function(b) {
+    const roundBets = getBets().filter(function(b) {
       if (!b.date) return false;
       const d = new Date(b.date);
       return d >= prevLockDate && d < newLockDate && b.result !== 'PENDING';
     });
     const wins     = roundBets.filter(function(b) { return b.result === 'WIN'; }).length;
-    const profit   = roundBets.reduce(function(s, b) { return s + (b.profit || 0); }, 0);
+    const profit   = roundBets.reduce(function(s, b) { return s + (isFinite(b.profit) ? b.profit : 0); }, 0);
     const invested = roundBets.reduce(function(s, b) { return s + (b.amount || 0); }, 0);
     const roi      = invested > 0 ? profit / invested * 100 : 0;
     const wr       = roundBets.length > 0 ? wins / roundBets.length * 100 : 0;
@@ -406,7 +406,7 @@ function updateWeeklySeedStatus() {
   // 고정 시각 이후 베팅만 집계 (같은 날 재고정 시 이전 베팅 제외)
   const lockFrom = locked.lockedAt ? new Date(locked.lockedAt) : (() => { const d = new Date(locked.date); d.setHours(0,0,0,0); return d; })();
   const useTimestamp = !!locked.lockedAt; // lockedAt 있으면 타임스탬프, 없으면 날짜 기준
-  const weekBets = bets.filter(b => {
+  const weekBets = getBets().filter(b => {
     if (!b.date || !b.result || b.result === 'PENDING') return false;
     if (useTimestamp) {
       if (!b.savedAt) return false; // 타임스탬프 모드: savedAt 없으면 제외
@@ -415,7 +415,7 @@ function updateWeeklySeedStatus() {
       return new Date(b.date) >= lockFrom; // 날짜 모드: 기존 방식
     }
   });
-  const weekPnl = weekBets.reduce((s, b) => s + (b.profit || 0), 0);
+  const weekPnl = weekBets.reduce((s, b) => s + (isFinite(b.profit) ? b.profit : 0), 0);
 
   const usedEl = document.getElementById('round-seed-used');
   if (usedEl) {
@@ -544,7 +544,7 @@ function checkLossWarning() {
 
   // 오늘 손익 계산
   const today = new Date().toISOString().split('T')[0];
-  const todayBets = bets.filter(b => b.date && b.date.startsWith(today) && b.result && b.result !== 'PENDING');
+  const todayBets = getBets().filter(b => b.date && b.date.startsWith(today) && b.result && b.result !== 'PENDING');
   const todayPnl = todayBets.reduce((sum, b) => {
     if (b.result === 'WIN')  return sum + (b.amount * (b.betmanOdds - 1));
     if (b.result === 'LOSE') return sum - b.amount;
@@ -557,7 +557,7 @@ function checkLossWarning() {
   const monday = new Date(now);
   monday.setDate(now.getDate() - dayOfWeek);
   monday.setHours(0,0,0,0);
-  const weekBets = bets.filter(b => {
+  const weekBets = getBets().filter(b => {
     if (!b.date || !b.result || b.result === 'PENDING') return false;
     return new Date(b.date) >= monday;
   });
@@ -624,7 +624,7 @@ function getCurrentBankroll() {
     // 현재 시즌 또는 레거시(finSeason=0)는 시즌1에서 포함
     (b.finSeason === _curSeason || (b.finSeason === 0 && _curSeason === 1))
   );
-  const totalProfit = resolved.reduce((s, b) => s + (b.profit || 0), 0);
+  const totalProfit = resolved.reduce((s, b) => s + (isFinite(b.profit) ? b.profit : 0), 0);
   return startFund + totalProfit;
 }
 
@@ -969,7 +969,7 @@ function renderSeasonHistory() {
     const wins        = resolved.filter(b => b.result === 'WIN');
     const count       = resolved.length;
     const winRate     = count > 0 ? wins.length / count * 100 : 0;
-    const totalProfit = resolved.reduce((s, b) => s + (b.profit || 0), 0);
+    const totalProfit = resolved.reduce((s, b) => s + (isFinite(b.profit) ? b.profit : 0), 0);
     const totalInvest = resolved.reduce((s, b) => s + (b.amount || 0), 0);
     const roi         = totalInvest > 0 ? totalProfit / totalInvest * 100 : 0;
 

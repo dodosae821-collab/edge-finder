@@ -108,7 +108,7 @@ function getProbBucket(pct) {
  */
 function calcGroupStats(bets) {
   // push/미정 제외
-  const valid = bets.filter(b => isWin(b) !== null);
+  const valid = getBets().filter(b => isWin(b) !== null);
   const n = valid.length;
 
   if (n === 0) {
@@ -373,7 +373,7 @@ function runDecisionAnalysis(bets) {
   const push  = active.filter(b => isWin(b) === null);
 
   const meta = {
-    totalBets:   bets.length,
+    totalBets:   getBets().length,
     legacyCount: legacy.length,                                          // decision 없는 베팅 — 분석 제외
     activeCount: active.length,                                          // decision 있는 베팅
     validCount:  valid.length,                                           // win/lose만 — ROI/Calibration 기준

@@ -19,7 +19,7 @@ async function runAIAdvice() {
 
   try {
     const SS = window.App._SS || {};
-    const resolved = bets.filter(b => b.result !== 'PENDING');
+    const resolved = getBets().filter(b => b.result !== 'PENDING');
     const recent10 = resolved.slice(-10);
 
     // 최근 10건 요약
@@ -30,7 +30,7 @@ async function runAIAdvice() {
 
     // 오늘 베팅 여부
     const today = getKSTDateStr();
-    const todayBets = bets.filter(b => b.date === today);
+    const todayBets = getBets().filter(b => b.date === today);
     const todayLoss = todayBets.filter(b => b.result === 'LOSE').reduce((s,b) => s+Math.abs(b.profit||0), 0);
     const todayCount = todayBets.length;
 
@@ -332,7 +332,7 @@ function switchJournalTab(tab) {
 
 // 감정 통계
 function renderEmotionStats() {
-  const resolved = bets.filter(b => b.result !== 'PENDING');
+  const resolved = getBets().filter(b => b.result !== 'PENDING');
   const emotions = ['냉정','보통','확신','불안','흥분'];
   const stats = {};
   emotions.forEach(e => {
@@ -397,7 +397,7 @@ function renderRuleStats() {
   }
   if (emptyEl) emptyEl.style.display = 'none';
 
-  const resolved = bets.filter(b => b.result !== 'PENDING' && b.violations);
+  const resolved = getBets().filter(b => b.result !== 'PENDING' && b.violations);
   const totalBets = resolved.length;
 
   const violStats = principles.map(p => {
@@ -466,7 +466,7 @@ function generateWeeklyReview() {
   const labelEl = document.getElementById('review-week-label');
   if (labelEl) labelEl.textContent = label;
 
-  const weekBets = bets.filter(b => {
+  const weekBets = getBets().filter(b => {
     if (!b.date) return false;
     const d = new Date(b.date); d.setHours(12,0,0,0);
     return d >= mon && d <= sun;
@@ -797,7 +797,7 @@ function linkPlanToBet(planId) {
   if (!plan) return;
 
   // 같은 날짜 베팅 목록 추출
-  const candidates = bets.filter(b => b.date === plan.date && b.result !== 'PENDING');
+  const candidates = getBets().filter(b => b.date === plan.date && b.result !== 'PENDING');
   if (candidates.length === 0) {
     showToast('같은 날짜의 완료된 베팅이 없습니다.', 'info');
     return;
@@ -1396,10 +1396,10 @@ function updateSimRoundSeedBanner() {
     if (useTs2) return b.savedAt && new Date(b.savedAt) >= lockFrom2;
     return new Date(b.date) >= lockFrom2;
   };
-  const roundBets = bets.filter(b => b.result && b.result !== 'PENDING' && betInRound2(b));
-  const pendingBets = bets.filter(b => b.result === 'PENDING' && betInRound2(b));
+  const roundBets = getBets().filter(b => b.result && b.result !== 'PENDING' && betInRound2(b));
+  const pendingBets = getBets().filter(b => b.result === 'PENDING' && betInRound2(b));
   const pendingAmt = pendingBets.reduce((s, b) => s + (b.amount || 0), 0);
-  const pnl = roundBets.reduce((s, b) => s + (b.profit || 0), 0);
+  const pnl = roundBets.reduce((s, b) => s + (isFinite(b.profit) ? b.profit : 0), 0);
   const pnlWithPending = pnl - pendingAmt;
   const loss = Math.max(0, -pnl) + pendingAmt;
   const pct = locked.seed > 0 ? Math.min(100, Math.round(loss / locked.seed * 100)) : 0;
@@ -1440,10 +1440,10 @@ function updateSimRoundSeedBanner() {
     }
     // fallback: snapshot 없는 구형 데이터 — live 계산
     // [A3] roundId 없는 bet 방어 (전역 통일)
-    const roundBets = bets.filter(b => b.roundId && b.roundId === round.id && b.result !== 'PENDING');
+    const roundBets = getBets().filter(b => b.roundId && b.roundId === round.id && b.result !== 'PENDING');
     const total     = roundBets.length;
     const wins      = roundBets.filter(b => b.result === 'WIN').length;
-    const profit    = roundBets.reduce((s, b) => s + (b.profit || 0), 0);
+    const profit    = roundBets.reduce((s, b) => s + (isFinite(b.profit) ? b.profit : 0), 0);
     const invested  = roundBets.reduce((s, b) => s + (b.amount || 0), 0);
     // [A2] division 안전 처리
     const roi       = round.seed > 0 && total > 0 ? profit / round.seed * 100 : 0;

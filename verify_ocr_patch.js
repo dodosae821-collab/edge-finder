@@ -12,7 +12,7 @@ function renderOcrConfidenceSummary() {
   if (!el) return;
 
   const bets = getBets();
-  const ocrBets = bets.filter(b => b.ocrApplied && b.ocrConfidence != null);
+  const ocrBets = getBets().filter(b => b.ocrApplied && b.ocrConfidence != null);
   if (!ocrBets.length) return;
 
   const avgConf    = ocrBets.reduce((s,b) => s + b.ocrConfidence, 0) / ocrBets.length;

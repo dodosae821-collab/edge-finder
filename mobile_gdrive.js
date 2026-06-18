@@ -492,7 +492,7 @@ function initDecisionTab() {
   const bankroll = typeof getCurrentBankroll === 'function' ? getCurrentBankroll() : (getSettings().kellySeed || getSettings().startFund || 0);
   const el = document.getElementById('dec-bankroll-val');
   if (el) el.textContent = bankroll > 0 ? '₩' + Math.round(bankroll).toLocaleString() : '미설정';
-  const resolved = bets.filter(b => b.result !== 'PENDING');
+  const resolved = getBets().filter(b => b.result !== 'PENDING');
   const wr = resolved.length > 0 ? (resolved.filter(b => b.result === 'WIN').length / resolved.length * 100).toFixed(1) + '%' : '—';
   const wrEl = document.getElementById('dec-history-winrate');
   if (wrEl) wrEl.textContent = wr;
@@ -685,7 +685,7 @@ function decRenderVerdict(evPct,ctxScore,kellyAmt,kHalf,odds,myProbPct,bankroll,
   const clvVal=clvText==='미입력'?null:parseFloat(clvText.replace('+',''))||null;
   const hasPinnacle=clvVal!==null;
 
-  const resolved=bets.filter(b=>b.result!=='PENDING');
+  const resolved=getBets().filter(b=>b.result!=='PENDING');
   const sampleWarn=resolved.length<30?`⚠️ 기록 ${resolved.length}건 — 통계적 유의성을 위해 최소 100건 필요`:null;
 
   const evPositive=evPct>=0, evStrong=evPct>=5;

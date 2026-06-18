@@ -40,7 +40,7 @@ function computeAnalyzeMetrics(bets) {
   const resolved = bets.filter(function(b) { return b.result !== 'PENDING'; });
 
   // 베팅당 평균 손익 (반올림 포함 — 렌더 시 Math 호출 제거)
-  const totalProfit = resolved.reduce(function(s, b) { return s + (b.profit || 0); }, 0);
+  const totalProfit = resolved.reduce(function(s, b) { return s + (isFinite(b.profit) ? b.profit : 0); }, 0);
   const avgProfit = resolved.length > 0 ? Math.round(totalProfit / resolved.length) : null;
 
   // EV 평균
@@ -226,7 +226,7 @@ function computeJudgeMetrics(bets, filter) {
       if (key === '3폴') return b.mode === 'multi' && fc === 3;
       return b.mode === 'multi' && fc >= 4;
     });
-    const profit = g.reduce(function(s, b) { return s + (b.profit || 0); }, 0);
+    const profit = g.reduce(function(s, b) { return s + (isFinite(b.profit) ? b.profit : 0); }, 0);
     const invested = g.reduce(function(s, b) { return s + (b.amount || 0); }, 0);
     const roi = invested > 0 ? profit / invested * 100 : null;
     const cumEv = g.reduce(function(s, b) {
@@ -274,7 +274,7 @@ function computeJudgeMetrics(bets, filter) {
     const ev = b.ev != null ? b.ev : (b.myProb / 100 * (b.betmanOdds - 1)) - (1 - b.myProb / 100);
     return s + (b.amount || 0) * ev;
   }, 0);
-  const cumProfitEv = evBets.reduce(function(s, b) { return s + (b.profit || 0); }, 0);
+  const cumProfitEv = evBets.reduce(function(s, b) { return s + (isFinite(b.profit) ? b.profit : 0); }, 0);
   const evTrust = cumEvTotal !== 0 ? cumProfitEv / Math.abs(cumEvTotal) * 100 : null;
 
   // ── 트렌드 (10건 단위) ──
@@ -473,7 +473,7 @@ function computeRoundHistory(bets, history, now) {
       return new Date(b.date) >= from;
     });
     const wins = filtered.filter(function(b) { return b.result === 'WIN'; }).length;
-    const profit = filtered.reduce(function(s, b) { return s + (b.profit || 0); }, 0);
+    const profit = filtered.reduce(function(s, b) { return s + (isFinite(b.profit) ? b.profit : 0); }, 0);
     const invested = filtered.reduce(function(s, b) { return s + (b.amount || 0); }, 0);
     const roi = invested > 0 ? profit / invested * 100 : null;
     return { bets: filtered.length, wins: wins, profit: Math.round(profit), roi: roi };

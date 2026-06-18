@@ -118,7 +118,7 @@ function switchTabFromDropdown(name, el) {
   if (name === 'simulator') {
     const bets = getBets();
     calcKelly();
-    renderKellySlots(bets.filter(b=>b.result!=='PENDING').length % 12, bets.filter(b=>b.result!=='PENDING'));
+    renderKellySlots(getBets().filter(b=>b.result!=='PENDING').length % 12, getBets().filter(b=>b.result!=='PENDING'));
     updateSimRoundSeedBanner();
     updateKellyHistory();
     updateKellyGradeBanner();
@@ -535,7 +535,7 @@ function updateAnalyzeDirection(winRate, evPerBet, avgOdds) {
   const el = document.getElementById('analyze-direction');
   if (!el) return;
   const bets = getBets();
-  const resolved = bets.filter(function(b){return b.result!=='PENDING';});
+  const resolved = getBets().filter(function(b){return b.result!=='PENDING';});
   if (resolved.length < 5) { el.innerHTML = '<span style="color:var(--text3)">베팅 5건 이상 필요합니다.</span>'; return; }
   const breakeven = 1 / avgOdds;
   const lines = [];
@@ -560,7 +560,7 @@ function updateAnalyzeRisk(winRate, avgOdds, avgAmt, start, goalTarget) {
   const el = document.getElementById('analyze-risk');
   if (!el) return;
   const bets = getBets();
-  if (bets.filter(function(b){return b.result!=='PENDING';}).length < 5) {
+  if (getBets().filter(function(b){return b.result!=='PENDING';}).length < 5) {
     el.innerHTML = '<span style="color:var(--text3)">베팅 5건 이상 필요합니다.</span>';
     return;
   }

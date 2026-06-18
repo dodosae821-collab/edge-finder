@@ -534,18 +534,28 @@ function _addBetCore() {
 function resolvebet(id, result) {
   const target = getBets().find(b => String(b.id) === String(id));
   if (!target) return;
-  const next = getBets().map(b =>
-    String(b.id) === String(id)
-      ? { ...b, result, profit: result === 'WIN' ? b.amount * (b.betmanOdds - 1) : -b.amount }
-      : b
-  );
-  saveBets(next, { refresh: false });
-  updateAll();
-  renderTable();
+  const next = getBets().map(b => {
+    if (String(b.id) !== String(id)) return b;
+    let profit = 0;
+    if (result === 'WIN') {
+      // betmanOdds가 유효한 숫자인지 반드시 검증
+      const odds = parseFloat(b.betmanOdds);
+      if (!odds || isNaN(odds) || odds <= 1) {
+        showToast('배당률이 없거나 잘못됐습니다. 베팅 기록을 수정해주세요.', 'error');
+        return b; // 변경 취소
+      }
+      profit = b.amount * (odds - 1);
+    } else if (result === 'LOSE') {
+      profit = -b.amount;
+    }
+    return { ...b, result, profit };
+  });
+  // refresh:true로 뱅크롤·KPI·테이블 전체 갱신
+  saveBets(next, { refresh: true });
 }
 
 function deleteBet(id) {
-  const _delTarget = bets.find(b => String(b.id) === String(id));
+  const _delTarget = getBets().find(b => String(b.id) === String(id));
   // [C] remaining 환원 — 현재 회차 소속 베팅일 때만 복구 (null-safe + 회차 일치)
   const _activeRound = (typeof getActiveRound === 'function') ? getActiveRound() : null;
   if (
@@ -556,9 +566,7 @@ function deleteBet(id) {
   ) {
     refundRoundBet(_delTarget.amount || 0);
   }
-  saveBets(getBets().filter(b => String(b.id) !== String(id)), { refresh: false });
-  updateAll();
-  renderTable();
+  saveBets(getBets().filter(b => String(b.id) !== String(id)), { refresh: true });
 }
 
 
@@ -609,7 +617,7 @@ function deleteBetTemplate(id) {
 }
 
 function copyBet(id) {
-  const b = bets.find(b => String(b.id) === String(id));
+  const b = getBets().find(b => String(b.id) === String(id));
   if (!b) return;
 
   clearRecordForm();
@@ -779,7 +787,7 @@ function copyBet(id) {
 }
 
 function duplicateBet(id) {
-  const b = bets.find(b => String(b.id) === String(id));
+  const b = getBets().find(b => String(b.id) === String(id));
   if (!b) return;
 
   clearRecordForm(); // 수정 모드 진입 안 함 — 새 기록으로 저장
@@ -901,8 +909,8 @@ function duplicateBet(id) {
 
 function clearAll() {
   if (!confirm('⚠️ 경고: 모든 베팅 기록이 영구 삭제됩니다.\n\n복구가 불가능합니다. 정말 삭제하시겠습니까?')) return;
-  if (!confirm('마지막 확인입니다.\n전체 베팅 기록 ' + bets.length + '건을 삭제합니다.')) return;
-  saveBets([], { refresh: false });
+  if (!confirm('마지막 확인입니다.\n전체 베팅 기록 ' + getBets().length + '건을 삭제합니다.')) return;
+  saveBets([], { refresh: true });
   // 필터 초기화
   const fs = document.getElementById('filter-sport');   if (fs) fs.value = 'ALL';
   const fr = document.getElementById('filter-result');  if (fr) fr.value = 'ALL';
@@ -1032,7 +1040,7 @@ function updateFibonacci() {
   if (baseInput && !baseInput.value) baseInput.placeholder = base.toLocaleString('ko-KR');
 
   // 베팅 기록에서 최근 연패 시리즈 추출
-  const resolved = bets.filter(b => b.result !== 'PENDING').sort((a,b) => new Date(a.savedAt) - new Date(b.savedAt));
+  const resolved = getBets().filter(b => b.result !== 'PENDING').sort((a,b) => new Date(a.savedAt) - new Date(b.savedAt));
 
   // 현재 연패 계산 (뒤에서부터)
   let streak = 0;
@@ -1171,7 +1179,7 @@ function updateGameSuggestions() {
 }
 
 function getGameSuggestList() {
-  const allBets = [...bets];
+  const allBets = [...getBets()];
   const vaultRaw = Storage.get(KEYS.VAULT);
   if (vaultRaw) { try { allBets.push(...JSON.parse(vaultRaw)); } catch(e) {} }
   return [...new Set(
@@ -1231,7 +1239,7 @@ function closeGameSuggest() {
 let _folderResultBetId = null;
 
 function openFolderResultModal(id) {
-  const bet = bets.find(b => String(b.id) === String(id));
+  const bet = getBets().find(b => String(b.id) === String(id));
   if (!bet) { resolvebet(id, 'LOSE'); return; }
 
   // 폴더 수 파악 — folderOdds 우선, 없으면 folderCount
@@ -1294,15 +1302,26 @@ function confirmFolderResults() {
     else if (winBtn && winBtn.style.color === 'var(--green)') results.push('WIN');
     else results.push(null); // 미선택
   }
+  // 전체 폴더 결과 판정: 하나라도 LOSE/미선택이면 전체 LOSE, 전부 WIN이면 WIN
+  const hasUnset = results.some(r => r === null);
+  const hasLose  = results.some(r => r === 'LOSE');
+  const allWin   = !hasUnset && !hasLose;
+  const finalResult = allWin ? 'WIN' : 'LOSE';
+  // bet은 함수 상단에서 이미 선언됨 (중복 제거)
+  let finalProfit = 0;
+  if (finalResult === 'WIN') {
+    const odds = parseFloat(bet?.betmanOdds);
+    finalProfit = (odds > 1) ? (bet.amount * (odds - 1)) : bet.amount; // 배당 없으면 원금 반환
+  } else {
+    finalProfit = -(bet?.amount || 0);
+  }
   const next = getBets().map(b =>
     b.id === _folderResultBetId
-      ? { ...b, folderResults: results, result: 'LOSE', profit: -b.amount }
+      ? { ...b, folderResults: results, result: finalResult, profit: finalProfit }
       : b
   );
-  saveBets(next, { refresh: false });
+  saveBets(next, { refresh: true });
   closeFolderResultModal();
-  updateAll();
-  renderTable();
 }
 
 function closeFolderResultModal() {

@@ -128,7 +128,7 @@ function updateRecordSportFilter() {
   const sel = document.getElementById('filter-sport');
   if (!sel) return;
   const current = sel.value;
-  const sports = [...new Set(bets.map(b => b.sport).filter(Boolean))].sort();
+  const sports = [...new Set(getBets().map(b => b.sport).filter(Boolean))].sort();
   sel.innerHTML = '<option value="ALL">전체 종목</option>';
   sports.forEach(s => {
     const opt = document.createElement('option');

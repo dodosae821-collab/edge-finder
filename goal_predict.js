@@ -20,7 +20,7 @@ function updateGoalStats() {
   // 설정값 자동 반영
   const { startFund = 0, targetFund = 0 } = getSettings();
 
-  const resolved = bets.filter(b => b.result !== 'PENDING');
+  const resolved = getBets().filter(b => b.result !== 'PENDING');
   const wins     = resolved.filter(b => b.result === 'WIN');
 
   // 현재 승률
@@ -44,7 +44,7 @@ function updateGoalStats() {
   const w4Start       = new Date(thisWeekStart); w4Start.setDate(w4Start.getDate() - 28);
 
   function betsInRange(from, to) {
-    return bets.filter(b => {
+    return getBets().filter(b => {
       if (!b.date) return false;
       const d = new Date(b.date);
       return d >= from && d < to;
@@ -151,7 +151,7 @@ function updateGoalStats() {
   });
 
   // 베팅당 평균 금액
-  const avgAmt = bets.length > 0 ? bets.reduce((s, b) => s + b.amount, 0) / bets.length : 0;
+  const avgAmt = getBets().length > 0 ? getBets().reduce((s, b) => s + b.amount, 0) / getBets().length : 0;
   const avgEl = document.getElementById('goal-stat-avg'); if (avgEl) avgEl.textContent = avgAmt > 0 ? '₩' + Math.round(avgAmt).toLocaleString() : '—';
 
   // 베팅당 평균 손익
@@ -227,7 +227,7 @@ function updatePredictTab() {
   // ── 엔진 연동 ──
   const _SS = window.App._SS;
 
-  const resolved  = bets.filter(b => b.result !== 'PENDING');
+  const resolved  = getBets().filter(b => b.result !== 'PENDING');
 
   // 엔진 기초값 우선 사용
   const overallWrFromSS = _SS ? _SS.winRate : null;
@@ -245,7 +245,7 @@ function updatePredictTab() {
   }
 
   // ── ① 승률 추세 ──
-  const sorted = [...bets].filter(b => b.result !== 'PENDING')
+  const sorted = [...getBets()].filter(b => b.result !== 'PENDING')
     .sort((a, b) => (a.date||'').localeCompare(b.date||''));
 
   function wrOf(arr) {
@@ -446,7 +446,7 @@ function updatePredictTab() {
 
   // ── ④ 베팅 금액 최적화 — 엔진 연동 ──
   if (document.getElementById('kelly-actual') && resolved.length > 0) {
-    const avgBetAmt  = bets.reduce((s, b) => s + b.amount, 0) / bets.length;
+    const avgBetAmt  = getBets().reduce((s, b) => s + b.amount, 0) / getBets().length;
     const avgOddsAll2 = resolved.reduce((s, b) => s + b.betmanOdds, 0) / resolved.length;
     const kellyF     = ((overallWr * (avgOddsAll2 - 1)) - (1 - overallWr)) / (avgOddsAll2 - 1);
     const seed       = getSettings().kellySeed || getSettings().startFund || 0;
@@ -608,7 +608,7 @@ function updatePredPowerPanel() {
   const page = document.getElementById('page-predpower');
   if (!page || !page.classList.contains('active')) return;
 
-  const resolved = bets.filter(b => b.result !== 'PENDING');
+  const resolved = getBets().filter(b => b.result !== 'PENDING');
   const predBets = resolved.filter(b => b.myProb && b.betmanOdds);
   if (resolved.length < 5) return;
 
@@ -1140,7 +1140,7 @@ function calcGoal() {
 
   // 베팅 기록에서 자동 계산 — 엔진 우선
   const _SScg = window.App._SS;
-  const resolved = bets.filter(b => b.result !== 'PENDING');
+  const resolved = getBets().filter(b => b.result !== 'PENDING');
   const wins     = resolved.filter(b => b.result === 'WIN');
   const winRate  = _SScg ? _SScg.winRate : (resolved.length > 0 ? wins.length / resolved.length : 0.50);
   const avgOdds  = _SScg ? _SScg.avgOdds : (resolved.length > 0 ? resolved.reduce((s, b) => s + b.betmanOdds, 0) / resolved.length : (nextOdds || 1.90));
@@ -1148,7 +1148,7 @@ function calcGoal() {
 
   const now  = new Date();
   const ago4 = new Date(now - 28 * 24 * 3600 * 1000);
-  const recent4w   = bets.filter(b => b.date && new Date(b.date) >= ago4);
+  const recent4w   = getBets().filter(b => b.date && new Date(b.date) >= ago4);
   const weeklyBets = recent4w.length > 0 ? recent4w.length / 4 : 5;
 
   // 다음 베팅 EV — 내 예상 승률 입력 시 우선 사용, 없으면 기록 평균 승률
@@ -1304,7 +1304,7 @@ function updateGoalChart(gp10, gp25, gp50, gp90, goalTarget, start, STEPS) {
   if (charts.goal) { charts.goal.destroy(); charts.goal = null; }
 
   // 실제 기록 (뱅크롤 기준)
-  const sortedBets = [...bets].filter(b => b.result !== 'PENDING')
+  const sortedBets = [...getBets()].filter(b => b.result !== 'PENDING')
     .sort((a, b) => (a.date||'').localeCompare(b.date||''));
   const historyLabels = ['시작'];
   const historyData   = [start];

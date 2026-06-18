@@ -675,7 +675,7 @@ function updateEvBias() {
   // 전체 EV+ 적중률 / 손익
   const wins = evBets.filter(b => b.result === 'WIN');
   const totalWr = wins.length / evBets.length;
-  const totalPnl = evBets.reduce((s, b) => s + (b.profit || 0), 0);
+  const totalPnl = evBets.reduce((s, b) => s + (isFinite(b.profit) ? b.profit : 0), 0);
 
   const wrEl = document.getElementById('ev-bias-wr');
   if (wrEl) {
@@ -768,7 +768,7 @@ function updateEvBias() {
     const group = evBets.filter(b => b.betmanOdds >= r.min && b.betmanOdds < r.max);
     if (group.length === 0) return null;
     const gWins = group.filter(b => b.result === 'WIN').length;
-    const gPnl  = group.reduce((s, b) => s + (b.profit || 0), 0);
+    const gPnl  = group.reduce((s, b) => s + (isFinite(b.profit) ? b.profit : 0), 0);
     const wr    = gWins / group.length;
     const wrColor  = wr >= 0.55 ? 'var(--green)' : wr >= 0.45 ? 'var(--gold)' : 'var(--red)';
     const pnlColor = gPnl >= 0 ? 'var(--green)' : 'var(--red)';
