@@ -735,8 +735,18 @@ function clearRecordForm() {
   const ci = document.getElementById('multi-combined-implied'); if (ci) ci.textContent = '—';
   const mp = document.getElementById('multi-my-prob'); if (mp) mp.textContent = '—';
   setEvDirect(false); // 기본값 일반 베팅
+  // 종목 팝업 선택 초기화 (r-sport hidden input + 배지)
+  const _rSport = document.getElementById('r-sport');
+  if (_rSport) _rSport.value = '';
+  const sportBadge = document.getElementById('sport-selected-badge');
+  const sportLabel = document.getElementById('sport-selected-label');
+  if (sportBadge) sportBadge.style.display = 'none';
+  if (sportLabel) sportLabel.textContent = '—';
+
   // 형식 팝업 선택 초기화
   window._selectedType = null;
+  const _rTypeHidden = document.getElementById('r-type-hidden');
+  if (_rTypeHidden) _rTypeHidden.value = '';
   const typeBadge = document.getElementById('type-selected-badge');
   const typeLabel = document.getElementById('type-selected-label');
   if (typeBadge) typeBadge.style.display = 'none';

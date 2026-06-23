@@ -113,9 +113,13 @@ function saveEvBet() {
   if (probDisplay) probDisplay.style.display = 'block';
   if (probVal) probVal.textContent = `${(best.myProb * 100).toFixed(1)}% (${best.name})`;
 
-  document.querySelectorAll('#sport-btns .sel-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.val === sport);
-  });
+  {
+    const hiddenEl = document.getElementById('r-sport');
+    if (hiddenEl) hiddenEl.value = sport || '';
+    const badge = document.getElementById('sport-selected-badge');
+    const label = document.getElementById('sport-selected-label');
+    if (sport) { if (badge) badge.style.display = 'block'; if (label) label.textContent = sport; }
+  }
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab')[2].classList.add('active');
@@ -575,8 +579,8 @@ let betTemplates = Storage.getJSON(KEYS.TEMPLATES, []);
 
 function saveBetTemplate() {
   const mode   = document.getElementById('r-mode')?.value || 'single';
-  const sports = [...document.querySelectorAll('#sport-btns .sel-btn.active')].map(b => b.dataset.val);
-  const types  = [...document.querySelectorAll('#type-btns .sel-btn.active')].map(b => b.dataset.val);
+  const sports = getSelectedVals('sport');
+  const types  = getSelectedVals('type');
   const fc     = document.getElementById('r-folder-count')?.value || '2';
 
   if (!sports.length || !types.length) { showToast('종목과 형식을 선택한 후 저장하세요.', 'error'); return; }
@@ -594,12 +598,25 @@ function loadBetTemplate(id) {
   if (!t) return;
   clearRecordForm();
   setBetMode(t.mode);
-  document.querySelectorAll('#sport-btns .sel-btn').forEach(btn => {
-    if (t.sports.includes(btn.dataset.val)) btn.classList.add('active');
-  });
-  document.querySelectorAll('#type-btns .sel-btn').forEach(btn => {
-    if (t.types.includes(btn.dataset.val)) btn.classList.add('active');
-  });
+  // 종목 복원 (템플릿엔 여러 개 저장 가능하지만 폼은 단일값 — 첫 번째만 사용)
+  const sportVal = t.sports?.[0] || '';
+  {
+    const hiddenEl = document.getElementById('r-sport');
+    if (hiddenEl) hiddenEl.value = sportVal;
+    const badge = document.getElementById('sport-selected-badge');
+    const label = document.getElementById('sport-selected-label');
+    if (sportVal) { if (badge) badge.style.display = 'block'; if (label) label.textContent = sportVal; }
+  }
+  // 형식 복원
+  const typeVal = t.types?.[0] || '';
+  {
+    window._selectedType = typeVal || null;
+    const hidden = document.getElementById('r-type-hidden');
+    if (hidden) hidden.value = typeVal;
+    const badge = document.getElementById('type-selected-badge');
+    const label = document.getElementById('type-selected-label');
+    if (typeVal) { if (badge) badge.style.display = 'block'; if (label) label.textContent = typeVal; }
+  }
   if (t.mode === 'multi') {
     const fcEl = document.getElementById('r-folder-count');
     if (fcEl) fcEl.value = t.folderCount;
@@ -634,17 +651,36 @@ function copyBet(id) {
   // 단폴/다폴 모드
   setBetMode(b.mode || 'single');
 
-  // 종목
-  const sports = (b.sport || '').split(', ').map(s => s.trim());
-  document.querySelectorAll('#sport-btns .sel-btn').forEach(btn => {
-    if (sports.includes(btn.dataset.val)) btn.classList.add('active');
-  });
+  // 종목 — r-sport hidden input + 뱃지 방식 (피커 UI 구조와 일치)
+  const sportVal = (b.sport || '').split(', ')[0]?.trim() || '';
+  {
+    const hiddenEl = document.getElementById('r-sport');
+    if (hiddenEl) hiddenEl.value = sportVal;
+    const badge = document.getElementById('sport-selected-badge');
+    const label = document.getElementById('sport-selected-label');
+    if (sportVal) {
+      if (badge) badge.style.display = 'block';
+      if (label) label.textContent = sportVal;
+    } else {
+      if (badge) badge.style.display = 'none';
+    }
+  }
 
-  // 형식
-  const types = (b.type || '').split(', ').map(t => t.trim());
-  document.querySelectorAll('#type-btns .sel-btn').forEach(btn => {
-    if (types.includes(btn.dataset.val)) btn.classList.add('active');
-  });
+  // 형식 — window._selectedType + r-type-hidden 방식 (피커 UI 구조와 일치)
+  const typeVal = (b.type || '').split(', ')[0]?.trim() || '';
+  {
+    window._selectedType = typeVal || null;
+    const hidden = document.getElementById('r-type-hidden');
+    if (hidden) hidden.value = typeVal;
+    const badge = document.getElementById('type-selected-badge');
+    const label = document.getElementById('type-selected-label');
+    if (typeVal) {
+      if (badge) badge.style.display = 'block';
+      if (label) label.textContent = typeVal;
+    } else {
+      if (badge) badge.style.display = 'none';
+    }
+  }
 
   // 폴더 수 버튼 표시
   if (b.mode === 'multi' && b.folderCount) {
@@ -810,10 +846,16 @@ function duplicateBet(id) {
   const badgeLabel = document.getElementById('sport-selected-label');
   if (badge && sportVal) { badge.style.display = 'block'; if (badgeLabel) badgeLabel.textContent = sportVal; }
 
-  const types = (b.type || '').split(', ').map(t => t.trim());
-  document.querySelectorAll('#type-btns .sel-btn').forEach(btn => {
-    if (types.includes(btn.dataset.val)) btn.classList.add('active');
-  });
+  // 형식 복원 — window._selectedType + r-type-hidden 방식
+  const typeVal = (b.type || '').split(', ')[0]?.trim() || '';
+  {
+    window._selectedType = typeVal || null;
+    const hidden = document.getElementById('r-type-hidden');
+    if (hidden) hidden.value = typeVal;
+    const badge = document.getElementById('type-selected-badge');
+    const label = document.getElementById('type-selected-label');
+    if (typeVal) { if (badge) badge.style.display = 'block'; if (label) label.textContent = typeVal; }
+  }
 
   if (b.mode === 'multi' && b.folderCount) {
     const _rfc = document.getElementById('r-folder-count'); if (_rfc) _rfc.value = b.folderCount;

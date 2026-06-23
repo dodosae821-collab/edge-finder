@@ -719,11 +719,17 @@ function simRenderTree() {
   if (!canvas || !wrap) return;
 
   // 숨겨진 탭에서 호출 시 clientWidth가 0이 되는 타이밍 버그 수정:
-  // requestAnimationFrame으로 레이아웃 계산 후 실행
+  // requestAnimationFrame으로 레이아웃 계산 후 실행 (무한 재귀 방지: 최대 5회)
   if (wrap.clientWidth === 0) {
+    window._simTreeRetryCount = (window._simTreeRetryCount || 0) + 1;
+    if (window._simTreeRetryCount > 5) {
+      window._simTreeRetryCount = 0;
+      return; // 5회 시도 후에도 레이아웃이 안 잡히면 포기 (예: 탭이 계속 숨김 상태)
+    }
     requestAnimationFrame(() => simRenderTree());
     return;
   }
+  window._simTreeRetryCount = 0;
 
   const ctx = canvas.getContext('2d');
 
