@@ -38,7 +38,11 @@ function getBetsByScope() {
   // ── 현재 회차 ──
   if (scope === 'round') {
     const r = getActiveRound();
-    if (!r) return [];                          // 진행 중 회차 없으면 빈 배열
+    if (!r) {
+      // 진행 중 회차가 없는데 scope가 'round'면 'all'로 자동 복구
+      setCurrentScope('all');
+      return getBets();
+    }
     return getBets().filter(b => b.roundId === r.id);
   }
   // ── 프로젝트 (하위 호환) ──

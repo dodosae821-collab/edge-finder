@@ -718,6 +718,10 @@ function _syncScopeUI() {
       btnRound.disabled      = !round;
       btnRound.style.opacity = round ? '1' : '0.4';
       btnRound.title         = round ? '현재 회차 통계만 보기' : '진행 중인 회차가 없습니다';
+      // 회차가 없는데 scope가 'round'이면 'all'로 강제 복구
+      if (!round && scope === 'round') {
+        if (typeof setCurrentScope === 'function') setCurrentScope('all');
+      }
     }
   }
 

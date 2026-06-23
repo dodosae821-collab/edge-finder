@@ -977,7 +977,7 @@ function computeSystemState(scopedBets, allBets, settings, context = {}) {
 
     let reached = 0, totalSteps = 0;
     const s0 = (n * 7919) >>> 0;
-    const sr = s0;
+    let sr = s0;
     const rng = () => { sr = ((sr*1664525)+1013904223)>>>0; return sr/4294967296; };
 
     for (let r = 0; r < RUNS; r++) {

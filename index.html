@@ -4569,6 +4569,15 @@ window.addEventListener('unhandledrejection', function(e) {
 <script>
 // ── 앱 초기화 ── 모든 스크립트 로드 완료 후 실행
 document.addEventListener('DOMContentLoaded', function () {
+  // 0-pre. scope 안전장치 — 'round'로 저장됐는데 진행 중인 회차가 없으면 'all'로 복구
+  //   (새로고침 후 통계가 전부 0으로 보이는 문제 방지)
+  try {
+    if (typeof getCurrentScope === 'function' && typeof getActiveRound === 'function') {
+      if (getCurrentScope() === 'round' && !getActiveRound()) {
+        if (typeof setCurrentScope === 'function') setCurrentScope('all');
+      }
+    }
+  } catch(e) {}
   // 0. _SS 초기 계산 — refreshAllUI 이전에 반드시 실행 (새로고침 후 null 방지)
   if (typeof calcSystemState === 'function') calcSystemState();
   // 1. 대시보드 차트 초기화 (refreshAllUI 이전에 먼저 차트 객체 생성)
