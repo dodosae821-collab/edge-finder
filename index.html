@@ -2844,16 +2844,14 @@ window.addEventListener('unhandledrejection', function(e) {
             </div>
             <div>
               <div style="font-size:10px;color:var(--green);margin-bottom:5px;">B 배당</div>
-              <div style="display:flex;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:6px;overflow:hidden;">
-                <span id="sim-prefix-b" style="padding:8px 8px 8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;color:var(--green);border-right:1px solid var(--border);">3.</span>
+              <div style="display:flex;align-items:center;background:var(--bg3);border:1px solid rgba(0,230,118,0.4);border-radius:6px;overflow:hidden;">
+                <input type="number" id="sim-prefix-b-input" placeholder="3" min="1" max="99" step="1" oninput="simOnInputBPrefix()" inputmode="numeric"
+                  style="width:36px;background:transparent;border:none;border-right:1px solid var(--border);padding:8px 4px 8px 8px;font-size:13px;font-family:'JetBrains Mono',monospace;color:var(--green);outline:none;-moz-appearance:textfield;">
+                <span style="padding:8px 2px;font-size:13px;font-family:'JetBrains Mono',monospace;color:var(--green);border-right:1px solid var(--border);">.</span>
                 <input type="text" id="sim-o-dec-b" placeholder="00" maxlength="2" inputmode="numeric" oninput="simOnInput()"
                   style="width:100%;background:transparent;border:none;padding:8px;font-size:13px;font-family:'JetBrains Mono',monospace;color:var(--text2);outline:none;">
               </div>
-              <div style="display:flex;gap:3px;margin-top:5px;">
-                <button onclick="simSetPrefix('b',1)" id="sim-btn-b-1" style="flex:1;padding:3px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);font-size:10px;cursor:pointer;">1.x</button>
-                <button onclick="simSetPrefix('b',2)" id="sim-btn-b-2" style="flex:1;padding:3px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);font-size:10px;cursor:pointer;">2.x</button>
-                <button onclick="simSetPrefix('b',3)" id="sim-btn-b-3" style="flex:1;padding:3px;border-radius:4px;border:1px solid var(--accent);background:rgba(0,229,255,0.1);color:var(--accent);font-size:10px;cursor:pointer;">3.x</button>
-              </div>
+              <div style="font-size:10px;color:var(--text3);margin-top:5px;text-align:center;">앞자리 직접 입력 가능</div>
             </div>
             <div>
               <div style="font-size:10px;color:var(--text2);margin-bottom:5px;">최종 배당</div>

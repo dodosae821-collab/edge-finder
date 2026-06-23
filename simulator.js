@@ -28,10 +28,26 @@ function simGetOdds(which) {
     return parseFloat(document.getElementById('sim-o-c-direct')?.value) || 1.0;
   }
   const raw = document.getElementById(`sim-o-dec-${which}`)?.value || '';
-  const prefix = which === 'a' ? simPrefixA : simPrefixB;
+  let prefix;
+  if (which === 'b') {
+    // B는 직접 입력한 앞자리 숫자 사용
+    const bPrefixEl = document.getElementById('sim-prefix-b-input');
+    prefix = bPrefixEl ? (parseInt(bPrefixEl.value) || simPrefixB) : simPrefixB;
+  } else {
+    prefix = simPrefixA;
+  }
   if(raw === '') return prefix + 0;
   const dec = raw.length <= 1 ? (parseInt(raw)||0) * 10 : parseInt(raw)||0;
   return prefix + dec / 100;
+}
+
+function simOnInputBPrefix() {
+  const bPrefixEl = document.getElementById('sim-prefix-b-input');
+  if (bPrefixEl) {
+    const val = parseInt(bPrefixEl.value);
+    if (!isNaN(val) && val >= 1) simPrefixB = val;
+  }
+  simOnInput();
 }
 
 function simSetPrefix(which, val) {
@@ -47,14 +63,9 @@ function simSetPrefix(which, val) {
     });
   } else {
     simPrefixB = val;
-    document.getElementById('sim-prefix-b').textContent = val + '.';
-    [1,2,3].forEach(n => {
-      const btn = document.getElementById(`sim-btn-b-${n}`);
-      const active = n === val;
-      btn.style.borderColor = active ? 'var(--accent)' : 'var(--border)';
-      btn.style.background  = active ? 'rgba(0,229,255,0.1)' : 'var(--bg3)';
-      btn.style.color       = active ? 'var(--accent)' : 'var(--text3)';
-    });
+    // B는 직접 입력 방식 — input 값 동기화
+    const bPrefixEl = document.getElementById('sim-prefix-b-input');
+    if (bPrefixEl) bPrefixEl.value = val;
   }
   simOnInput();
 }
@@ -68,6 +79,8 @@ function simResetOdds() {
   if (db) db.value = '0';
   simSetPrefix('a', 2);
   simSetPrefix('b', 3);
+  const bPrefixEl = document.getElementById('sim-prefix-b-input');
+  if (bPrefixEl) bPrefixEl.value = '3';
   // A폴더 초기화
   ['sim-f-a1','sim-f-a2'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=false; });
   ['sim-lbl-af1','sim-lbl-af2'].forEach(id => { const el=document.getElementById(id); if(el){el.style.borderColor='var(--border)';el.style.background='var(--bg2)';} });
