@@ -288,6 +288,7 @@ function getCombinedCalibratedProb(rows) {
     const prob = parseFloat(row.querySelector('.folder-prob')?.value) || 0;
     if (prob > 0) {
       const baseProb   = prob / 100;
+      // getCalibrated는 버킷 count < 5이면 actWr 미사용, 거리 > 15%p이면 원본 반환 (state.js 참조)
       const calibrated = (typeof getCalibrated === 'function') ? getCalibrated(baseProb, window.App._SS?.calibBuckets) : baseProb;
       const acf        = getActiveCorrFactor();
       const damp       = acf < 0.999 ? 1 - (1 - acf) * 0.5 : 1.0;

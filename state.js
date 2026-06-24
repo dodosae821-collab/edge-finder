@@ -437,6 +437,13 @@ function getCalibrated(p, calibData) {
 
   if (!closest) return p;
 
+  // 샘플 5건 미만 버킷은 actWr 신뢰 불가 — 원본 그대로 반환
+  // (예: 60~70% 구간에 3건 전부 WIN → actWr=100%가 잘못 적용되는 버그 방지)
+  if ((closest.count ?? closest.n ?? 0) < 5) return p;
+
+  // 가장 가까운 버킷이 입력값과 15%p 이상 떨어져 있으면 보정 미적용
+  if (minDiff > 0.15) return p;
+
   return closest.actual != null
     ? closest.actual
     : closest.actWr / 100;
