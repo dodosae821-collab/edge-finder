@@ -3477,10 +3477,10 @@ window.addEventListener('unhandledrejection', function(e) {
         </div>
 
 
-        <!-- ▶ 시즌 히스토리 (read-only) -->
+        <!-- ▶ 시즌 히스토리 (지난 시즌 삭제 가능, 현재 시즌은 보호) -->
         <div class="card mt-16" id="season-history-card">
           <div class="card-title">📋 <span>시즌 기록</span>
-            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">열람 전용</span>
+            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">지난 시즌은 삭제 가능</span>
           </div>
           <div id="season-history-container" style="padding-top:4px;">
             <div style="font-size:11px;color:var(--text3);text-align:center;padding:16px 0;">불러오는 중…</div>
@@ -3552,6 +3552,7 @@ window.addEventListener('unhandledrejection', function(e) {
                   <th style="padding:6px 6px;text-align:right;font-weight:600;">사용</th>
                   <th style="padding:6px 6px;text-align:center;font-weight:600;">상태</th>
                   <th style="padding:6px 6px;text-align:center;font-weight:600;">기간</th>
+                  <th style="padding:6px 6px;text-align:center;font-weight:600;">관리</th>
                 </tr>
               </thead>
               <tbody id="round-history-list"></tbody>

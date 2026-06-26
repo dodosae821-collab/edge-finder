@@ -681,6 +681,57 @@ function updateRoundHistory() {
 // ============================================================
 // clearRoundHistory
 // ============================================================
+// ── 회차 이력 개별 삭제 ──────────────────────────────────────
+// 진행 중(LOCKED)인 회차는 삭제 불가 — 먼저 종료해야 함
+// deleteBets=true면 그 회차에 연결된 베팅 기록도 함께 삭제
+function deleteRoundHistory(roundId) {
+  const list = getRounds();
+  const target = list.find(r => r.id === roundId);
+  if (!target) {
+    showToast('해당 회차를 찾을 수 없습니다.', 'error');
+    return;
+  }
+  if (target.status === 'LOCKED') {
+    showToast('진행 중인 회차는 삭제할 수 없습니다. 먼저 종료하세요.', 'error');
+    return;
+  }
+
+  const linkedBets = getBets().filter(b => b.roundId === roundId);
+
+  // ① 베팅 기록도 같이 지울지 먼저 물어봄
+  const deleteBets = linkedBets.length > 0
+    ? confirm(
+        `이 회차에 연결된 베팅 기록이 ${linkedBets.length}건 있습니다.\n\n` +
+        `베팅 기록까지 지우겠습니까?\n\n` +
+        `[확인] = 회차 + 베팅 기록 ${linkedBets.length}건 모두 삭제\n` +
+        `[취소] = 회차만 삭제하고 베팅 기록은 남김`
+      )
+    : false; // 연결된 베팅이 없으면 물어볼 필요 없음
+
+  // ② 최종 실행 확인
+  const msg = deleteBets
+    ? `🗑️ 회차를 삭제합니다.\n\n시드: ₩${target.seed.toLocaleString()}\n연결된 베팅 기록: ${linkedBets.length}건도 함께 삭제됩니다.\n\n⚠️ 되돌릴 수 없습니다. 계속하시겠습니까?`
+    : `🗑️ 회차를 삭제합니다.\n\n시드: ₩${target.seed.toLocaleString()}\n베팅 기록(${linkedBets.length}건)은 삭제하지 않고 그대로 둡니다 (회차 연결 정보만 해제).\n\n계속하시겠습니까?`;
+
+  if (!confirm(msg)) return;
+
+  // 회차 자체 제거
+  saveRounds(list.filter(r => r.id !== roundId));
+
+  if (deleteBets) {
+    const remaining = getBets().filter(b => b.roundId !== roundId);
+    saveBets(remaining, { refresh: true });
+  } else {
+    // 베팅은 유지하되 roundId 연결만 해제 (시즌/금액 손익 계산엔 영향 없음)
+    const updated = getBets().map(b => b.roundId === roundId ? { ...b, roundId: null } : b);
+    saveBets(updated, { refresh: true });
+  }
+
+  if (typeof updateRoundHistory   === 'function') updateRoundHistory();
+  if (typeof _syncRoundStatusUI   === 'function') _syncRoundStatusUI();
+  showToast(`✅ 회차 삭제됨${deleteBets ? ` (베팅 ${linkedBets.length}건 포함)` : ''}`, 'success');
+}
+
 function clearRoundHistory() {
   if (!confirm('회차 이력을 전체 삭제합니다. 복구가 불가능합니다. 계속하시겠습니까?')) return;
   Storage.remove(KEYS.ROUND_HISTORY);
@@ -799,6 +850,10 @@ function _syncRoundStatusUI() {
         : '<span style="color:var(--text3);">⏹ 종료</span>';
       const startDate = r.createdAt ? r.createdAt.split('T')[0] : '—';
       const endDate   = r.closedAt  ? r.closedAt.split('T')[0]  : '—';
+      const deleteBtn = r.status === 'LOCKED'
+        ? ''
+        : `<button onclick="deleteRoundHistory('${r.id}')" title="이 회차 삭제"
+             style="padding:2px 6px;background:rgba(255,59,92,0.1);border:1px solid rgba(255,59,92,0.3);border-radius:4px;color:var(--red);font-size:9px;font-weight:700;cursor:pointer;">🗑️</button>`;
       return `<tr style="border-bottom:1px solid var(--border);">
         <td style="padding:8px 6px;font-size:11px;color:var(--text3);">${idx}회차</td>
         <td style="padding:8px 6px;font-size:11px;">₩${r.seed.toLocaleString()}</td>
@@ -806,10 +861,11 @@ function _syncRoundStatusUI() {
         <td style="padding:8px 6px;font-size:11px;color:var(--text3);">${usedPct}%</td>
         <td style="padding:8px 6px;font-size:11px;">${statusBadge}</td>
         <td style="padding:8px 6px;font-size:10px;color:var(--text3);">${startDate} ~ ${endDate}</td>
+        <td style="padding:8px 6px;text-align:center;">${deleteBtn}</td>
       </tr>`;
     }).join('');
   } else if (histEl) {
-    histEl.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px;font-size:12px;">회차 기록 없음</td></tr>';
+    histEl.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:16px;font-size:12px;">회차 기록 없음</td></tr>';
   }
 }
 

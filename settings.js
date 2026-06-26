@@ -933,6 +933,93 @@ function updateKellyGradeBanner() {
 //
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ── 시즌 기록 삭제 ──────────────────────────────────────────
+// 현재 진행 중인 시즌은 삭제 불가 (진행 중 데이터 보호)
+// 삭제 시 해당 finSeason에 속한 베팅 기록을 영구 삭제
+function deleteSeasonHistory(seasonNum) {
+  const curSeason = Number.isInteger(appSettings.currentFinSeason) && appSettings.currentFinSeason >= 1
+    ? appSettings.currentFinSeason
+    : 1;
+
+  if (seasonNum === curSeason) {
+    showToast('현재 진행 중인 시즌은 삭제할 수 없습니다.', 'error');
+    return;
+  }
+
+  const allBets = getBets();
+  const targetBets = allBets.filter(b => {
+    const s = Number.isInteger(b.finSeason) ? b.finSeason : 0;
+    return s === seasonNum;
+  });
+
+  if (targetBets.length === 0) {
+    showToast('해당 시즌에 삭제할 기록이 없습니다.', 'info');
+    return;
+  }
+
+  const ok = confirm(
+    `🗑️ 시즌 ${seasonNum} 기록을 삭제합니다.\n\n` +
+    `삭제될 베팅: ${targetBets.length}건\n\n` +
+    `⚠️ 이 작업은 되돌릴 수 없습니다.\n` +
+    `해당 시즌의 모든 베팅 기록이 영구 삭제됩니다.\n\n` +
+    `계속하시겠습니까?`
+  );
+  if (!ok) return;
+
+  const remaining = allBets.filter(b => {
+    const s = Number.isInteger(b.finSeason) ? b.finSeason : 0;
+    return s !== seasonNum;
+  });
+
+  saveBets(remaining, { refresh: true });
+  renderSeasonHistory();
+  showToast(`✅ 시즌 ${seasonNum} 기록 ${targetBets.length}건 삭제됨`, 'success');
+}
+
+// ── 구버전(legacy, finSeason=0) 기록 삭제 ────────────────────
+function deleteLegacySeasonHistory() {
+  const curSeason = Number.isInteger(appSettings.currentFinSeason) && appSettings.currentFinSeason >= 1
+    ? appSettings.currentFinSeason
+    : 1;
+  if (curSeason === 1) {
+    // 시즌1이 곧 currentSeason이면서 legacy(0)도 시즌1로 합산되는 구조이므로
+    // legacy만 따로 삭제하면 시즌1 진행 데이터가 같이 날아갈 위험 — 별도 분리 확인
+    const allBets = getBets();
+    const legacyOnly = allBets.filter(b => !Number.isInteger(b.finSeason) || b.finSeason === 0);
+    if (legacyOnly.length === 0) {
+      showToast('구버전 기록이 없습니다.', 'info');
+      return;
+    }
+    const ok = confirm(
+      `🗑️ 구버전(Legacy) 기록을 삭제합니다.\n\n` +
+      `⚠️ 주의: 현재 시즌이 1번이라 구버전 기록도 현재 진행 데이터에 포함되어 있습니다.\n` +
+      `삭제될 베팅: ${legacyOnly.length}건\n\n` +
+      `계속하시겠습니까?`
+    );
+    if (!ok) return;
+    const remaining = allBets.filter(b => Number.isInteger(b.finSeason) && b.finSeason !== 0);
+    saveBets(remaining, { refresh: true });
+    renderSeasonHistory();
+    showToast(`✅ 구버전 기록 ${legacyOnly.length}건 삭제됨`, 'success');
+    return;
+  }
+
+  const allBets = getBets();
+  const legacyOnly = allBets.filter(b => !Number.isInteger(b.finSeason) || b.finSeason === 0);
+  if (legacyOnly.length === 0) {
+    showToast('구버전 기록이 없습니다.', 'info');
+    return;
+  }
+  const ok = confirm(
+    `🗑️ 구버전(Legacy) 기록 ${legacyOnly.length}건을 영구 삭제합니다.\n계속하시겠습니까?`
+  );
+  if (!ok) return;
+  const remaining = allBets.filter(b => Number.isInteger(b.finSeason) && b.finSeason !== 0);
+  saveBets(remaining, { refresh: true });
+  renderSeasonHistory();
+  showToast(`✅ 구버전 기록 ${legacyOnly.length}건 삭제됨`, 'success');
+}
+
 function renderSeasonHistory() {
   const container = document.getElementById('season-history-container');
   if (!container) return;
@@ -1028,6 +1115,10 @@ function renderSeasonHistory() {
     const isCurrent = s.season === curSeason;
     const roiColor  = s.roi > 0 ? 'var(--green)' : s.roi < 0 ? 'var(--red)' : 'var(--text3)';
     const pnlColor  = s.totalProfit > 0 ? 'var(--green)' : s.totalProfit < 0 ? 'var(--red)' : 'var(--text3)';
+    const deleteBtn = isCurrent
+      ? ''
+      : `<button onclick="deleteSeasonHistory(${s.season})" title="이 시즌 기록 삭제"
+           style="margin-left:6px;padding:2px 7px;background:rgba(255,59,92,0.1);border:1px solid rgba(255,59,92,0.3);border-radius:4px;color:var(--red);font-size:10px;font-weight:700;cursor:pointer;">🗑️ 삭제</button>`;
 
     html += `
       <div style="
@@ -1043,6 +1134,7 @@ function renderSeasonHistory() {
           </span>
           ${isCurrent ? '<span style="font-size:9px;font-weight:700;color:#000;background:var(--accent);padding:2px 6px;border-radius:4px;letter-spacing:0.5px;">CURRENT</span>' : ''}
           <span style="margin-left:auto;font-size:10px;color:var(--text3);">${s.from} ~ ${isCurrent ? '진행 중' : s.to}</span>
+          ${deleteBtn}
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
           <div style="text-align:center;">
@@ -1075,11 +1167,13 @@ function renderSeasonHistory() {
         border:1px solid var(--border);
         border-radius:8px;
         margin-bottom:8px;
-        opacity:0.7;
+        opacity:0.9;
       ">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:11px;color:var(--text3);font-weight:600;">구버전 기록 (Legacy)</span>
           <span style="margin-left:auto;font-size:10px;color:var(--text3);">${legacyBets.length}건 · 금액 데이터 없음</span>
+          <button onclick="deleteLegacySeasonHistory()" title="구버전 기록 삭제"
+            style="padding:2px 7px;background:rgba(255,59,92,0.1);border:1px solid rgba(255,59,92,0.3);border-radius:4px;color:var(--red);font-size:10px;font-weight:700;cursor:pointer;">🗑️ 삭제</button>
         </div>
       </div>`;
   }
