@@ -1311,12 +1311,16 @@ function updateDashboardRoundStats() {
   if (profitCardActive) profitCardActive.style.borderColor = 'rgba(0,230,118,0.3)';
   if (seedEl) seedEl.style.color = '';
 
-  // ── [수정 3] 회차 시드 카드 — activeRound.seed 고정 ──
+  // ── 회차 시드 카드 — 시작 시드(고정값)는 그대로, 손익 반영 뱅크롤 별도 표시 ──
+  const roundProfitVal = typeof getRoundProfit === 'function' ? getRoundProfit(r.id) : 0;
+  const roundBankroll  = r.seed + roundProfitVal; // 적중분이 반영된 실제 회차 자산
+
   if (seedEl)          seedEl.textContent = '₩' + r.seed.toLocaleString();
   if (dashRoundedNote) dashRoundedNote.style.display = 'none';   // 신형엔 올림 없음
 
-  // ── [수정 Q2] 소진률 바 — remaining 기반으로 교체 (구형 날짜 필터 제거) ──
-  const burnRate = r.seed > 0 ? (r.seed - r.remaining) / r.seed : 0;
+  // ── 소진률 바 — remaining(아직 안 쓴 시드) 기준, 적중 여부와 무관 ──
+  // 적중으로 remaining이 seed를 초과하면 소진률은 0%(전부 보유 중)로 클램프
+  const burnRate = r.seed > 0 ? Math.max(0, (r.seed - r.remaining) / r.seed) : 0;
   const pct = Math.min(100, Math.round(burnRate * 100));
 
   if (seedPct) seedPct.textContent = pct + '% 소진';
@@ -1325,13 +1329,16 @@ function updateDashboardRoundStats() {
     seedBar.style.background = pct >= 100 ? 'var(--red)' : pct >= 70 ? '#ff9800' : 'var(--green)';
   }
   if (seedLabel) {
+    // 적중분이 반영된 실제 회차 뱅크롤을 라벨에 표시 (잔액과는 다른 개념임을 명확히)
+    const bankrollText = `자산 ₩${Math.round(roundBankroll).toLocaleString()}`;
     if (pct >= 100) {
-      seedLabel.textContent = '🛑 소진 완료'; seedLabel.style.color = 'var(--red)';
+      seedLabel.textContent = roundProfitVal !== 0 ? `🛑 시드 소진 · ${bankrollText}` : '🛑 소진 완료';
+      seedLabel.style.color = roundBankroll >= r.seed ? 'var(--green)' : 'var(--red)';
       showRoundSeedModal();
     } else if (pct >= 70) {
-      seedLabel.textContent = `잔여 ₩${Math.round(r.remaining).toLocaleString()}`; seedLabel.style.color = '#ff9800';
+      seedLabel.textContent = `잔여 ₩${Math.round(r.remaining).toLocaleString()} · ${bankrollText}`; seedLabel.style.color = '#ff9800';
     } else {
-      seedLabel.textContent = `잔여 ₩${Math.round(r.remaining).toLocaleString()}`; seedLabel.style.color = 'var(--green)';
+      seedLabel.textContent = `잔여 ₩${Math.round(r.remaining).toLocaleString()} · ${bankrollText}`; seedLabel.style.color = 'var(--green)';
     }
   }
 

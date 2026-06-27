@@ -47,6 +47,19 @@ function getActiveRound() {
   return rounds.find(r => r.status === 'LOCKED') || null;
 }
 
+/** 특정 회차에 연결된 베팅들의 확정 손익 합산 (PENDING 제외) */
+function getRoundProfit(roundId) {
+  if (!roundId) return 0;
+  const linked = getBets().filter(b => b.roundId === roundId && b.result !== 'PENDING');
+  return linked.reduce((s, b) => s + (isFinite(b.profit) ? b.profit : 0), 0);
+}
+
+/** 회차 뱅크롤 = 시드 + 그 회차에서 확정된 손익 (적중분 반영 — 단순 잔액 소진과 다름) */
+function getRoundBankroll(round) {
+  if (!round) return 0;
+  return round.seed + getRoundProfit(round.id);
+}
+
 /** 새 회차 시작 — LOCKED 회차가 없을 때만 생성 가능 */
 function lockNewRound(seed) {
   if (getActiveRound()) {
@@ -73,24 +86,49 @@ function lockNewRound(seed) {
   return true;
 }
 
-/** 베팅 금액 차감 → remaining <= 0 이면 자동 UNLOCKED */
+/** 베팅 금액 차감 — remaining이 0이 되어도 즉시 종료하지 않음
+ *  (미결 베팅이 적중하면 다시 회차 자산이 늘어날 수 있으므로,
+ *   종료 여부는 베팅 결과가 확정되는 시점(checkRoundAutoClose)에서만 판단) */
 function applyRoundBet(amount) {
   const round = getActiveRound();
   if (!round) return;
   round.remaining = Math.max(0, round.remaining - amount);
-  if (round.remaining <= 0) {
-    round.status    = 'UNLOCKED';
-    round.closedAt  = new Date().toISOString();
-  }
   saveRounds([...rounds]);          // 참조 갱신
   window.dispatchEvent(new Event('storage'));
 }
 
-/** 베팅 취소/삭제 시 금액 환원 (LOCKED 회차에만) */
+/** 베팅 결과 확정 후 호출 — 미결(PENDING) 베팅이 하나도 없고
+ *  잔액도 0 이하일 때만 회차를 자동 종료.
+ *  PENDING이 남아있으면 잔액이 0이어도 회차를 끝내지 않음
+ *  (나중에 적중하면 자산이 살아나야 하므로). */
+function checkRoundAutoClose() {
+  const round = getActiveRound();
+  if (!round) return;
+  if (round.remaining > 0) return; // 아직 시드가 남아있으면 자동 종료 대상 아님
+
+  const pendingInRound = getBets().some(b => b.roundId === round.id && b.result === 'PENDING');
+  if (pendingInRound) return; // 결과 기다리는 베팅이 있으면 종료 보류
+
+  round.status   = 'UNLOCKED';
+  round.closedAt = new Date().toISOString();
+  saveRounds([...rounds]);
+  window.dispatchEvent(new Event('storage'));
+}
+
+/** 베팅 취소/삭제 시 금액 환원 (LOCKED 회차에만) — 시드 한도까지만 복구 */
 function refundRoundBet(amount) {
   const round = getActiveRound();
   if (!round) return;
   round.remaining = Math.min(round.seed, round.remaining + amount);
+  saveRounds([...rounds]);
+}
+
+/** 적중(WIN) 이익을 회차 잔액에 반영 — refundRoundBet과 달리 시드 상한 없음
+ *  (적중하면 시드보다 더 많은 자산이 쌓일 수 있어야 함) */
+function creditRoundWin(profitAmount) {
+  const round = getActiveRound();
+  if (!round || profitAmount <= 0) return;
+  round.remaining = round.remaining + profitAmount;
   saveRounds([...rounds]);
 }
 

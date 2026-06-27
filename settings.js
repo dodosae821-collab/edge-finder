@@ -771,10 +771,14 @@ function updateFundCards() {
 
   // ── 현재 회차 scope 카드 업데이트 ──
   if (isRound) {
-    const roundBr = startFund > 0 ? br : 0;
+    const _activeRoundForFund = typeof getActiveRound === 'function' ? getActiveRound() : null;
+    // 회차 뱅크롤 = 회차 시드 + 그 회차에서 확정된 손익 (적중분 반영, 단순 잔액 소진과 다름)
+    const roundBankroll = _activeRoundForFund
+      ? (_activeRoundForFund.seed + (typeof getRoundProfit === 'function' ? getRoundProfit(_activeRoundForFund.id) : 0))
+      : 0;
     _setEl('d-round-current-fund',
-      startFund > 0 ? '₩' + Math.round(roundBr).toLocaleString() : '—',
-      roundBr >= startFund ? 'var(--green)' : 'var(--red)');
+      _activeRoundForFund ? '₩' + Math.round(roundBankroll).toLocaleString() : '—',
+      _activeRoundForFund ? (roundBankroll >= _activeRoundForFund.seed ? 'var(--green)' : 'var(--red)') : 'var(--text3)');
     _setEl('d-round-progress-pct', targetProfit > 0 ? progressPct.toFixed(1) + '%' : '—');
     const roundFill = document.getElementById('d-round-progress-fill');
     if (roundFill) roundFill.style.width = progressPct + '%';
