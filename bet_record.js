@@ -577,21 +577,31 @@ function resolvebet(id, result) {
 function deleteBet(id) {
   const _delTarget = getBets().find(b => String(b.id) === String(id));
   // [C] remaining 환원 — 현재 회차 소속 베팅일 때만 복구 (null-safe + 회차 일치)
-  // 베팅 상태에 따라 되돌릴 금액이 다름:
-  //   PENDING: 걸었던 본금만 되돌림 (아직 결과 안 나왔으니 차감된 것만 복구)
-  //   WIN:     resolvebet에서 이미 (본금+이익)을 더해줬으므로, 삭제 시 그만큼 다시 빼야 함
-  //   LOSE:    이미 잃은 돈이라 remaining에 영향 없음 (되돌릴 것 없음)
+  //
+  // 베팅의 생애주기:
+  //   ① 베팅 걸 때: remaining -= 본금        (예: 100만 → 50만)
+  //   ② WIN 확정 시: remaining += 본금+이익   (예: 50만 → 134만, creditRoundWin)
+  //   ③ LOSE 확정 시: remaining 변화없음 (이미 ①에서 차감된 채로 끝)
+  //
+  // 따라서 삭제 시 ①+②를 모두 취소해야 원래 금액(100만)으로 정확히 복구됨:
+  //   PENDING(①만 발생): 본금만 돌려주면 됨
+  //   WIN(①+②까지 발생): 순효과 = -본금+(본금+이익) = +이익만큼 늘어난 상태
+  //                       → 원상복구하려면 이익만큼만 다시 빼면 됨 (본금은 ①②가 상쇄됨)
+  //   LOSE(①만 발생, 그대로 끝): 본금만큼 다시 빼야 함 (베팅 자체가 없었던 것처럼)
   const _activeRound = (typeof getActiveRound === 'function') ? getActiveRound() : null;
   if (_delTarget && _activeRound && _delTarget.roundId === _activeRound.id) {
     if (_delTarget.result === 'PENDING' && typeof refundRoundBet === 'function') {
       refundRoundBet(_delTarget.amount || 0);
-    } else if (_delTarget.result === 'WIN' && typeof refundRoundBet === 'function') {
-      // resolvebet이 creditRoundWin(본금+이익)으로 더해준 것을 정확히 되돌림
-      const creditedAmount = (_delTarget.amount || 0) + (isFinite(_delTarget.profit) ? _delTarget.profit : 0);
-      _activeRound.remaining = Math.max(0, _activeRound.remaining - creditedAmount);
+    } else if (_delTarget.result === 'WIN') {
+      // ①②의 순효과(+이익)만큼만 되돌림 → remaining에서 이익만큼 차감
+      const profitOnly = isFinite(_delTarget.profit) ? _delTarget.profit : 0;
+      _activeRound.remaining = Math.max(0, _activeRound.remaining - profitOnly);
+      saveRounds([...getRounds()]);
+    } else if (_delTarget.result === 'LOSE') {
+      // ①에서 차감된 본금을 되돌려야 베팅이 없었던 상태로 정확히 복구됨
+      _activeRound.remaining = _activeRound.remaining + (_delTarget.amount || 0);
       saveRounds([...getRounds()]);
     }
-    // LOSE는 되돌릴 것 없음 (이미 차감된 채로 끝난 상태)
   }
   saveBets(getBets().filter(b => String(b.id) !== String(id)), { refresh: true });
 }
@@ -1385,8 +1395,21 @@ function confirmFolderResults() {
       ? { ...b, folderResults: results, result: finalResult, profit: finalProfit }
       : b
   );
+
+  // WIN 적중 시 그 회차에 건 본금+이익을 remaining에 돌려줌
+  // (resolvebet과 동일한 처리 — 다폴더 결과 경로에서 빠져있던 부분)
+  if (finalResult === 'WIN' && finalProfit > 0 && bet.roundId && typeof creditRoundWin === 'function') {
+    const _ar = typeof getActiveRound === 'function' ? getActiveRound() : null;
+    if (_ar && _ar.id === bet.roundId) {
+      creditRoundWin(bet.amount + finalProfit);
+    }
+  }
+
   saveBets(next, { refresh: true });
   closeFolderResultModal();
+
+  // 결과 확정 후 — 미결 베팅 없고 잔액도 0 이하일 때만 회차 자동 종료
+  if (typeof checkRoundAutoClose === 'function') checkRoundAutoClose();
 }
 
 function closeFolderResultModal() {
