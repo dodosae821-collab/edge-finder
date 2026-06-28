@@ -453,13 +453,14 @@ function calcMultiEV() {
         resultEl.style.color = 'var(--green)';
         const noteBase = '북메이커 내재확률 ' + (combinedImplied*100).toFixed(1) + '% vs 내 예상 ' + (myProb*100).toFixed(1) + '% (우위 +' + edge + '%p)' + (Math.abs(combinedOdds - roundedOdds) > 0.005 ? ' — 베트맨 올림 ' + combinedOdds.toFixed(2) + '→' + roundedOdds.toFixed(2) : '');
         if (noteEl) noteEl.textContent = noteBase;
-        setEvDirect(true);
+        // EV가 양수/음수인 것은 참고 정보일 뿐 — 사용자가 직접 선택한
+        // EV+/일반 분류를 시스템이 자동으로 뒤집지 않음 (이전엔 setEvDirect를
+        // 여기서 강제 호출해서 사용자가 고른 값이 계속 덮어써지는 버그였음)
         const _rmp3 = document.getElementById('r-myprob'); if (_rmp3) _rmp3.value = (myProb * 100).toFixed(1);
       } else {
         resultEl.innerHTML = rawStrike + `<span>${evPct}%</span>` + calibNote;
         resultEl.style.color = ev > -0.03 ? 'var(--gold)' : 'var(--red)';
         if (noteEl) noteEl.textContent = `북메이커 내재확률 ${(combinedImplied*100).toFixed(1)}% vs 내 예상 ${(myProb*100).toFixed(1)}% (우위 ${edge}%p)`;
-        setEvDirect(false);
         const _rmp4 = document.getElementById('r-myprob'); if (_rmp4) _rmp4.value = (myProb * 100).toFixed(1);
       }
 
