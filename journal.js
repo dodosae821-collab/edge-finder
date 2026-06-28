@@ -1331,7 +1331,19 @@ function updateDashboardRoundStats() {
   if (seedLabel) {
     // 적중분이 반영된 실제 회차 뱅크롤을 라벨에 표시 (잔액과는 다른 개념임을 명확히)
     const bankrollText = `자산 ₩${Math.round(roundBankroll).toLocaleString()}`;
-    if (pct >= 100) {
+    // 결과 대기 중(PENDING)인 베팅이 있으면 — remaining이 0이어도 "소진 완료"라고
+    // 단정하면 안 됨. 그 베팅이 적중하면 자산이 다시 늘어날 수 있기 때문.
+    // (예: 110만원 11건 베팅 직후 결과가 하나도 안 나온 상태에서 100%·소진완료
+    //      모달까지 뜨는 건 오해를 유발하는 버그였음)
+    const hasPendingInRound = typeof getBets === 'function'
+      ? getBets().some(b => b.roundId === r.id && b.result === 'PENDING')
+      : false;
+
+    if (hasPendingInRound && pct >= 100) {
+      seedLabel.textContent = `⏳ 결과 대기 중 · ${bankrollText}`;
+      seedLabel.style.color = '#ff9800';
+      // 결과가 안 나온 상태이므로 종료 모달은 띄우지 않음
+    } else if (pct >= 100) {
       seedLabel.textContent = roundProfitVal !== 0 ? `🛑 시드 소진 · ${bankrollText}` : '🛑 소진 완료';
       seedLabel.style.color = roundBankroll >= r.seed ? 'var(--green)' : 'var(--red)';
       showRoundSeedModal();

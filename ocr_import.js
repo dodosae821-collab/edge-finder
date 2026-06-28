@@ -173,22 +173,60 @@ function preprocessImage(file) {
       try {
         const canvas = document.createElement('canvas');
         const MAX_W = 1800;
-        const scale = img.width > MAX_W ? MAX_W / img.width : 1;
+        const MIN_W = 1000; // 너무 작은 사진은 업스케일 — 작은 글씨 인식률 핵심 개선
+        let scale;
+        if (img.width > MAX_W) {
+          scale = MAX_W / img.width;
+        } else if (img.width < MIN_W) {
+          scale = MIN_W / img.width; // 업스케일
+        } else {
+          scale = 1;
+        }
         canvas.width  = Math.round(img.width  * scale);
         canvas.height = Math.round(img.height * scale);
 
         const ctx = canvas.getContext('2d');
+        // 업스케일 시 부드럽게 보간 (작은 글씨 깨짐 방지)
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-        // 그레이스케일 + 대비 강화
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
+        const n = canvas.width * canvas.height;
 
-        for (let i = 0; i < data.length; i += 4) {
-          // 그레이스케일
-          const gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
-          // 대비 강화 (factor 1.8)
-          const contrasted = Math.min(255, Math.max(0, (gray - 128) * 1.8 + 128));
+        // ── 1단계: 그레이스케일 변환 + 히스토그램 수집 (Otsu 임계값용) ──
+        const gray = new Uint8ClampedArray(n);
+        const histogram = new Array(256).fill(0);
+        for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+          const g = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+          gray[p] = g;
+          histogram[Math.round(g)]++;
+        }
+
+        // ── 2단계: Otsu 알고리즘으로 최적 이진화 임계값 자동 계산 ──
+        // (사진마다 밝기/조명이 달라서 고정 임계값보다 훨씬 안정적)
+        let sum = 0;
+        for (let i = 0; i < 256; i++) sum += i * histogram[i];
+        let sumB = 0, wB = 0, wF = 0, maxVar = 0, threshold = 128;
+        for (let t = 0; t < 256; t++) {
+          wB += histogram[t];
+          if (wB === 0) continue;
+          wF = n - wB;
+          if (wF === 0) break;
+          sumB += t * histogram[t];
+          const mB = sumB / wB;
+          const mF = (sum - sumB) / wF;
+          const between = wB * wF * (mB - mF) * (mB - mF);
+          if (between > maxVar) { maxVar = between; threshold = t; }
+        }
+
+        // ── 3단계: 대비 강화 + 이진화 적용 ──
+        // 임계값 근처를 부드럽게 처리(완전 이진화 대신 강한 대비)해서
+        // Tesseract가 안티앨리어싱된 글자 경계도 더 잘 인식하게 함
+        for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+          const g = gray[p];
+          const contrasted = Math.min(255, Math.max(0, (g - threshold) * 2.2 + 128));
           data[i] = data[i+1] = data[i+2] = contrasted;
         }
 
@@ -407,17 +445,34 @@ function parseProtoRow(line) {
 
   // ── Step 1: 토큰화 ──────────────────────────────────────────────────────────
   let tokens = line.trim().split(/\s+/).filter(Boolean);
-  if (tokens.length < 3) return null;
+  if (tokens.length < 2) return null; // 팀명 2개 자체가 최소 조건 (배당 없어도 살림)
 
   // ── Step 2: 맨 끝 → 배당 ────────────────────────────────────────────────────
   // 배당 토큰 조건:
   //   ① 순수 숫자여야 함 (4.30배, 50,000원 등 suffix 붙은 토큰 차단)
   //   ② 실제 배당 범위 1.01 ~ 99.99 (회차번호 1538198575, 금액 301 등 차단)
-  const rawOddsToken = tokens[tokens.length - 1];
-  if (!/^\d+(\.\d+)?$/.test(rawOddsToken)) return null;  // 숫자 외 suffix 있으면 차단
-  const odds = parseFloat(rawOddsToken);
-  if (isNaN(odds) || odds < 1.01 || odds > 99.99) return null;
-  tokens.pop();
+  let rawOddsToken = tokens[tokens.length - 1];
+
+  // OCR 흔한 오인식 교정 후 재시도 (l/I→1, O→0, 쉼표→점, 공백제거)
+  // 예: "l.64"→"1.64", "1,64"→"1.64", "O.95"→"0.95"
+  const oddsCandidate = rawOddsToken
+    .replace(/[lI]/g, '1')
+    .replace(/[oO]/g, '0')
+    .replace(/,/g, '.');
+
+  let odds = null;
+  let oddsTokenConsumed = false;
+
+  if (/^\d+(\.\d+)?$/.test(oddsCandidate)) {
+    const parsedOdds = parseFloat(oddsCandidate);
+    if (!isNaN(parsedOdds) && parsedOdds >= 1.01 && parsedOdds <= 99.99) {
+      odds = parsedOdds;
+      tokens.pop();
+      oddsTokenConsumed = true;
+    }
+  }
+  // 배당이 끝까지 인식 안 되면 — 경기 자체를 버리지 않고 odds=null로 살림
+  // (사용자가 미리보기에서 직접 배당을 채울 수 있도록)
 
   // ── Step 3: pick (있으면 제거) ──────────────────────────────────────────────
   let pick = null;
@@ -445,6 +500,7 @@ function parseProtoRow(line) {
       gameNum: nm ? nm[2] : null, isBetTarget: nm ? nm[1] === '*' : false,
       marketType, rawHome: homeClean, rawAway: awayClean,
       handicap: splitTeamHandicap(h).handicap, pick, odds, rawLine: line,
+      oddsNeedsReview: !oddsTokenConsumed,
     };
   }
 
@@ -503,6 +559,7 @@ function parseProtoRow(line) {
     pick,
     odds,
     rawLine: line,
+    oddsNeedsReview: !oddsTokenConsumed,
   };
 }
 
@@ -1138,21 +1195,39 @@ async function handleOcrFileSelect(file) {
     let ocrText = '';
     let ocrConf  = 0;
 
-    // PSM.SPARSE_TEXT = 11 시도
-    try {
-      const r1 = await Tesseract.recognize(canvas, 'kor+eng', {
-        tessedit_pageseg_mode: '11',
-      });
-      ocrText = r1.data.text;
-      ocrConf  = r1.data.confidence;
-    } catch {
-      // fallback: SINGLE_COLUMN = 4
-      const r2 = await Tesseract.recognize(canvas, 'kor+eng', {
-        tessedit_pageseg_mode: '4',
-      });
-      ocrText = r2.data.text;
-      ocrConf  = r2.data.confidence;
+    // 여러 PSM(페이지 분할) 모드를 시도해서 가장 많은 줄을 인식한 결과를 채택
+    // 기존엔 에러가 안 나면 첫 시도(11) 결과를 그냥 썼는데,
+    // 베팅 슬립처럼 표 형태 문서는 모드별로 인식률 차이가 커서 비교가 필요함
+    //   11 = SPARSE_TEXT (흩어진 텍스트, 기본값)
+    //   6  = SINGLE_BLOCK (표/문단 형태에 자주 더 정확함)
+    //   4  = SINGLE_COLUMN (세로 정렬된 영수증류)
+    const psmCandidates = ['11', '6', '4'];
+    let bestResult = null;
+    let bestScore = -1;
+
+    for (const psm of psmCandidates) {
+      try {
+        const r = await Tesseract.recognize(canvas, 'kor+eng', {
+          tessedit_pageseg_mode: psm,
+        });
+        const text = r.data.text || '';
+        // 점수 기준: 경기번호 패턴(숫자 3-4자리로 시작하는 줄) 개수 — 실제 파싱 성공률과 직결
+        const gameLineCount = text.split('\n').filter(l => /^\*?\d{3,4}\s/.test(l.trim())).length;
+        const score = gameLineCount * 100 + text.length * 0.01; // 줄 수 우선, 텍스트 길이는 보조 지표
+        if (score > bestScore) {
+          bestScore = score;
+          bestResult = { text, confidence: r.data.confidence };
+        }
+      } catch (e) {
+        console.warn('[OCR] PSM ' + psm + ' 실패:', e.message);
+      }
     }
+
+    if (!bestResult) {
+      throw new Error('모든 OCR 시도가 실패했습니다. 사진을 다시 찍어주세요.');
+    }
+    ocrText = bestResult.text;
+    ocrConf  = bestResult.confidence;
 
     setProgress(70, '스코어 + 팀명 파싱 중...');
 
@@ -1364,6 +1439,15 @@ function renderMatchCard(m, idx) {
        </span>`
     : '';
 
+  // ── 배당 인식 실패 배지 — 경기 자체는 살렸지만 배당을 못 읽은 경우 ──────
+  // (예전엔 이 경우 경기 전체를 버렸으나, 이제는 살리고 사용자가 직접 채우게 함)
+  const oddsReviewBadge = parsed.oddsNeedsReview
+    ? `<span style="font-size:9px;padding:2px 6px;border-radius:8px;
+                    background:rgba(255,152,0,0.15);color:#ff9800;margin-left:4px;font-weight:700;">
+        ⚠️ 배당 직접 입력 필요
+       </span>`
+    : '';
+
   // ── 마켓 타입 배지 ────────────────────────────────────────
   // OCR에서 추출한 marketType을 항상 표시 (null이면 '일반 승부식')
   const mktInfo = MARKET_PREFIX_MAP[parsed.marketType];
@@ -1425,7 +1509,7 @@ function renderMatchCard(m, idx) {
   const betInfo = matchedBet
     ? `<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:2px;">
         <span style="font-size:10px;color:var(--text3,#546e7a);">${matchedBet.date || '날짜미상'} · ${matchedBet.sport || ''}</span>
-        ${marketTypeBadge}${matchPathBadge}${oddsBadge}${singleBadge}
+        ${marketTypeBadge}${matchPathBadge}${oddsBadge}${singleBadge}${oddsReviewBadge}
        </div>`
     : `<div style="
         font-size:11px;color:var(--red,#ff5252);
