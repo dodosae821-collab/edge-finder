@@ -256,7 +256,13 @@ window.addEventListener('unhandledrejection', function(e) {
       <div onclick="switchTabFromDropdown('ai-advice', this)">🤖 AI의 한마디</div>
     </div>
   </div>
-  <div class="tab" onclick="switchTab('settings', this)">⚙️ 설정</div>
+  <div class="tab-dropdown" id="settings-dropdown-wrap">
+    <div class="tab" id="settings-dropdown-trigger" onclick="toggleGenericDropdown('settings')">⚙️ 설정 ▾</div>
+    <div class="tab-dropdown-menu" id="settings-dropdown-menu" style="display:none;">
+      <div onclick="switchTabFromDropdown('settings', this)">⚙️ 설정</div>
+      <div onclick="switchTabFromDropdown('wallet', this)">💵 생활비 지갑</div>
+    </div>
+  </div>
 </nav>
 
 <!-- ===== 모바일 서브탭 바 ===== -->
@@ -3269,6 +3275,123 @@ window.addEventListener('unhandledrejection', function(e) {
 
   </div>
 
+  <div class="page" id="page-wallet">
+    <div class="section-title">💵 생활비 지갑</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px;">
+      베팅으로 번 자산 중 일부를 생활비로 빼서 베팅 자금과 분리해서 관리합니다.<br>
+      인출한 금액은 전체 누적 자산에서 빠지며, 베팅 자금으로 다시 쓰지 않는 돈으로 취급됩니다.
+    </div>
+
+    <div class="grid-3" style="margin-bottom:16px;">
+      <div class="card">
+        <div class="card-title">💰 <span>인출 가능 자산</span></div>
+        <div class="stat-val gold" id="wallet-available">—</div>
+        <div class="stat-label">현재 전체 누적 자산</div>
+      </div>
+      <div class="card">
+        <div class="card-title">📤 <span>누적 인출액</span></div>
+        <div class="stat-val" id="wallet-withdrawn-total" style="color:var(--red);">₩0</div>
+        <div class="stat-label">지금까지 생활비로 뺀 총액</div>
+      </div>
+      <div class="card">
+        <div class="card-title">📊 <span>인출 횟수</span></div>
+        <div class="stat-val" id="wallet-entry-count">0</div>
+        <div class="stat-label">건</div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:16px;">
+      <!-- 인출 카드 -->
+      <div class="card">
+        <div class="card-title">📤 <span>생활비로 인출</span></div>
+        <div class="form-group">
+          <label style="font-size:11px;">인출 금액 (₩)</label>
+          <input type="number" id="wallet-withdraw-amount" placeholder="예: 200000" step="10000"
+            style="font-size:15px;padding:10px;font-family:'JetBrains Mono',monospace;width:100%;box-sizing:border-box;">
+        </div>
+        <div class="form-group">
+          <label style="font-size:11px;">카테고리</label>
+          <select id="wallet-withdraw-category" style="font-size:14px;padding:10px;width:100%;box-sizing:border-box;">
+            <option value="식비">식비</option>
+            <option value="카드값">카드값 (공과금 포함)</option>
+            <option value="교통/차량">교통/차량</option>
+            <option value="주거/생활">주거/생활</option>
+            <option value="여가/취미">여가/취미</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-size:11px;">메모 (선택)</label>
+          <input type="text" id="wallet-withdraw-memo" placeholder="예: 6월 생활비"
+            style="font-size:13px;padding:10px;width:100%;box-sizing:border-box;">
+        </div>
+        <button class="btn btn-primary btn-full" onclick="
+          withdrawToWallet(
+            document.getElementById('wallet-withdraw-amount').value,
+            document.getElementById('wallet-withdraw-category').value,
+            document.getElementById('wallet-withdraw-memo').value
+          );
+          document.getElementById('wallet-withdraw-amount').value='';
+          document.getElementById('wallet-withdraw-memo').value='';
+        " style="padding:12px;font-size:13px;">📤 인출하기</button>
+      </div>
+
+      <!-- 환원 카드 -->
+      <div class="card">
+        <div class="card-title">📥 <span>뱅크롤로 환원</span></div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.6;">
+          생활비로 뺐던 돈 중 일부를 다시 베팅 자금으로 되돌립니다.
+        </div>
+        <div class="form-group">
+          <label style="font-size:11px;">환원 금액 (₩)</label>
+          <input type="number" id="wallet-restore-amount" placeholder="예: 50000" step="10000"
+            style="font-size:15px;padding:10px;font-family:'JetBrains Mono',monospace;width:100%;box-sizing:border-box;">
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-size:11px;">메모 (선택)</label>
+          <input type="text" id="wallet-restore-memo" placeholder="예: 안 쓴 돈 환원"
+            style="font-size:13px;padding:10px;width:100%;box-sizing:border-box;">
+        </div>
+        <button class="btn btn-full" onclick="
+          restoreFromWallet(
+            document.getElementById('wallet-restore-amount').value,
+            document.getElementById('wallet-restore-memo').value
+          );
+          document.getElementById('wallet-restore-amount').value='';
+          document.getElementById('wallet-restore-memo').value='';
+        " style="padding:12px;font-size:13px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);">📥 환원하기</button>
+      </div>
+    </div>
+
+    <!-- 카테고리별 합계 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">📋 <span>카테고리별 누적 인출</span></div>
+      <div id="wallet-category-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px;"></div>
+    </div>
+
+    <!-- 인출 내역 -->
+    <div class="card">
+      <div class="card-title">🕐 <span>인출/환원 내역</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>날짜</th>
+              <th>구분</th>
+              <th>카테고리</th>
+              <th>금액</th>
+              <th>메모</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="wallet-entry-list">
+            <tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px;">인출 내역이 없습니다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div class="page" id="page-settings">
     <div class="section-title">⚙️ 설정</div>
 
@@ -3315,6 +3438,10 @@ window.addEventListener('unhandledrejection', function(e) {
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.15);border-radius:6px;">
             <span style="font-size:10px;color:var(--gold);font-weight:600;">전체 누적 자산</span>
             <span class="mono" id="settings-display-lifetime" style="font-size:15px;font-weight:700;color:var(--gold);">미설정</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg3);border-radius:6px;margin-top:6px;">
+            <span style="font-size:10px;color:var(--text3);">생활비로 인출한 총액 <span style="opacity:0.6;">(생활비 지갑 탭)</span></span>
+            <span class="mono" id="settings-display-withdrawn" style="font-size:13px;font-weight:700;color:var(--red);">₩0</span>
           </div>
         </div>
 
@@ -4546,6 +4673,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <script src="./state.js"></script>
 <script src="./ui_tabs.js"></script>
 <script src="./settings.js"></script>
+<script src="./wallet.js"></script>
 <script src="./core.js"></script>
 <script src="./simulator.js"></script>
 <script src="./verify.js"></script>

@@ -46,7 +46,7 @@ function toggleGenericDropdown(key) {
   const menu = document.getElementById(key + '-dropdown-menu');
   if (!menu) return;
   // 다른 드롭다운 전부 닫기
-  ['stats','insight','fund','judge','betting'].forEach(k => {
+  ['stats','insight','fund','judge','betting','settings'].forEach(k => {
     if (k !== key) {
       const m = document.getElementById(k + '-dropdown-menu');
       if (m) m.style.display = 'none';
@@ -73,7 +73,7 @@ function toggleGenericDropdown(key) {
 // ============================================================
 function switchTabFromDropdown(name, el) {
   // 모든 드롭다운 메뉴 닫기
-  ['stats','insight','fund','judge','betting'].forEach(k => {
+  ['stats','insight','fund','judge','betting','settings'].forEach(k => {
     const m = document.getElementById(k + '-dropdown-menu');
     if (m) m.style.display = 'none';
   });
@@ -86,7 +86,8 @@ function switchTabFromDropdown(name, el) {
   const triggerMap = {
     analysis: 'stats', analysis2: 'stats', analysis3: 'stats',
     analyze: 'insight', predict: 'insight', predpower: 'insight', verify: 'insight', 'kbo-analysis': 'insight',
-    simulator: 'fund', goal: 'fund', 'round-report': 'fund'
+    simulator: 'fund', goal: 'fund', 'round-report': 'fund',
+    settings: 'settings', wallet: 'settings'
   };
   const triggerKey = triggerMap[name];
   if (triggerKey) {
@@ -115,6 +116,7 @@ function switchTabFromDropdown(name, el) {
   if (name === 'predpower') updatePredPowerPanel();
   if (name === 'verify')    { if (typeof renderVerifyPage === 'function') renderVerifyPage(); }
   if (name === 'settings')  { if (typeof renderSeasonHistory === 'function') renderSeasonHistory(); }
+  if (name === 'wallet')    { if (typeof renderWalletPage === 'function') renderWalletPage(); }
   if (name === 'simulator') {
     const bets = getBets();
     calcKelly();

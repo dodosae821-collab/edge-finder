@@ -50,6 +50,9 @@ window.KEYS = Object.freeze({
   SCOPE:                 'edge_scope',
   CURRENT_PROJECT:       'edge_current_project',
 
+  // 생활비 지갑
+  WALLET:                'edge_wallet',
+
   // 복구
   PRE_RESTORE:           'edge_bets_pre_restore',
   PRE_RESTORE_TS:        'edge_bets_pre_restore_ts',

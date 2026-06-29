@@ -244,6 +244,9 @@ function renderPage(page) {
       if (typeof renderSeasonHistory  === 'function') renderSeasonHistory();
       if (typeof updateWeeklySeedStatus === 'function') updateWeeklySeedStatus();
       break;
+    case 'wallet':
+      if (typeof renderWalletPage === 'function') renderWalletPage();
+      break;
   }
 }
 

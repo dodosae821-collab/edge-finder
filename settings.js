@@ -17,12 +17,15 @@ function getSettings() {
   return appSettings;
 }
 
-// ── 전체 누적 자산 = lifetimeOffset + 현재 시즌 뱅크롤 ──────────
+// ── 전체 누적 자산 = lifetimeOffset + 현재 시즌 뱅크롤 - 생활비 인출액 ──
 // lifetimeOffset: 사용자가 직접 입력한 이전 누적 자산
 // getCurrentBankroll(): 현재 시즌 시작자금 + 현재 시즌 손익
+// 생활비로 인출한 금액은 더 이상 베팅 자산이 아니므로 여기서 차감
+// (startFund는 보존 — ROI/목표달성률 기준선이 흔들리지 않도록 withdrawnTotal을 별도 관리)
 function getTotalLifetimeBankroll() {
   const offset = Number(appSettings.lifetimeOffset) || 0;
-  return offset + getCurrentBankroll();
+  const withdrawn = typeof getWalletWithdrawnTotal === 'function' ? getWalletWithdrawnTotal() : 0;
+  return offset + getCurrentBankroll() - withdrawn;
 }
 
 // lifetimeOffset만 저장 (전체 누적 자산 직접 수정용)
@@ -115,6 +118,13 @@ function loadSettingsDisplay() {
   if (_dlt) _dlt.textContent = totalLifetime > 0 ? '₩' + Math.round(totalLifetime).toLocaleString() : (startFund > 0 ? '₩' + Math.round(currentBankroll).toLocaleString() : '미설정');
   const _dlo = document.getElementById('settings-display-lifetime-offset');
   if (_dlo) _dlo.textContent = lifetimeOffset > 0 ? '₩' + Math.round(lifetimeOffset).toLocaleString() : '—';
+
+  // 생활비로 인출한 총액 표시 (생활비 지갑 탭으로 가야 상세 내역 확인 가능)
+  const _dwd = document.getElementById('settings-display-withdrawn');
+  if (_dwd) {
+    const withdrawnTotal = typeof getWalletWithdrawnTotal === 'function' ? getWalletWithdrawnTotal() : 0;
+    _dwd.textContent = withdrawnTotal > 0 ? '₩' + Math.round(withdrawnTotal).toLocaleString() : '₩0';
+  }
 
   // 확인 카드 (하단 그리드)
   const _dbConf = document.getElementById('settings-display-bankroll-confirm');
