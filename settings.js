@@ -752,6 +752,20 @@ function updateFundCards() {
     }
   });
 
+  // ── 헤더 전체 누적 자산 (lifetimeOffset + 시즌 손익 - 생활비 인출액 반영) ──
+  const lifetimeBaseline = lifetimeOffset + startFund; // 기준선: 이전 누적 + 시작자금
+  const ltText  = startFund > 0 || lifetimeOffset > 0
+    ? (totalBr < 0 ? '-₩' : '₩') + Math.abs(Math.round(totalBr)).toLocaleString()
+    : '미설정';
+  const ltColor = totalBr > lifetimeBaseline ? 'var(--gold)' : totalBr < lifetimeBaseline ? 'var(--red)' : 'var(--text2)';
+  const ltEl = document.getElementById('h-lifetime-bankroll');
+  if (ltEl) {
+    ltEl.textContent = ltText;
+    ltEl.style.color = ltColor;
+    ltEl.classList.remove('positive','negative');
+    ltEl.classList.add(totalBr >= lifetimeBaseline ? 'positive' : 'negative');
+  }
+
   // ── 전체 scope 카드 업데이트 ──
   const totalProfit  = br - startFund;
   const targetProfit = targetFund - startFund;

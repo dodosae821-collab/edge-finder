@@ -21,7 +21,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>EDGE FINDER v7 — 밸류베팅 분석 시스템</title>
+<title>EDGE FINDER v7.1 — 밸류베팅 분석 시스템</title>
 <link rel="stylesheet" href="./style.css">
 
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -36,7 +36,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <header>
   <div class="logo" onclick="switchTab('dashboard', document.querySelector('.tab.active') || document.querySelector('.tab'))" style="cursor:pointer;">
     <div class="logo-main">EDGE FINDER</div>
-    <div class="logo-sub">밸류베팅 분석 시스템 v7.0</div>
+    <div class="logo-sub">밸류베팅 분석 시스템 v7.1</div>
   </div>
   <div class="header-stats">
     <div class="hstat">
@@ -62,6 +62,11 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="hstat">
       <div class="hstat-val" id="h-bankroll">—</div>
       <div class="hstat-label">뱅크롤</div>
+    </div>
+    <div class="divider"></div>
+    <div class="hstat">
+      <div class="hstat-val" id="h-lifetime-bankroll">—</div>
+      <div class="hstat-label">전체 누적 자산</div>
     </div>
     <div class="divider"></div>
     <div class="hstat" style="cursor:pointer;" onclick="backupData()" title="데이터 백업">
