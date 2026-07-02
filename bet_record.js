@@ -369,11 +369,26 @@ function _addBetCore() {
     return;
   }
 
-  // adjustedProb: hidden 필드에서 읽거나 실시간 계산
-  const _adjProbEl = document.getElementById('r-adjusted-prob-val');
-  const _adjProbPct = _adjProbEl && parseFloat(_adjProbEl.value) > 0
-    ? parseFloat(_adjProbEl.value)
-    : (typeof getCLVAdjustedProb === 'function' && _mp ? getCLVAdjustedProb(_mp) : _mp);
+  // ── adjustedProb 결정 ──────────────────────────────────────
+  // 단폴: hidden 필드(syncMyProb이 채운 값) → 없으면 실시간 getCLVAdjustedProb
+  // 다폴: getCombinedCalibratedProb(폴더 행)으로 직접 계산
+  //        → r-adjusted-prob-val은 단폴 전용이므로 다폴에선 읽지 않음
+  //          (기존: 비어있으면 getCLVAdjustedProb(이미보정값) 재호출 → 이중보정 버그)
+  let _adjProbPct;
+  if (mode === 'multi') {
+    // 다폴: 폴더 행에서 직접 재계산 (computeComboProb 기반)
+    const _rows = document.querySelectorAll('#folder-rows .folder-row');
+    const _calibFrac = (typeof getCombinedCalibratedProb === 'function')
+      ? getCombinedCalibratedProb(_rows)
+      : null;
+    _adjProbPct = _calibFrac != null ? _calibFrac * 100 : _mp;
+  } else {
+    // 단폴: hidden 필드 우선, 없으면 getCLVAdjustedProb(myProb)
+    const _adjProbEl = document.getElementById('r-adjusted-prob-val');
+    _adjProbPct = (_adjProbEl && parseFloat(_adjProbEl.value) > 0)
+      ? parseFloat(_adjProbEl.value)
+      : (typeof getCLVAdjustedProb === 'function' && _mp ? getCLVAdjustedProb(_mp) : _mp);
+  }
   // toProb() 헬퍼 사용 — 직접 /100 금지 (단위 혼용 방지)
   const _adjProb = typeof toProb === 'function' ? toProb(_adjProbPct) : _adjProbPct / 100;
   const _rawProb = typeof toProb === 'function' ? toProb(_mp)         : _mp / 100;
@@ -421,14 +436,10 @@ function _addBetCore() {
   }
 
   // evCalibrated + calibProb
+  // _adjProb: 위에서 이미 단폴/다폴 분기 처리된 값 — 이중 보정 없음
   if (_mp && _od && _od > 1) {
-    let calibProb = _adjProb;
-    if (mode === 'multi') {
-      const rows = document.querySelectorAll('#folder-rows .folder-row');
-      calibProb = getCombinedCalibratedProb(rows) ?? _adjProb;
-    }
-    betData.evCalibrated = (calibProb * (_od - 1)) - (1 - calibProb);
-    betData.calibProb = calibProb; // 소수 단위 (0~1)로 저장
+    betData.evCalibrated = (_adjProb * (_od - 1)) - (1 - _adjProb);
+    betData.calibProb    = _adjProb; // 소수 단위 (0~1)로 저장
   } else {
     betData.evCalibrated = null;
     betData.calibProb    = null;

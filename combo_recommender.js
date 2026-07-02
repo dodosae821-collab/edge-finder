@@ -16,6 +16,24 @@ function comboInit() {
   comboUpdatePerBet();
 }
 
+// ── 전체 초기화 ──
+function comboReset() {
+  if (!confirm('경기 입력 내용과 생성된 조합을 모두 초기화할까요?')) return;
+  _comboGames.length = 0;
+  _comboIdCounter    = 0;
+  comboAddGame();                           // 빈 행 1개로 리셋
+  const result = document.getElementById('combo-result');
+  if (result) result.style.display = 'none';
+  const recovList = document.getElementById('combo-recovery-list');
+  const profList  = document.getElementById('combo-profit-list');
+  if (recovList) recovList.innerHTML = '';
+  if (profList)  profList.innerHTML  = '';
+  const summary = document.getElementById('combo-summary');
+  if (summary) summary.textContent = '';
+  comboRenderGames();
+  comboUpdatePerBet();
+}
+
 // ── 조합당 금액 / 수익용 수 업데이트 ──
 function comboUpdatePerBet() {
   const total   = parseFloat(document.getElementById('combo-total-amt')?.value)    || 1000000;
@@ -87,18 +105,20 @@ function comboRenderGames() {
   }
   if (empty) empty.style.display = 'none';
 
+  // 이전 드롭다운 포탈 정리 (재렌더 시 중복 방지)
+  document.querySelectorAll('.combo-suggest-portal').forEach(el => el.remove());
+
   list.innerHTML = _comboGames.map((g, idx) => {
     const implied = parseFloat(g.odds) > 1 ? (1 / parseFloat(g.odds) * 100).toFixed(1) + '%' : '—';
     const letter  = String.fromCharCode(65 + idx); // A, B, C ...
     return `
     <div style="display:grid;grid-template-columns:28px 1fr 72px 60px 60px 54px 28px;gap:4px;margin-bottom:6px;align-items:center;">
       <div style="font-size:11px;font-weight:700;color:var(--text3);text-align:center;">${letter}</div>
-      <div style="position:relative;">
+      <div>
         <input type="text" id="combo-name-${g.id}" placeholder="경기명/선택" value="${g.name}"
           style="padding:7px 8px;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);outline:none;width:100%;box-sizing:border-box;"
           oninput="comboGameChange(${g.id},'name',this.value);comboNameInput(${g.id},this.value)"
-          onblur="setTimeout(()=>comboCloseSuggest(${g.id}),200)" autocomplete="off">
-        <div id="combo-suggest-${g.id}" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px;z-index:500;max-height:160px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.4);"></div>
+          onblur="comboCloseSuggest(${g.id})" autocomplete="off">
       </div>
       <input type="number" placeholder="1.85" value="${g.odds}" min="1.01" step="0.01"
         style="padding:7px 6px;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--accent);outline:none;width:100%;text-align:center;"
@@ -122,28 +142,60 @@ function comboRenderGames() {
   comboCheckReady();
 }
 
-// ── 경기명 자동완성 (베팅 기록에 쌓인 이전 경기명 기반 — 전략베팅과 동일 소스) ──
+// ── 경기명 자동완성 ──
+// document.body에 포탈 div를 붙여 position:fixed로 띄움
+// → 부모 .card의 overflow:hidden / 조상 overflow:auto 완전 회피
 function comboNameInput(id, val) {
-  const box = document.getElementById('combo-suggest-' + id);
-  if (!box) return;
-  if (!val || val.trim().length < 1) { box.style.display = 'none'; return; }
+  const input = document.getElementById('combo-name-' + id);
+  if (!input) return;
 
-  const list = window._gameSuggestList || (typeof getGameSuggestList === 'function' ? getGameSuggestList() : []);
+  // 기존 포탈 제거
+  comboCloseSuggest(id);
+
+  if (!val || val.trim().length < 1) return;
+
+  const list    = window._gameSuggestList || (typeof getGameSuggestList === 'function' ? getGameSuggestList() : []);
   const matches = list.filter(n => n.includes(val)).slice(0, 8);
+  if (!matches.length) return;
 
-  if (!matches.length) { box.style.display = 'none'; return; }
+  // 입력 필드 위치 계산 (fixed 기준)
+  const rect = input.getBoundingClientRect();
 
-  box.innerHTML = matches.map((n, i) => `
+  // 포탈 div 생성 후 body에 직접 추가
+  const portal = document.createElement('div');
+  portal.className = 'combo-suggest-portal';
+  portal.dataset.suggestId = String(id);
+  portal.style.cssText = [
+    'position:fixed',
+    `top:${rect.bottom + 2}px`,
+    `left:${rect.left}px`,
+    `width:${rect.width}px`,
+    'background:var(--bg2)',
+    'border:1px solid var(--border)',
+    'border-radius:6px',
+    'z-index:9000',
+    'max-height:200px',
+    'overflow-y:auto',
+    'box-shadow:0 4px 20px rgba(0,0,0,0.5)',
+  ].join(';');
+
+  portal.innerHTML = matches.map((n, i) => `
     <div data-idx="${i}"
-      style="padding:8px 12px;font-size:13px;color:var(--text2);cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05);"
+      style="padding:9px 12px;font-size:13px;color:var(--text2);cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05);"
       onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
       ${typeof escHtml === 'function' ? escHtml(n) : n}
     </div>`).join('');
-  box.querySelectorAll('[data-idx]').forEach(el => {
+
+  portal.querySelectorAll('[data-idx]').forEach(el => {
     const idx = Number(el.dataset.idx);
-    el.addEventListener('click', () => comboSelectSuggest(id, matches[idx]));
+    // mousedown + preventDefault: blur 보다 먼저 실행되어 선택이 사라지지 않음
+    el.addEventListener('mousedown', e => {
+      e.preventDefault();
+      comboSelectSuggest(id, matches[idx]);
+    });
   });
-  box.style.display = 'block';
+
+  document.body.appendChild(portal);
 }
 
 function comboSelectSuggest(id, name) {
@@ -155,29 +207,9 @@ function comboSelectSuggest(id, name) {
 }
 
 function comboCloseSuggest(id) {
-  const box = document.getElementById('combo-suggest-' + id);
-  if (box) box.style.display = 'none';
-}
-
-// ── 배당 베트맨 올림 ──
-function _comboBetmanRound(odds) {
-  const s    = odds.toFixed(2);
-  const dec2 = parseInt(s.slice(-1));
-  if (dec2 === 0) return parseFloat(s.slice(0, -1));
-  return Math.ceil(odds * 10) / 10;
-}
-
-// ── 보정 승률 계산 (시스템 calibration 활용) ──
-function _comboCalibrate(rawProb) {
-  const ss = window.App?._SS;
-  if (!ss) return rawProb;
-  // getCalibrated가 존재하면 사용 (state.js)
-  if (typeof getCalibrated === 'function' && ss.calibBuckets?.length) {
-    return getCalibrated(rawProb, ss.calibBuckets);
-  }
-  // corrFactor 폴백
-  const cf = Math.min(ss.activeCorrFactor || 1.0, 1.0);
-  return rawProb * cf;
+  // 포탈 방식: document.body에 붙은 div를 data-suggest-id로 찾아 제거
+  const portal = document.querySelector(`.combo-suggest-portal[data-suggest-id="${id}"]`);
+  if (portal) portal.remove();
 }
 
 // ── 유효성 검증 (그룹 충돌) ──
@@ -186,21 +218,27 @@ function _comboIsValid(combo) {
   return groups.length === new Set(groups).size;
 }
 
-// ── 조합 통계 계산 ──
+// ── 조합 통계 계산 — ev.js의 computeComboProb 엔진 공용 사용 ──
 function _comboStats(combo, perBet, useCalib) {
-  let rawOdds = 1, rawProb = 1, calibProb = 1;
-  for (const g of combo) {
-    const odds   = parseFloat(g.odds);
-    const prob   = parseFloat(g.myProb) / 100;
-    const calibP = useCalib ? _comboCalibrate(prob) : prob;
-    rawOdds   *= odds;
-    rawProb   *= prob;
-    calibProb *= calibP;
-  }
-  const finalOdds = _comboBetmanRound(rawOdds);
+  const ss   = window.App?._SS;
+  const legs = combo.map(g => ({ odds: parseFloat(g.odds), prob: parseFloat(g.myProb) }));
+
+  const result = (typeof computeComboProb === 'function')
+    ? computeComboProb(legs, useCalib ? { buckets: ss?.calibBuckets, acf: ss?.activeCorrFactor } : {})
+    : (() => {
+        // 폴백: computeComboProb 미로드 시 (로드 순서 문제 방어)
+        let rawOdds = 1, logRaw = 0;
+        legs.forEach(l => { rawOdds *= l.odds; logRaw += Math.log(Math.max(l.prob / 100, 1e-9)); });
+        const finalOdds = Math.ceil(rawOdds * 10) / 10;
+        const calibProb = Math.exp(logRaw);
+        return { finalOdds, rawProb: calibProb, calibProb, ev: calibProb * (finalOdds - 1) - (1 - calibProb) };
+      })();
+
+  const finalOdds = result.finalOdds;
+  const calibProb = useCalib ? result.calibProb : result.rawProb;
   const ev        = calibProb * (finalOdds - 1) - (1 - calibProb);
   const expected  = perBet * calibProb * finalOdds;
-  return { odds: finalOdds, rawProb, calibProb, ev, expected };
+  return { odds: finalOdds, rawProb: result.rawProb, calibProb, ev, expected };
 }
 
 // ── 조합 생성 메인 ──
@@ -364,7 +402,13 @@ function comboCardHTML(c, idx, perBet, icon, kind) {
     const li      = _comboGames.findIndex(x => x.id === g.id);
     const letter  = String.fromCharCode(65 + li);
     const prob    = parseFloat(g.myProb);
-    const calibP  = _comboCalibrate(prob / 100) * 100;
+    // computeComboProb을 단일 레그로 호출해 보정 확률 표시 (카드 UI용)
+    const ss      = window.App?._SS;
+    const useCalib = !!(ss?.calibBuckets?.length);
+    const _singleResult = useCalib && typeof computeComboProb === 'function'
+      ? computeComboProb([{ odds: parseFloat(g.odds), prob }], { buckets: ss.calibBuckets, acf: ss.activeCorrFactor })
+      : null;
+    const calibP  = _singleResult ? _singleResult.calibProb * 100 : prob;
     const diffStr = Math.abs(calibP - prob) >= 0.5
       ? ` <span style="font-size:10px;color:var(--text3);">→ 보정 ${calibP.toFixed(0)}%</span>`
       : '';

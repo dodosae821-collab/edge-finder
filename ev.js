@@ -281,23 +281,81 @@ function betmanRound(odds) {
 }
 
 
+// ============================================================
+// ▶ computeComboProb({ legs, buckets, acf })
+//   조합기 · 다폴 기록 폼 공용 핵심 엔진 (순수 함수 — DOM 참조 없음)
+//
+//   legs  : [{ odds: number, prob: number(0~100) }, ...]
+//   buckets: App._SS.calibBuckets  (없으면 null)
+//   acf    : App._SS.activeCorrFactor (없으면 1.0)
+//
+//   보정 레이어
+//     1층 — 버킷 보정 (getCalibrated): 구간별 실제 적중률로 교체
+//            · 버킷 표본 < 5건 → 원본 그대로
+//            · 가장 가까운 버킷과 거리 > 15%p → 원본 그대로
+//     2층 — corrFactor 댐핑: 과신 계수 절반 강도 완화
+//            · acf < 0.999 일 때만 적용
+//            · damp = 1 − (1 − acf) × 0.5
+//     로그합 방식 — 다폴 언더플로 방지
+//
+//   반환 { rawOdds, finalOdds, rawProb, calibProb, ev }
+//     rawOdds   : 배당 단순 곱
+//     finalOdds : 베트맨 올림 적용
+//     rawProb   : 보정 전 확률 (기록 취소선 표시용)
+//     calibProb : 1층+2층 완전 보정 확률
+//     ev        : calibProb 기반 EV
+// ============================================================
+function computeComboProb(legs, { buckets, acf } = {}) {
+  const _acf     = (acf != null && acf > 0) ? acf : 1.0;
+  const _buckets = Array.isArray(buckets) ? buckets : [];
+  const damp     = _acf < 0.999 ? 1 - (1 - _acf) * 0.5 : 1.0;
+
+  let rawOdds = 1;
+  let logRaw  = 0;
+  let logAdj  = 0;
+
+  for (const leg of legs) {
+    const odds = parseFloat(leg.odds);
+    const p    = parseFloat(leg.prob) / 100;
+    if (!(odds >= 1.01) || !(p > 0 && p < 1)) continue;
+
+    rawOdds *= odds;
+    logRaw  += Math.log(Math.max(p, 1e-9));
+
+    // 1층: 버킷 보정
+    const calibrated = (typeof getCalibrated === 'function' && _buckets.length)
+      ? getCalibrated(p, _buckets)
+      : p;
+
+    // 2층: corrFactor 댐핑
+    const pAdj = calibrated * damp;
+    logAdj += Math.log(Math.max(pAdj, 1e-9));
+  }
+
+  const finalOdds = betmanRound(rawOdds);
+  const rawProb   = Math.exp(logRaw);
+  const calibProb = Math.exp(logAdj);
+  const ev        = calibProb * (finalOdds - 1) - (1 - calibProb);
+
+  return { rawOdds, finalOdds, rawProb, calibProb, ev };
+}
+
+
+// getCombinedCalibratedProb — 다폴 폼 DOM rows를 받아 computeComboProb 위임
+// (기존 호출부 bet_record.js 호환 유지)
 function getCombinedCalibratedProb(rows) {
-  let logAdj = 0;
-  let count  = 0;
+  const legs = [];
   rows.forEach(row => {
-    const prob = parseFloat(row.querySelector('.folder-prob')?.value) || 0;
-    if (prob > 0) {
-      const baseProb   = prob / 100;
-      // getCalibrated는 버킷 count < 5이면 actWr 미사용, 거리 > 15%p이면 원본 반환 (state.js 참조)
-      const calibrated = (typeof getCalibrated === 'function') ? getCalibrated(baseProb, window.App._SS?.calibBuckets) : baseProb;
-      const acf        = getActiveCorrFactor();
-      const damp       = acf < 0.999 ? 1 - (1 - acf) * 0.5 : 1.0;
-      const probAdj    = calibrated * Math.min(damp, 1.0);
-      logAdj += Math.log(Math.max(probAdj, 1e-6));
-      count++;
-    }
+    const odds = parseFloat(row.querySelector('.folder-odds')?.value) || 0;
+    const prob = parseFloat(row.querySelector('.folder-prob')?.value)  || 0;
+    if (prob > 0) legs.push({ odds: odds || 99, prob });
   });
-  return count > 0 ? Math.exp(logAdj) : null;
+  if (!legs.length) return null;
+  const ss = window.App?._SS;
+  return computeComboProb(legs, {
+    buckets: ss?.calibBuckets,
+    acf:     ss?.activeCorrFactor
+  }).calibProb;
 }
 
 
