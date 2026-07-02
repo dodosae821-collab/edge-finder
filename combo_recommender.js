@@ -420,6 +420,14 @@ function comboSendToRecord(kind, idx) {
 
   if (typeof setBetMode === 'function') setBetMode('multi');
 
+  // ⚠️ setBetMode('multi')는 내부에서 setTimeout(renderFolderRows, 0)으로
+  // 폴더 행 전체를 다시 그린다(= 지금 채운 값이 전부 지워짐).
+  // 따라서 폼 채우기는 그 재렌더가 끝난 "다음 틱"으로 미뤄야 한다.
+  setTimeout(() => _comboFillRecordForm(c), 30);
+}
+
+// ── 실제 폼 채우기 (renderFolderRows 재렌더 이후 실행) ──
+function _comboFillRecordForm(c) {
   const n = c.combo.length;
   const folderVal = n <= 3 ? String(n) : '4+';
   const targetBtn = document.querySelector(`.folder-btn[data-val="${folderVal}"]`);

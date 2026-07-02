@@ -123,7 +123,8 @@ function saveEvBet() {
   }
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab')[2].classList.add('active');
+  const _recordTab = document.querySelector('.tab[onclick*="\'record\'"]');
+  if (_recordTab) _recordTab.classList.add('active');
   document.getElementById('page-record').classList.add('active');
 }
 

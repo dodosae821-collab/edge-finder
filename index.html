@@ -222,8 +222,13 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <nav>
   <div class="tab active" onclick="switchTab('dashboard', this)">📊 대시보드</div>
-  <div class="tab" onclick="switchTab('strategy', this)" style="color:#00e5ff;font-weight:700;">⚡ 전략베팅</div>
-  <div class="tab" onclick="switchTab('combo', this)" style="color:var(--gold);font-weight:700;">🎯 조합기</div>
+  <div class="tab-dropdown" id="betting-dropdown-wrap">
+    <div class="tab" id="betting-dropdown-trigger" onclick="toggleGenericDropdown('betting')" style="color:#00e5ff;font-weight:700;">⚡ 전략배팅 ▾</div>
+    <div class="tab-dropdown-menu" id="betting-dropdown-menu" style="display:none;">
+      <div onclick="switchTabFromDropdown('strategy', this)">⚡ 전략배팅</div>
+      <div onclick="switchTabFromDropdown('combo', this)" style="color:var(--gold);font-weight:700;">🎯 조합기</div>
+    </div>
+  </div>
   <div id="nav-ev-tab" style="display:none;"><div class="tab" onclick="switchTab('value', this)">🧮 EV 계산기</div></div>
   <div class="tab" onclick="switchTab('record', this)">📝 베팅 기록</div>
   <div class="tab" onclick="switchTab('diary-list', this)">📒 일지 목록</div>

@@ -84,6 +84,7 @@ function switchTabFromDropdown(name, el) {
 
   // 해당 드롭다운 트리거 active
   const triggerMap = {
+    strategy: 'betting', combo: 'betting',
     analysis: 'stats', analysis2: 'stats', analysis3: 'stats',
     analyze: 'insight', predict: 'insight', predpower: 'insight', verify: 'insight', 'kbo-analysis': 'insight',
     simulator: 'fund', goal: 'fund', 'round-report': 'fund',
@@ -111,6 +112,7 @@ function switchTabFromDropdown(name, el) {
   if (name === 'ai-advice')  { /* 수동 트리거만 — 자동 실행 안 함 */ }
   if (name === 'journal')    { loadJournal(); switchJournalTab(_journalTab || 'plan'); }
   if (name === 'strategy')   { initSimulator(); }
+  if (name === 'combo')      { if (typeof comboInit === 'function') comboInit(); }
   if (name === 'analyze')   updateAnalyzeTab();
   if (name === 'predict')   { updateGoalStats(); updatePredictTab(); }
   if (name === 'predpower') updatePredPowerPanel();
