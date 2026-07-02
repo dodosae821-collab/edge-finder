@@ -125,10 +125,20 @@ function refundRoundBet(amount) {
 
 /** 적중(WIN) 이익을 회차 잔액에 반영 — refundRoundBet과 달리 시드 상한 없음
  *  (적중하면 시드보다 더 많은 자산이 쌓일 수 있어야 함) */
-function creditRoundWin(profitAmount) {
-  const round = getActiveRound();
-  if (!round || profitAmount <= 0) return;
+function creditRoundWin(profitAmount, roundId) {
+  if (profitAmount <= 0) return;
+  // roundId가 주어지면 해당 회차를 직접 찾음
+  // (자동종료로 UNLOCKED된 회차도 처리 가능 — getActiveRound()는 LOCKED만 반환하므로 놓침)
+  const round = roundId
+    ? rounds.find(r => r.id === roundId)
+    : getActiveRound();
+  if (!round) return;
   round.remaining = round.remaining + profitAmount;
+  // WIN으로 remaining이 복구됐으면 자동종료된 회차를 다시 LOCKED로 되돌림
+  if (round.status === 'UNLOCKED' && round.remaining > 0) {
+    round.status   = 'LOCKED';
+    round.closedAt = null;
+  }
   saveRounds([...rounds]);
 }
 

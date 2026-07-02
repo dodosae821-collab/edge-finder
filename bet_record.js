@@ -561,10 +561,8 @@ function resolvebet(id, result) {
   // (시드를 다 걸었어도 적중하면 회차 자산이 살아나야 함 — 즉시 종료 금지)
   // creditRoundWin은 refundRoundBet과 달리 시드 한도를 넘어서도 쌓일 수 있음
   if (resolvedProfit !== null && resolvedProfit > 0 && target.roundId && typeof creditRoundWin === 'function') {
-    const _ar = typeof getActiveRound === 'function' ? getActiveRound() : null;
-    if (_ar && _ar.id === target.roundId) {
-      creditRoundWin(target.amount + resolvedProfit); // 본금 + 순이익 = 받는 총액
-    }
+    // roundId를 직접 전달 — 자동종료(UNLOCKED)된 회차도 remaining 복구 가능
+    creditRoundWin(target.amount + resolvedProfit, target.roundId); // 본금 + 순이익 = 받는 총액
   }
 
   // refresh:true로 뱅크롤·KPI·테이블 전체 갱신
@@ -1399,10 +1397,8 @@ function confirmFolderResults() {
   // WIN 적중 시 그 회차에 건 본금+이익을 remaining에 돌려줌
   // (resolvebet과 동일한 처리 — 다폴더 결과 경로에서 빠져있던 부분)
   if (finalResult === 'WIN' && finalProfit > 0 && bet.roundId && typeof creditRoundWin === 'function') {
-    const _ar = typeof getActiveRound === 'function' ? getActiveRound() : null;
-    if (_ar && _ar.id === bet.roundId) {
-      creditRoundWin(bet.amount + finalProfit);
-    }
+    // roundId를 직접 전달 — 자동종료(UNLOCKED)된 회차도 remaining 복구 가능
+    creditRoundWin(bet.amount + finalProfit, bet.roundId);
   }
 
   saveBets(next, { refresh: true });
