@@ -3134,11 +3134,20 @@ window.addEventListener('unhandledrejection', function(e) {
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px;text-align:center;" id="combo-calib-note"></div>
 
       <!-- 원금회수용 -->
-      <div style="font-size:11px;color:var(--text3);letter-spacing:1px;font-weight:700;margin-bottom:8px;">🛡️ 원금회수용</div>
+      <div style="margin-bottom:8px;">
+        <div style="font-size:11px;letter-spacing:1px;font-weight:700;color:#4fc3f7;">🛡️ 원금회수용</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;">2~3폴더 · 적중확률 우선 · 하나만 터져도 총 투입금 80% 이상 회수</div>
+      </div>
       <div id="combo-recovery-list" style="margin-bottom:16px;"></div>
 
-      <!-- 수익용 -->
-      <div style="font-size:11px;color:var(--text3);letter-spacing:1px;font-weight:700;margin-bottom:8px;">💰 수익용</div>
+      <!-- 수익용 탭 UI -->
+      <div style="margin-bottom:8px;">
+        <div style="font-size:11px;letter-spacing:1px;font-weight:700;color:var(--gold);">💰 수익용</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;">폴더 수 탭을 골라 마음에 드는 조합을 담으세요</div>
+      </div>
+      <!-- 폴더 탭 버튼 -->
+      <div id="combo-profit-tabs" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;"></div>
+      <!-- 탭별 콘텐츠 -->
       <div id="combo-profit-list" style="margin-bottom:16px;"></div>
 
       <!-- 요약 -->

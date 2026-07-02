@@ -6,7 +6,7 @@
 let _comboGames = [];   // [{ id, name, odds, myProb, group }]
 let _comboGroupCounter = 0;
 let _comboLastRecov  = [];  // 마지막 생성된 원금회수용 조합 목록 (베팅 기록 전송용)
-let _comboLastProfit = [];  // 마지막 생성된 수익용 조합 목록 (베팅 기록 전송용)
+let _comboLastProfit = {};  // { 3: [...], 4: [...], 5: [...], 6: [...] } 폴더별 전체 후보
 let _comboLastPerBet = 0;   // 마지막 생성 기준 조합당 금액
 
 // ── 초기화 (탭 진입 시 호출) ──
@@ -249,78 +249,178 @@ function comboGenerate() {
   const profitN = Math.max(0, count - recovN);
   const perBet  = total / count;
 
-  // 유효 경기만 추출
   const games = _comboGames.filter(g =>
     g.name.trim() && parseFloat(g.odds) > 1 && parseFloat(g.myProb) > 0
   );
+  if (games.length < 2) { showToast?.('경기를 2개 이상 입력해주세요.', 'warn'); return; }
 
-  if (games.length < 2) {
-    showToast?.('경기를 2개 이상 입력해주세요.', 'warn');
-    return;
-  }
-
-  // calibration 사용 여부 확인
   const ss       = window.App?._SS;
   const useCalib = !!(ss?.calibBuckets?.length);
 
-  // 2~6폴더 조합 전체 생성
+  // ── 전체 후보 생성 (2~6폴더) ──
   const allCombos = [];
   for (let n = 2; n <= Math.min(6, games.length); n++) {
     for (const combo of _comboCombinations(games, n)) {
       if (!_comboIsValid(combo)) continue;
       const stats = _comboStats(combo, perBet, useCalib);
-      allCombos.push({ combo, n, ...stats });
+      allCombos.push({ combo, n, ...stats, recovRate: stats.calibProb * stats.odds });
     }
   }
+  if (allCombos.length === 0) { showToast?.('가능한 조합이 없어요.', 'warn'); return; }
 
-  if (allCombos.length === 0) {
-    showToast?.('가능한 조합이 없어요. 경기 그룹 설정을 확인해주세요.', 'warn');
-    return;
+  // ════════════════════════════════════════════════════
+  // 🛡️ 원금회수용 선정
+  //
+  //  목적: recovN개 조합의 배당이 2~4배대여서,
+  //        몇 개만 맞춰도 합산해서 총 투입금(total)에 근접하게 회수.
+  //        "조합 하나 = 10만원 투입 → 20~40만원 회수"
+  //        → 2개 맞으면 40~80만원, 3개 맞으면 충분히 100만원 복구.
+  //
+  //  조건:
+  //    1. 2~3폴더만 (현실적으로 맞출 수 있는 수)
+  //    2. 배당 목표 구간: 총액 / (recovN × perBet) 이상
+  //       = total / (recovN * perBet) → 기본값 1000000/(4*100000) = 2.5배
+  //       즉, recovN개 전부 맞으면 100% 회수 가능한 최소 배당
+  //    3. 배당 상한: 너무 높으면 적중이 어려워 회수 전략이 무의미 → 5.0배 이하
+  //    4. 정렬: 적중확률 높은 순 → 기대회수율 보조
+  //    5. 다양성: 경기 조합이 겹치지 않도록 분산
+  // ════════════════════════════════════════════════════
+  const recovTargetOdds = total / (recovN * perBet); // e.g. 2.5배
+  const recovMaxOdds    = 5.5;                        // 이 이상이면 회수 전략 부적합
+
+  let recovPool = allCombos
+    .filter(c => c.n <= 3 && c.odds >= recovTargetOdds && c.odds <= recovMaxOdds)
+    .sort((a, b) => b.calibProb !== a.calibProb ? b.calibProb - a.calibProb : b.recovRate - a.recovRate);
+
+  // 부족하면 배당 상한 완화
+  if (recovPool.length < recovN) {
+    recovPool = allCombos
+      .filter(c => c.n <= 3 && c.odds >= recovTargetOdds)
+      .sort((a, b) => b.calibProb - a.calibProb);
+  }
+  // 그래도 부족하면 2~3폴더 전체에서 확률 높은 순
+  if (recovPool.length < recovN) {
+    recovPool = allCombos
+      .filter(c => c.n <= 3)
+      .sort((a, b) => b.calibProb - a.calibProb);
   }
 
-  // ── 원금회수용 선정 ──
-  // 기준: 배당 1.5~4.5 사이, 적중확률 × EV 복합 점수 (확률 70% + EV 30%)
-  const recovCandidates = allCombos
-    .filter(c => c.odds >= 1.5 && c.odds <= 4.5)
-    .sort((a, b) => (b.calibProb * 0.7 + b.ev * 0.3) - (a.calibProb * 0.7 + a.ev * 0.3));
+  const selectedRecov = _comboPickDiverse(recovPool, recovN);
 
-  const selectedRecov = _comboPickDistinct(recovCandidates, recovN);
-
-  // ── 수익용 선정 ──
-  // 기준: EV 최대화, 배당 2.5 이상, 원금회수용과 중복 제외
+  // ════════════════════════════════════════════════════
+  // 💰 수익용: 폴더별 전체 후보 분류 (쇼핑 탭 방식)
+  //   원금회수용과 중복된 조합은 제외
+  //   각 폴더(3~6)별로 EV 내림차순 전체 후보 보관
+  //   사용자가 탭을 눌러 보면서 원하는 조합을 직접 선택
+  // ════════════════════════════════════════════════════
   const recovIds = new Set(selectedRecov.map(c => c.combo.map(g => g.id).sort().join(',')));
-  const profitCandidates = allCombos
-    .filter(c => {
-      const key = c.combo.map(g => g.id).sort().join(',');
-      return c.odds >= 2.5 && !recovIds.has(key);
-    })
-    .sort((a, b) => b.ev - a.ev);
+  const profitByFolder = {};
+  [3, 4, 5, 6].forEach(f => {
+    profitByFolder[f] = allCombos
+      .filter(c => c.n === f && !recovIds.has(c.combo.map(g => g.id).sort().join(',')))
+      .sort((a, b) => b.ev - a.ev);
+  });
 
-  const selectedProfit = _comboPickDistinct(profitCandidates, profitN);
-
-  // ── 베팅 기록 전송용으로 마지막 결과 저장 ──
   _comboLastRecov  = selectedRecov;
-  _comboLastProfit = selectedProfit;
+  _comboLastProfit = profitByFolder;   // { 3:[...], 4:[...], 5:[...], 6:[...] }
   _comboLastPerBet = perBet;
-
-  // ── 결과 렌더 ──
-  comboRenderResult(selectedRecov, selectedProfit, perBet, total, useCalib, ss);
+  comboRenderResult(selectedRecov, profitByFolder, perBet, total, useCalib, ss);
 }
 
-// ── 중복 없이 N개 선정 (동일 조합 제외) ──
-function _comboPickDistinct(sorted, n) {
-  const picked = [];
-  const usedKeys = new Set();
+// ── 원금회수용: 경기 분산 보장 선정 ──
+function _comboPickDiverse(sorted, n) {
+  if (n <= 0) return [];
+  const picked = [], usedKeys = new Set(), gameCount = {};
+  const maxAppear = Math.max(2, Math.ceil(n * 0.6));
+
   for (const c of sorted) {
     const key = c.combo.map(g => g.id).sort().join(',');
     if (usedKeys.has(key)) continue;
+    const exceed = c.combo.some(g => (gameCount[g.id] || 0) >= maxAppear);
+    if (exceed && picked.length < Math.floor(n * 0.5)) continue;
     usedKeys.add(key);
+    c.combo.forEach(g => { gameCount[g.id] = (gameCount[g.id] || 0) + 1; });
     picked.push(c);
     if (picked.length >= n) break;
+  }
+  // 부족하면 다양성 완화해서 채움
+  if (picked.length < n) {
+    for (const c of sorted) {
+      const key = c.combo.map(g => g.id).sort().join(',');
+      if (usedKeys.has(key)) continue;
+      usedKeys.add(key);
+      picked.push(c);
+      if (picked.length >= n) break;
+    }
   }
   return picked;
 }
 
+// ── 수익용: 폴더 수 쿼터 고정 분배 ──
+// profitN개를 6폴더:1 / 5폴더:2 / 4폴더:2 / 3폴더:1 비율로 분배
+// (가용 폴더 수와 후보가 부족하면 자동 조정)
+function _comboPickByFolderQuota(sorted, n) {
+  if (n <= 0) return [];
+
+  // 기본 쿼터 템플릿 (n=6 기준)
+  // [폴더수, 기준 비중]  — 6폴더 1개 고정, 5폴더 2개, 4폴더 2개, 3폴더 1개
+  const template = [[6, 1], [5, 2], [4, 2], [3, 1]];
+  // n에 맞게 스케일 (총합 6 기준으로 비율 계산)
+  const totalWeight = template.reduce((s, [, w]) => s + w, 0); // 6
+  const rawQuota    = template.map(([f, w]) => [f, Math.round(w * n / totalWeight)]);
+
+  // 쿼터 합계를 n에 맞게 보정
+  let quotaMap = {};
+  rawQuota.forEach(([f, q]) => { quotaMap[f] = q; });
+  let diff = n - Object.values(quotaMap).reduce((s, v) => s + v, 0);
+  // 차이는 3폴더에 흡수
+  quotaMap[3] = Math.max(0, (quotaMap[3] || 0) + diff);
+
+  // 6폴더는 항상 최대 1개
+  if ((quotaMap[6] || 0) > 1) {
+    quotaMap[3] = (quotaMap[3] || 0) + (quotaMap[6] - 1);
+    quotaMap[6] = 1;
+  }
+
+  // 폴더별 버킷 (EV 내림차순 정렬)
+  const buckets = {};
+  [3, 4, 5, 6].forEach(f => {
+    buckets[f] = sorted.filter(c => c.n === f);
+  });
+
+  const picked = [], usedKeys = new Set(), gameCount = {};
+  const maxAppear = Math.max(2, Math.ceil(n * 0.55));
+
+  // 폴더 수 내림차순(6→3)으로 쿼터만큼 선택
+  [6, 5, 4, 3].forEach(f => {
+    let q = quotaMap[f] || 0;
+    for (const c of (buckets[f] || [])) {
+      if (q <= 0) break;
+      const key = c.combo.map(g => g.id).sort().join(',');
+      if (usedKeys.has(key)) continue;
+      const exceed = c.combo.some(g => (gameCount[g.id] || 0) >= maxAppear);
+      if (exceed) continue;
+      usedKeys.add(key);
+      c.combo.forEach(g => { gameCount[g.id] = (gameCount[g.id] || 0) + 1; });
+      picked.push(c);
+      q--;
+    }
+  });
+
+  // 쿼터 못 채운 경우(해당 폴더 수 후보 부족) — 남은 최고 EV로 채움
+  if (picked.length < n) {
+    for (const c of sorted) {
+      const key = c.combo.map(g => g.id).sort().join(',');
+      if (usedKeys.has(key)) continue;
+      usedKeys.add(key);
+      picked.push(c);
+      if (picked.length >= n) break;
+    }
+  }
+
+  // 표시 순서: 폴더 수 내림차순 (6→3)
+  return picked.sort((a, b) => b.n - a.n);
+}
 // ── 조합 생성 유틸 ──
 function _comboCombinations(arr, k) {
   const result = [];
@@ -337,7 +437,7 @@ function _comboCombinations(arr, k) {
 }
 
 // ── 결과 렌더 ──
-function comboRenderResult(recov, profit, perBet, total, useCalib, ss) {
+function comboRenderResult(recov, profitByFolder, perBet, total, useCalib, ss) {
   const resultEl = document.getElementById('combo-result');
   if (resultEl) resultEl.style.display = 'block';
 
@@ -353,42 +453,90 @@ function comboRenderResult(recov, profit, perBet, total, useCalib, ss) {
     }
   }
 
+  // 원금회수용
   document.getElementById('combo-recovery-list').innerHTML =
-    recov.map((c, i) => comboCardHTML(c, i + 1, perBet, '🛡️', 'recovery')).join('');
+    recov.map((c, i) => comboCardHTML(c, i + 1, perBet, 'recovery')).join('');
 
-  document.getElementById('combo-profit-list').innerHTML =
-    profit.map((c, i) => comboCardHTML(c, i + 1, perBet, '💰', 'profit')).join('');
+  // 수익용 탭 UI 렌더
+  comboRenderProfitTabs(profitByFolder, perBet);
 
-  // 요약
-  const allSel  = [...recov, ...profit];
-  const totalEV = allSel.reduce((s, c) => s + c.ev * perBet, 0);
+  // 요약 (원금회수용 기준)
+  const recovEV = recov.reduce((s, c) => s + c.ev * perBet, 0);
   const sumEl   = document.getElementById('combo-summary');
   if (sumEl) {
+    const allProfitFlat = Object.values(profitByFolder).flat();
+    const profitCount   = allProfitFlat.length;
     sumEl.innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center;">
         <div>
           <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">총 투입</div>
           <div style="font-size:14px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--text);">₩${Math.round(total).toLocaleString()}</div>
         </div>
         <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">전체 기대수익</div>
-          <div style="font-size:14px;font-weight:700;font-family:'JetBrains Mono',monospace;color:${totalEV>=0?'var(--green)':'var(--red)'};">
-            ${totalEV>=0?'+':''}₩${Math.round(totalEV).toLocaleString()}
+          <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">회수용 기대수익</div>
+          <div style="font-size:14px;font-weight:700;font-family:'JetBrains Mono',monospace;color:${recovEV>=0?'var(--green)':'var(--red)'};">
+            ${recovEV>=0?'+':''}₩${Math.round(recovEV).toLocaleString()}
           </div>
         </div>
-        <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">기대 잔액</div>
-          <div style="font-size:14px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--accent);">₩${Math.round(total+totalEV).toLocaleString()}</div>
-        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:8px;">
+        💰 수익용 후보 총 ${profitCount}개 — 탭에서 골라 담으세요
       </div>`;
   }
 
-  // 결과 영역으로 스크롤
   resultEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// ── 수익용 폴더 탭 렌더 ──
+let _comboProfitActiveTab = 0;  // 현재 활성 탭 폴더 수
+
+function comboRenderProfitTabs(profitByFolder, perBet) {
+  const tabsEl   = document.getElementById('combo-profit-tabs');
+  const listEl   = document.getElementById('combo-profit-list');
+  if (!tabsEl || !listEl) return;
+
+  // 후보 있는 폴더만 탭 생성
+  const availFolders = [3, 4, 5, 6].filter(f => (profitByFolder[f] || []).length > 0);
+  if (availFolders.length === 0) {
+    tabsEl.innerHTML = '';
+    listEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:16px;">가능한 수익 조합이 없어요</div>';
+    return;
+  }
+
+  // 초기 탭: 처음 렌더 시 3폴더부터, 이후 활성 탭 유지
+  if (!availFolders.includes(_comboProfitActiveTab)) {
+    _comboProfitActiveTab = availFolders[0];
+  }
+
+  // 탭 버튼 렌더
+  tabsEl.innerHTML = availFolders.map(f => {
+    const cnt     = profitByFolder[f].length;
+    const isActive = f === _comboProfitActiveTab;
+    const label   = { 3:'3폴더', 4:'4폴더', 5:'5폴더', 6:'6폴더' }[f];
+    const maxOdds = profitByFolder[f][0]?.odds.toFixed(1) ?? '';
+    return `
+      <button onclick="comboProfitTabSwitch(${f})"
+        style="padding:6px 14px;font-size:11px;font-weight:700;border-radius:20px;cursor:pointer;border:1px solid ${isActive?'var(--gold)':'var(--border)'};background:${isActive?'rgba(255,215,0,0.15)':'var(--bg3)'};color:${isActive?'var(--gold)':'var(--text3)'};white-space:nowrap;">
+        ${label}
+        <span style="font-size:10px;opacity:0.7;"> ${cnt}개</span>
+      </button>`;
+  }).join('');
+
+  // 활성 탭 콘텐츠 렌더
+  const activeCombos = profitByFolder[_comboProfitActiveTab] || [];
+  listEl.innerHTML = activeCombos
+    .map((c, i) => comboCardHTML(c, i + 1, perBet, 'profit'))
+    .join('');
+}
+
+// ── 수익용 탭 전환 ──
+function comboProfitTabSwitch(folder) {
+  _comboProfitActiveTab = folder;
+  comboRenderProfitTabs(_comboLastProfit, _comboLastPerBet);
+}
+
 // ── 조합 카드 HTML ──
-function comboCardHTML(c, idx, perBet, icon, kind) {
+function comboCardHTML(c, idx, perBet, kind) {
   const letters = c.combo.map((g, i) => {
     const li = _comboGames.findIndex(x => x.id === g.id);
     return String.fromCharCode(65 + li);
@@ -397,6 +545,10 @@ function comboCardHTML(c, idx, perBet, icon, kind) {
   const evColor     = c.ev >= 0.1 ? 'var(--green)' : c.ev >= 0 ? 'var(--text2)' : 'var(--red)';
   const probColor   = c.calibProb >= 0.5 ? 'var(--green)' : c.calibProb >= 0.3 ? 'var(--warn)' : 'var(--red)';
   const oddsColor   = c.odds >= 5 ? 'var(--gold)' : c.odds >= 3 ? 'var(--accent)' : 'var(--text2)';
+  // 섹션별 특화 지표
+  const recovRate   = c.recovRate ?? (c.calibProb * c.odds);
+  const recovColor  = recovRate >= 1.0 ? 'var(--green)' : recovRate >= 0.88 ? 'var(--warn)' : 'var(--red)';
+  const multiplier  = c.odds;  // 수익용: 배당 = 투자 대비 회수 배수
 
   const gameLines = c.combo.map((g, i) => {
     const li      = _comboGames.findIndex(x => x.id === g.id);
@@ -423,13 +575,13 @@ function comboCardHTML(c, idx, perBet, icon, kind) {
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
       <div style="font-size:12px;font-weight:700;color:var(--text);">
-        ${icon} ${idx}번 &nbsp;<span style="color:var(--text3);font-size:11px;">${c.n}폴더</span>
+        ${kind==='recovery'?'🛡️':'💰'} ${idx}번 &nbsp;<span style="color:var(--text3);font-size:11px;">${c.n}폴더</span>
         &nbsp;<span style="font-size:11px;color:var(--text3);">[${letters.join('+')}]</span>
       </div>
       <div style="font-size:11px;color:var(--text3);">₩${Math.round(perBet).toLocaleString()}</div>
     </div>
     <div style="margin-bottom:8px;">${gameLines}</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;text-align:center;">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;text-align:center;margin-bottom:6px;">
       <div>
         <div style="font-size:9px;color:var(--text3);margin-bottom:2px;">합산배당</div>
         <div style="font-size:13px;font-weight:800;font-family:'JetBrains Mono',monospace;color:${oddsColor};">${c.odds.toFixed(2)}</div>
@@ -443,12 +595,26 @@ function comboCardHTML(c, idx, perBet, icon, kind) {
         <div style="font-size:13px;font-weight:800;font-family:'JetBrains Mono',monospace;color:${evColor};">${c.ev>=0?'+':''}${(c.ev*100).toFixed(1)}%</div>
       </div>
       <div>
-        <div style="font-size:9px;color:var(--text3);margin-bottom:2px;">기대금액</div>
-        <div style="font-size:12px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--text2);">₩${Math.round(c.expected).toLocaleString()}</div>
+        ${kind === 'recovery'
+          ? `<div style="font-size:9px;color:var(--text3);margin-bottom:2px;">기대회수율</div>
+             <div style="font-size:13px;font-weight:800;font-family:'JetBrains Mono',monospace;color:${recovColor};">${(recovRate*100).toFixed(0)}%</div>`
+          : `<div style="font-size:9px;color:var(--text3);margin-bottom:2px;">기대금액</div>
+             <div style="font-size:12px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--text2);">₩${Math.round(c.expected).toLocaleString()}</div>`
+        }
       </div>
     </div>
+    ${kind === 'recovery'
+      ? `<div style="font-size:10px;color:var(--text3);text-align:center;margin-bottom:6px;">
+           적중 시 <span style="color:#4fc3f7;font-weight:700;">₩${Math.round(perBet * c.odds).toLocaleString()}</span> 회수
+           <span style="color:var(--text3);"> (투입 ₩${Math.round(perBet).toLocaleString()})</span>
+         </div>`
+      : `<div style="font-size:10px;color:var(--text3);text-align:center;margin-bottom:6px;">
+           적중 시 <span style="color:var(--gold);font-weight:700;">₩${Math.round(perBet * c.odds).toLocaleString()}</span>
+           <span style="color:var(--text3);"> (+₩${Math.round(perBet * c.odds - perBet).toLocaleString()} 수익)</span>
+         </div>`
+    }
     <button onclick="comboSendToRecord('${kind}',${idx - 1})"
-      style="width:100%;margin-top:8px;padding:7px;font-size:11px;font-weight:700;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;">
+      style="width:100%;padding:7px;font-size:11px;font-weight:700;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;">
       📝 이 조합 베팅 기록에 담기
     </button>
   </div>`;
@@ -458,8 +624,14 @@ function comboCardHTML(c, idx, perBet, icon, kind) {
 // 각 경기의 배당/승률을 폴더 행에 그대로 채워 넣어 comboGenerate와
 // 동일한 계산 경로(calcMultiEV)로 합산 배당·보정 승률이 재계산되게 한다.
 function comboSendToRecord(kind, idx) {
-  const list = kind === 'recovery' ? _comboLastRecov : _comboLastProfit;
-  const c = list && list[idx];
+  let c;
+  if (kind === 'recovery') {
+    c = _comboLastRecov && _comboLastRecov[idx];
+  } else {
+    // profit은 현재 활성 탭 폴더의 idx번째 조합
+    const folder = _comboProfitActiveTab;
+    c = _comboLastProfit && _comboLastProfit[folder] && _comboLastProfit[folder][idx];
+  }
   if (!c) { showToast?.('조합 정보를 찾을 수 없어요. 다시 생성해주세요.', 'warn'); return; }
 
   if (typeof setBetMode === 'function') setBetMode('multi');
