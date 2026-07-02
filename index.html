@@ -223,6 +223,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <nav>
   <div class="tab active" onclick="switchTab('dashboard', this)">📊 대시보드</div>
   <div class="tab" onclick="switchTab('strategy', this)" style="color:#00e5ff;font-weight:700;">⚡ 전략베팅</div>
+  <div class="tab" onclick="switchTab('combo', this)" style="color:var(--gold);font-weight:700;">🎯 조합기</div>
   <div id="nav-ev-tab" style="display:none;"><div class="tab" onclick="switchTab('value', this)">🧮 EV 계산기</div></div>
   <div class="tab" onclick="switchTab('record', this)">📝 베팅 기록</div>
   <div class="tab" onclick="switchTab('diary-list', this)">📒 일지 목록</div>
@@ -2725,7 +2726,6 @@ window.addEventListener('unhandledrejection', function(e) {
       <div id="sim-tab-tree"   onclick="simSwitchTab('tree')"   style="flex:1;padding:7px;text-align:center;font-size:12px;font-weight:600;border-radius:7px;cursor:pointer;color:var(--text3);">경로</div>
       <div id="sim-tab-stats"  onclick="simSwitchTab('stats')"  style="flex:1;padding:7px;text-align:center;font-size:12px;font-weight:600;border-radius:7px;cursor:pointer;color:var(--text3);">통계</div>
       <div id="sim-tab-goals"  onclick="simSwitchTab('goals')"  style="flex:1;padding:7px;text-align:center;font-size:12px;font-weight:600;border-radius:7px;cursor:pointer;color:var(--text3);">목표기록</div>
-      <div id="sim-tab-combo"  onclick="simSwitchTab('combo')"  style="flex:1;padding:7px;text-align:center;font-size:12px;font-weight:600;border-radius:7px;cursor:pointer;color:var(--gold);">조합기</div>
       <div id="sim-tab-config" onclick="simSwitchTab('config')" style="flex:1;padding:7px;text-align:center;font-size:12px;font-weight:600;border-radius:7px;cursor:pointer;color:var(--text3);">설정</div>
     </div>
 
@@ -3020,90 +3020,6 @@ window.addEventListener('unhandledrejection', function(e) {
       </div>
     </div>
 
-    <!-- 설정 탭 -->
-    <!-- ===== 조합기 탭 ===== -->
-    <div id="sim-tc-combo" style="display:none;">
-
-      <!-- 설정 카드 -->
-      <div class="card" style="margin-bottom:12px;">
-        <div style="font-size:11px;color:var(--gold);letter-spacing:1px;font-weight:700;margin-bottom:12px;">⚙️ 베팅 설정</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
-          <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">총 투입금액</div>
-            <input type="number" id="combo-total-amt" value="1000000" min="1000" step="10000"
-              style="width:100%;padding:8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);outline:none;"
-              oninput="comboUpdatePerBet()">
-          </div>
-          <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">총 조합 수</div>
-            <input type="number" id="combo-total-count" value="10" min="2" max="20"
-              style="width:100%;padding:8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);outline:none;"
-              oninput="comboUpdatePerBet()">
-          </div>
-          <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">원금회수용 수</div>
-            <input type="number" id="combo-recovery-count" value="4" min="1" max="10"
-              style="width:100%;padding:8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);outline:none;"
-              oninput="comboUpdatePerBet()">
-          </div>
-        </div>
-        <div style="background:var(--bg3);border-radius:6px;padding:8px 12px;font-size:12px;color:var(--text2);">
-          조합당 <span id="combo-per-bet" style="color:var(--accent);font-weight:700;font-family:'JetBrains Mono',monospace;">100,000원</span>
-          &nbsp;·&nbsp; 수익용 <span id="combo-profit-count" style="color:var(--green);font-weight:700;">6</span>개
-        </div>
-      </div>
-
-      <!-- 경기 입력 카드 -->
-      <div class="card" style="margin-bottom:12px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-          <div style="font-size:11px;color:var(--gold);letter-spacing:1px;font-weight:700;">🏆 경기 입력</div>
-          <button onclick="comboAddGame()" style="padding:5px 12px;font-size:11px;font-weight:700;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);border-radius:6px;color:var(--gold);cursor:pointer;">+ 경기 추가</button>
-        </div>
-
-        <!-- 헤더 -->
-        <div style="display:grid;grid-template-columns:28px 1fr 72px 60px 60px 54px 28px;gap:4px;margin-bottom:6px;padding:0 2px;">
-          <div></div>
-          <div style="font-size:10px;color:var(--text3);">경기명</div>
-          <div style="font-size:10px;color:var(--text3);text-align:center;">배당</div>
-          <div style="font-size:10px;color:var(--text3);text-align:center;">내재확률</div>
-          <div style="font-size:10px;color:var(--accent);text-align:center;">내 예측%</div>
-          <div style="font-size:10px;color:var(--text3);text-align:center;">그룹</div>
-          <div></div>
-        </div>
-
-        <div id="combo-game-list"></div>
-
-        <div id="combo-game-empty" style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">
-          경기를 추가해주세요 (최대 8개)
-        </div>
-      </div>
-
-      <!-- 생성 버튼 -->
-      <button onclick="comboGenerate()" id="combo-gen-btn"
-        style="width:100%;padding:13px;font-size:14px;font-weight:800;background:linear-gradient(135deg,rgba(255,215,0,0.15),rgba(255,215,0,0.05));border:1px solid rgba(255,215,0,0.4);border-radius:10px;color:var(--gold);cursor:pointer;letter-spacing:1px;margin-bottom:12px;display:none;">
-        ⚡ 최적 조합 생성
-      </button>
-
-      <!-- 결과 -->
-      <div id="combo-result" style="display:none;">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;text-align:center;" id="combo-calib-note"></div>
-
-        <!-- 원금회수용 -->
-        <div style="font-size:11px;color:var(--text3);letter-spacing:1px;font-weight:700;margin-bottom:8px;">🛡️ 원금회수용</div>
-        <div id="combo-recovery-list" style="margin-bottom:16px;"></div>
-
-        <!-- 수익용 -->
-        <div style="font-size:11px;color:var(--text3);letter-spacing:1px;font-weight:700;margin-bottom:8px;">💰 수익용</div>
-        <div id="combo-profit-list" style="margin-bottom:16px;"></div>
-
-        <!-- 요약 -->
-        <div class="card" style="background:var(--bg2);">
-          <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">📊 시뮬레이션 요약</div>
-          <div id="combo-summary"></div>
-        </div>
-      </div>
-
-    </div>
 
     <div id="sim-tc-config" style="display:none;">
       <div class="card">
@@ -3137,6 +3053,90 @@ window.addEventListener('unhandledrejection', function(e) {
           <button onclick="simOpenResetModal()" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,59,92,0.3);background:rgba(255,59,92,0.08);color:var(--red);font-size:13px;cursor:pointer;">🗑 초기화</button>
         </div>
         <div id="sim-save-status" style="font-size:11px;color:var(--text3);margin-top:8px;min-height:16px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 조합기 페이지 ===== -->
+  <div class="page" id="page-combo">
+    <div class="section-title">🎯 조합기</div>
+
+    <!-- 설정 카드 -->
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-size:11px;color:var(--gold);letter-spacing:1px;font-weight:700;margin-bottom:12px;">⚙️ 베팅 설정</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">총 투입금액</div>
+          <input type="number" id="combo-total-amt" value="1000000" min="1000" step="10000"
+            style="width:100%;padding:8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);outline:none;"
+            oninput="comboUpdatePerBet()">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">총 조합 수</div>
+          <input type="number" id="combo-total-count" value="10" min="2" max="20"
+            style="width:100%;padding:8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);outline:none;"
+            oninput="comboUpdatePerBet()">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">원금회수용 수</div>
+          <input type="number" id="combo-recovery-count" value="4" min="1" max="10"
+            style="width:100%;padding:8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);outline:none;"
+            oninput="comboUpdatePerBet()">
+        </div>
+      </div>
+      <div style="background:var(--bg3);border-radius:6px;padding:8px 12px;font-size:12px;color:var(--text2);">
+        조합당 <span id="combo-per-bet" style="color:var(--accent);font-weight:700;font-family:'JetBrains Mono',monospace;">100,000원</span>
+        &nbsp;·&nbsp; 수익용 <span id="combo-profit-count" style="color:var(--green);font-weight:700;">6</span>개
+      </div>
+    </div>
+
+    <!-- 경기 입력 카드 -->
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="font-size:11px;color:var(--gold);letter-spacing:1px;font-weight:700;">🏆 경기 입력</div>
+        <button onclick="comboAddGame()" style="padding:5px 12px;font-size:11px;font-weight:700;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);border-radius:6px;color:var(--gold);cursor:pointer;">+ 경기 추가</button>
+      </div>
+
+      <!-- 헤더 -->
+      <div style="display:grid;grid-template-columns:28px 1fr 72px 60px 60px 54px 28px;gap:4px;margin-bottom:6px;padding:0 2px;">
+        <div></div>
+        <div style="font-size:10px;color:var(--text3);">경기명</div>
+        <div style="font-size:10px;color:var(--text3);text-align:center;">배당</div>
+        <div style="font-size:10px;color:var(--text3);text-align:center;">내재확률</div>
+        <div style="font-size:10px;color:var(--accent);text-align:center;">내 예측%</div>
+        <div style="font-size:10px;color:var(--text3);text-align:center;">그룹</div>
+        <div></div>
+      </div>
+
+      <div id="combo-game-list"></div>
+
+      <div id="combo-game-empty" style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">
+        경기를 추가해주세요 (최대 8개)
+      </div>
+    </div>
+
+    <!-- 생성 버튼 -->
+    <button onclick="comboGenerate()" id="combo-gen-btn"
+      style="width:100%;padding:13px;font-size:14px;font-weight:800;background:linear-gradient(135deg,rgba(255,215,0,0.15),rgba(255,215,0,0.05));border:1px solid rgba(255,215,0,0.4);border-radius:10px;color:var(--gold);cursor:pointer;letter-spacing:1px;margin-bottom:12px;display:none;">
+      ⚡ 최적 조합 생성
+    </button>
+
+    <!-- 결과 -->
+    <div id="combo-result" style="display:none;">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;text-align:center;" id="combo-calib-note"></div>
+
+      <!-- 원금회수용 -->
+      <div style="font-size:11px;color:var(--text3);letter-spacing:1px;font-weight:700;margin-bottom:8px;">🛡️ 원금회수용</div>
+      <div id="combo-recovery-list" style="margin-bottom:16px;"></div>
+
+      <!-- 수익용 -->
+      <div style="font-size:11px;color:var(--text3);letter-spacing:1px;font-weight:700;margin-bottom:8px;">💰 수익용</div>
+      <div id="combo-profit-list" style="margin-bottom:16px;"></div>
+
+      <!-- 요약 -->
+      <div class="card" style="background:var(--bg2);">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">📊 시뮬레이션 요약</div>
+        <div id="combo-summary"></div>
       </div>
     </div>
   </div>

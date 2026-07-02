@@ -85,6 +85,7 @@ function switchTab(name, el) {
   if (name === 'record')    { renderTable(); renderRecentTable(); }
   if (name === 'vault')     renderVault();
   if (name === 'strategy')  initSimulator();
+  if (name === 'combo')     comboInit();
   if (name === 'journal')   { loadJournal(); switchJournalTab(_journalTab || 'plan'); }
   if (name === 'diary-list') renderDiaryListPage();
 }

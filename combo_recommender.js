@@ -5,6 +5,9 @@
 
 let _comboGames = [];   // [{ id, name, odds, myProb, group }]
 let _comboGroupCounter = 0;
+let _comboLastRecov  = [];  // 마지막 생성된 원금회수용 조합 목록 (베팅 기록 전송용)
+let _comboLastProfit = [];  // 마지막 생성된 수익용 조합 목록 (베팅 기록 전송용)
+let _comboLastPerBet = 0;   // 마지막 생성 기준 조합당 금액
 
 // ── 초기화 (탭 진입 시 호출) ──
 function comboInit() {
@@ -90,9 +93,13 @@ function comboRenderGames() {
     return `
     <div style="display:grid;grid-template-columns:28px 1fr 72px 60px 60px 54px 28px;gap:4px;margin-bottom:6px;align-items:center;">
       <div style="font-size:11px;font-weight:700;color:var(--text3);text-align:center;">${letter}</div>
-      <input type="text" placeholder="경기명/선택" value="${g.name}"
-        style="padding:7px 8px;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);outline:none;width:100%;"
-        oninput="comboGameChange(${g.id},'name',this.value)">
+      <div style="position:relative;">
+        <input type="text" id="combo-name-${g.id}" placeholder="경기명/선택" value="${g.name}"
+          style="padding:7px 8px;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);outline:none;width:100%;box-sizing:border-box;"
+          oninput="comboGameChange(${g.id},'name',this.value);comboNameInput(${g.id},this.value)"
+          onblur="setTimeout(()=>comboCloseSuggest(${g.id}),200)" autocomplete="off">
+        <div id="combo-suggest-${g.id}" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:6px;z-index:500;max-height:160px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.4);"></div>
+      </div>
       <input type="number" placeholder="1.85" value="${g.odds}" min="1.01" step="0.01"
         style="padding:7px 6px;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--accent);outline:none;width:100%;text-align:center;"
         oninput="comboGameChange(${g.id},'odds',this.value)">
@@ -113,6 +120,43 @@ function comboRenderGames() {
   }).join('');
 
   comboCheckReady();
+}
+
+// ── 경기명 자동완성 (베팅 기록에 쌓인 이전 경기명 기반 — 전략베팅과 동일 소스) ──
+function comboNameInput(id, val) {
+  const box = document.getElementById('combo-suggest-' + id);
+  if (!box) return;
+  if (!val || val.trim().length < 1) { box.style.display = 'none'; return; }
+
+  const list = window._gameSuggestList || (typeof getGameSuggestList === 'function' ? getGameSuggestList() : []);
+  const matches = list.filter(n => n.includes(val)).slice(0, 8);
+
+  if (!matches.length) { box.style.display = 'none'; return; }
+
+  box.innerHTML = matches.map((n, i) => `
+    <div data-idx="${i}"
+      style="padding:8px 12px;font-size:13px;color:var(--text2);cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05);"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      ${typeof escHtml === 'function' ? escHtml(n) : n}
+    </div>`).join('');
+  box.querySelectorAll('[data-idx]').forEach(el => {
+    const idx = Number(el.dataset.idx);
+    el.addEventListener('click', () => comboSelectSuggest(id, matches[idx]));
+  });
+  box.style.display = 'block';
+}
+
+function comboSelectSuggest(id, name) {
+  const input = document.getElementById('combo-name-' + id);
+  if (input) input.value = name;
+  comboGameChange(id, 'name', name);
+  comboCloseSuggest(id);
+  if (input) input.focus();
+}
+
+function comboCloseSuggest(id) {
+  const box = document.getElementById('combo-suggest-' + id);
+  if (box) box.style.display = 'none';
 }
 
 // ── 배당 베트맨 올림 ──
@@ -216,6 +260,11 @@ function comboGenerate() {
 
   const selectedProfit = _comboPickDistinct(profitCandidates, profitN);
 
+  // ── 베팅 기록 전송용으로 마지막 결과 저장 ──
+  _comboLastRecov  = selectedRecov;
+  _comboLastProfit = selectedProfit;
+  _comboLastPerBet = perBet;
+
   // ── 결과 렌더 ──
   comboRenderResult(selectedRecov, selectedProfit, perBet, total, useCalib, ss);
 }
@@ -267,10 +316,10 @@ function comboRenderResult(recov, profit, perBet, total, useCalib, ss) {
   }
 
   document.getElementById('combo-recovery-list').innerHTML =
-    recov.map((c, i) => comboCardHTML(c, i + 1, perBet, '🛡️')).join('');
+    recov.map((c, i) => comboCardHTML(c, i + 1, perBet, '🛡️', 'recovery')).join('');
 
   document.getElementById('combo-profit-list').innerHTML =
-    profit.map((c, i) => comboCardHTML(c, i + 1, perBet, '💰')).join('');
+    profit.map((c, i) => comboCardHTML(c, i + 1, perBet, '💰', 'profit')).join('');
 
   // 요약
   const allSel  = [...recov, ...profit];
@@ -301,7 +350,7 @@ function comboRenderResult(recov, profit, perBet, total, useCalib, ss) {
 }
 
 // ── 조합 카드 HTML ──
-function comboCardHTML(c, idx, perBet, icon) {
+function comboCardHTML(c, idx, perBet, icon, kind) {
   const letters = c.combo.map((g, i) => {
     const li = _comboGames.findIndex(x => x.id === g.id);
     return String.fromCharCode(65 + li);
@@ -354,5 +403,89 @@ function comboCardHTML(c, idx, perBet, icon) {
         <div style="font-size:12px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--text2);">₩${Math.round(c.expected).toLocaleString()}</div>
       </div>
     </div>
+    <button onclick="comboSendToRecord('${kind}',${idx - 1})"
+      style="width:100%;margin-top:8px;padding:7px;font-size:11px;font-weight:700;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;">
+      📝 이 조합 베팅 기록에 담기
+    </button>
   </div>`;
+}
+
+// ── 선택한 조합을 베팅 기록 입력폼(다폴더)으로 전송 ──
+// 각 경기의 배당/승률을 폴더 행에 그대로 채워 넣어 comboGenerate와
+// 동일한 계산 경로(calcMultiEV)로 합산 배당·보정 승률이 재계산되게 한다.
+function comboSendToRecord(kind, idx) {
+  const list = kind === 'recovery' ? _comboLastRecov : _comboLastProfit;
+  const c = list && list[idx];
+  if (!c) { showToast?.('조합 정보를 찾을 수 없어요. 다시 생성해주세요.', 'warn'); return; }
+
+  if (typeof setBetMode === 'function') setBetMode('multi');
+
+  const n = c.combo.length;
+  const folderVal = n <= 3 ? String(n) : '4+';
+  const targetBtn = document.querySelector(`.folder-btn[data-val="${folderVal}"]`);
+  if (targetBtn && typeof selectFolderCount === 'function') selectFolderCount(targetBtn);
+
+  const container = document.getElementById('folder-rows');
+  if (container) {
+    const existingRows = container.querySelectorAll('.folder-row');
+    const need = n - existingRows.length;
+    if (need > 0 && typeof makeFolderRow === 'function') {
+      for (let i = 0; i < need; i++) {
+        container.appendChild(makeFolderRow(existingRows.length + i));
+      }
+    }
+  }
+
+  const allRows = container ? container.querySelectorAll('.folder-row') : [];
+  c.combo.forEach((g, i) => {
+    const domRow = allRows[i];
+    if (!domRow) return;
+
+    const oddsInput = domRow.querySelector('.folder-odds');
+    if (oddsInput) {
+      oddsInput.value = parseFloat(g.odds).toFixed(2);
+      oddsInput.dispatchEvent(new Event('input'));
+    }
+
+    const probInput = domRow.querySelector('.folder-prob');
+    if (probInput) {
+      probInput.value = g.myProb;
+      probInput.dispatchEvent(new Event('input'));
+    }
+
+    const memoInput = domRow.querySelector('.folder-memo');
+    if (memoInput && g.name) {
+      memoInput.value = g.name;
+      const memoWrap = domRow.querySelector('.folder-memo-wrap');
+      const memoBtn  = domRow.querySelector('.folder-memo-btn');
+      if (memoWrap) { memoWrap.style.display = 'block'; if (memoBtn) memoBtn.style.color = 'var(--accent)'; }
+    }
+  });
+
+  if (typeof updateFolderUI === 'function') updateFolderUI();
+
+  // 경기명 요약
+  const gameEl = document.getElementById('r-game');
+  if (gameEl) gameEl.value = c.combo.map(g => g.name).filter(Boolean).join(' / ');
+
+  // 조합당 금액도 함께 전달
+  const amtEl = document.getElementById('r-amount');
+  if (amtEl && _comboLastPerBet) {
+    amtEl.value = Math.round(_comboLastPerBet);
+    amtEl.dispatchEvent(new Event('input'));
+  }
+
+  // 오늘 날짜 (비어있을 때만)
+  const dateEl = document.getElementById('r-date');
+  if (dateEl && !dateEl.value && typeof _todayKST === 'function') dateEl.value = _todayKST();
+
+  if (typeof calcMultiEV === 'function') setTimeout(calcMultiEV, 50);
+
+  // 베팅 기록 탭으로 이동
+  if (typeof switchTab === 'function') {
+    const recordTab = document.querySelector('.tab[onclick*="record"]');
+    switchTab('record', recordTab);
+  }
+
+  showToast?.('조합을 베팅 기록에 담았어요 — 확인 후 저장하세요.', 'success');
 }

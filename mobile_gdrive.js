@@ -8,6 +8,7 @@ const MOBILE_NAV_CONFIG = {
   betting: {
     subtabs: [
       { id: 'strategy', label: '⚡ 전략베팅',  page: 'strategy' },
+      { id: 'combo',    label: '🎯 조합기',   page: 'combo' },
       { id: 'record',     label: '📝 기록 입력', page: 'record' },
       { id: 'diary-list', label: '📒 일지 목록', page: 'diary-list' },
       { id: 'vault',      label: '🗄️ 보관함',   page: 'vault' },
@@ -207,6 +208,7 @@ function switchTabMobile(name) {
   if (name === 'decision')  initDecisionTab();
   if (name === 'journal')   loadJournal();
   if (name === 'strategy')  initSimulator();
+  if (name === 'combo')     comboInit();
   if (name === 'diary-list') renderDiaryListPage();
 
   // 맨 위로 스크롤
