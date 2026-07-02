@@ -9,18 +9,21 @@ let simPrefixA = 2, simPrefixB = 3;
 function simFmt(n) { return Math.round(n).toLocaleString('ko-KR'); }
 
 function simSwitchTab(name) {
-  ['play','tree','stats','goals','config'].forEach(t => {
+  ['play','tree','stats','goals','combo','config'].forEach(t => {
     const tc = document.getElementById('sim-tc-' + t);
     const tab = document.getElementById('sim-tab-' + t);
     if (tc) tc.style.display = t === name ? 'block' : 'none';
     if (tab) {
       tab.style.background = t === name ? 'var(--bg3)' : 'transparent';
-      tab.style.color = t === name ? 'var(--text)' : 'var(--text3)';
+      tab.style.color = t === name
+        ? (t === 'combo' ? 'var(--gold)' : 'var(--text)')
+        : (t === 'combo' ? 'rgba(255,215,0,0.5)' : 'var(--text3)');
     }
   });
-  if (name === 'tree') simRenderTree();
+  if (name === 'tree')  simRenderTree();
   if (name === 'stats') simRenderStats();
   if (name === 'goals') simRenderGoalHistory();
+  if (name === 'combo') comboInit();
 }
 
 function simGetOdds(which) {
