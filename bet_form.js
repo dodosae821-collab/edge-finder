@@ -548,6 +548,19 @@ function makeFolderRow(idx) {
       <div class="folder-memo-hint" style="font-size:10px;margin-top:3px;padding-left:2px;color:var(--text3);"></div>
     </div>`;
   initFolderMemoTabs(row);
+
+  // ── 견고성 보강 ──────────────────────────────────────────────
+  // 위 배당/승률 입력에는 이미 inline oninput="calcMultiEV()"가 있지만,
+  // 일부 모바일 브라우저/키패드나 프로그램적 값 주입(OCR, 조합기 전송 등)
+  // 경로에서 input 이벤트가 유실되는 경우를 대비해 change/blur에도
+  // 동일 계산을 한 번 더 걸어 합산배당/내재확률/내 적중률/EV가
+  // 반드시 갱신되도록 한다.
+  row.querySelectorAll('.folder-odds, .folder-prob').forEach(inp => {
+    ['input', 'change', 'blur'].forEach(evt => {
+      inp.addEventListener(evt, () => { if (typeof calcMultiEV === 'function') calcMultiEV(); });
+    });
+  });
+
   return row;
 }
 
