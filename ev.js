@@ -305,39 +305,31 @@ function betmanRound(odds) {
 //     calibProb : 1층+2층 완전 보정 확률
 //     ev        : calibProb 기반 EV
 // ============================================================
-function computeComboProb(legs, { buckets, acf } = {}) {
-  const _acf     = (acf != null && acf > 0) ? acf : 1.0;
-  const _buckets = Array.isArray(buckets) ? buckets : [];
-  const damp     = _acf < 0.999 ? 1 - (1 - _acf) * 0.5 : 1.0;
+function computeComboProb(legs, { guard } = {}) {
+  // 동적 과신 방어: 최근 50건 기준 (적중 수 / 예측확률 합), 1.0 상한
+  // — 승률은 사용자가 직접 설정하므로, 기록이 뒷받침하는 만큼만 신뢰
+  // — 결합 확률에 1회 적용 (버킷은 표본이 얇아 다폴 엔진에서 미사용)
+  const _g = (guard != null && guard > 0)
+    ? guard
+    : (window.App?._SS?.guardFactor ?? 1.0);
+  const guardApplied = Math.min(_g, 1.0);
 
   let rawOdds = 1;
   let logRaw  = 0;
-  let logAdj  = 0;
-
   for (const leg of legs) {
     const odds = parseFloat(leg.odds);
-    const p    = parseFloat(leg.prob) / 100;
-    if (!(odds >= 1.01) || !(p > 0 && p < 1)) continue;
-
+    let   p    = parseFloat(leg.prob) / 100;
+    if (!(odds >= 1.01) || !(p > 0)) continue;
+    p = Math.min(p, 0.9999);
     rawOdds *= odds;
     logRaw  += Math.log(Math.max(p, 1e-9));
-
-    // 1층: 버킷 보정
-    const calibrated = (typeof getCalibrated === 'function' && _buckets.length)
-      ? getCalibrated(p, _buckets)
-      : p;
-
-    // 2층: corrFactor 댐핑
-    const pAdj = calibrated * damp;
-    logAdj += Math.log(Math.max(pAdj, 1e-9));
   }
 
   const finalOdds = betmanRound(rawOdds);
   const rawProb   = Math.exp(logRaw);
-  const calibProb = Math.exp(logAdj);
+  const calibProb = rawProb * guardApplied;
   const ev        = calibProb * (finalOdds - 1) - (1 - calibProb);
-
-  return { rawOdds, finalOdds, rawProb, calibProb, ev };
+  return { rawOdds, finalOdds, rawProb, calibProb, ev, guard: guardApplied };
 }
 
 
@@ -352,10 +344,7 @@ function getCombinedCalibratedProb(rows) {
   });
   if (!legs.length) return null;
   const ss = window.App?._SS;
-  return computeComboProb(legs, {
-    buckets: ss?.calibBuckets,
-    acf:     ss?.activeCorrFactor
-  }).calibProb;
+  return computeComboProb(legs, { guard: ss?.guardFactor }).calibProb;
 }
 
 

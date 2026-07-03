@@ -21,6 +21,10 @@ function comboReset() {
   if (!confirm('경기 입력 내용과 생성된 조합을 모두 초기화할까요?')) return;
   _comboGames.length = 0;
   _comboIdCounter    = 0;
+  _comboProfitActiveTab = 0;
+  _comboProfitPage      = 0;
+  _comboProfitFilter    = [];
+  _comboProfitSort      = 'ev';
   comboAddGame();                           // 빈 행 1개로 리셋
   const result = document.getElementById('combo-result');
   if (result) result.style.display = 'none';
@@ -224,7 +228,7 @@ function _comboStats(combo, perBet, useCalib) {
   const legs = combo.map(g => ({ odds: parseFloat(g.odds), prob: parseFloat(g.myProb) }));
 
   const result = (typeof computeComboProb === 'function')
-    ? computeComboProb(legs, useCalib ? { buckets: ss?.calibBuckets, acf: ss?.activeCorrFactor } : {})
+    ? computeComboProb(legs, { guard: ss?.guardFactor })
     : (() => {
         // 폴백: computeComboProb 미로드 시 (로드 순서 문제 방어)
         let rawOdds = 1, logRaw = 0;
@@ -444,11 +448,15 @@ function comboRenderResult(recov, profitByFolder, perBet, total, useCalib, ss) {
   // calibration 안내
   const noteEl = document.getElementById('combo-calib-note');
   if (noteEl) {
-    if (useCalib && ss?.n >= 10) {
-      noteEl.textContent = `✅ 내 베팅 기록 ${ss.n}건 반영 — 보정 적중확률 적용됨`;
+    const gf = ss?.guardFactor ?? 1.0, gn = ss?.guardN ?? 0;
+    if (gn >= 10 && gf < 0.999) {
+      noteEl.textContent = `🛡 과신 방어 적용 — 최근 ${gn}건 기준 계수 ×${gf.toFixed(2)} (기록 회복 시 자동 해제)`;
+      noteEl.style.color = 'var(--warn)';
+    } else if (gn >= 10) {
+      noteEl.textContent = `✅ 최근 ${gn}건 기준 예측 신뢰 — 입력 승률 그대로 사용 (계수 1.00)`;
       noteEl.style.color = 'var(--green)';
     } else {
-      noteEl.textContent = '⚠️ 베팅 기록 부족 — 입력한 예측 승률 그대로 사용';
+      noteEl.textContent = '⚠️ 판정 기록 10건 미만 — 과신 방어 미적용, 입력 승률 그대로 사용';
       noteEl.style.color = 'var(--warn)';
     }
   }
@@ -487,51 +495,162 @@ function comboRenderResult(recov, profitByFolder, perBet, total, useCalib, ss) {
   resultEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ── 수익용 폴더 탭 렌더 ──
-let _comboProfitActiveTab = 0;  // 현재 활성 탭 폴더 수
+// ── 수익용 뷰 상태 ──
+let _comboProfitActiveTab  = 0;      // 현재 활성 폴더 탭
+let _comboProfitPage       = 0;      // 현재 페이지 (0-based)
+let _comboProfitSort       = 'ev';   // 'ev' | 'odds' | 'prob'
+let _comboProfitFilter     = [];     // 반드시 포함할 경기 id 목록
+const COMBO_PAGE_SIZE      = 5;
 
+// ── 수익용 폴더 탭 + 필터 + 정렬 + 페이지네이션 렌더 ──
 function comboRenderProfitTabs(profitByFolder, perBet) {
-  const tabsEl   = document.getElementById('combo-profit-tabs');
-  const listEl   = document.getElementById('combo-profit-list');
+  const tabsEl = document.getElementById('combo-profit-tabs');
+  const listEl = document.getElementById('combo-profit-list');
   if (!tabsEl || !listEl) return;
 
-  // 후보 있는 폴더만 탭 생성
   const availFolders = [3, 4, 5, 6].filter(f => (profitByFolder[f] || []).length > 0);
   if (availFolders.length === 0) {
     tabsEl.innerHTML = '';
     listEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:16px;">가능한 수익 조합이 없어요</div>';
     return;
   }
-
-  // 초기 탭: 처음 렌더 시 3폴더부터, 이후 활성 탭 유지
   if (!availFolders.includes(_comboProfitActiveTab)) {
     _comboProfitActiveTab = availFolders[0];
+    _comboProfitPage      = 0;
+    _comboProfitFilter    = [];
   }
 
-  // 탭 버튼 렌더
-  tabsEl.innerHTML = availFolders.map(f => {
-    const cnt     = profitByFolder[f].length;
+  // ── 1. 폴더 탭 버튼 ──
+  const folderTabsHTML = availFolders.map(f => {
     const isActive = f === _comboProfitActiveTab;
-    const label   = { 3:'3폴더', 4:'4폴더', 5:'5폴더', 6:'6폴더' }[f];
-    const maxOdds = profitByFolder[f][0]?.odds.toFixed(1) ?? '';
-    return `
-      <button onclick="comboProfitTabSwitch(${f})"
-        style="padding:6px 14px;font-size:11px;font-weight:700;border-radius:20px;cursor:pointer;border:1px solid ${isActive?'var(--gold)':'var(--border)'};background:${isActive?'rgba(255,215,0,0.15)':'var(--bg3)'};color:${isActive?'var(--gold)':'var(--text3)'};white-space:nowrap;">
-        ${label}
-        <span style="font-size:10px;opacity:0.7;"> ${cnt}개</span>
-      </button>`;
+    const cnt      = profitByFolder[f].length;
+    return `<button onclick="comboProfitTabSwitch(${f})"
+      style="padding:6px 14px;font-size:11px;font-weight:700;border-radius:20px;cursor:pointer;
+             border:1px solid ${isActive ? 'var(--gold)' : 'var(--border)'};
+             background:${isActive ? 'rgba(255,215,0,0.15)' : 'var(--bg3)'};
+             color:${isActive ? 'var(--gold)' : 'var(--text3)'};white-space:nowrap;">
+      ${f}폴더 <span style="font-size:10px;opacity:0.7;">${cnt}</span>
+    </button>`;
   }).join('');
 
-  // 활성 탭 콘텐츠 렌더
-  const activeCombos = profitByFolder[_comboProfitActiveTab] || [];
-  listEl.innerHTML = activeCombos
-    .map((c, i) => comboCardHTML(c, i + 1, perBet, 'profit'))
+  // ── 2. 경기 필터 칩 (A~H 레터) ──
+  const gameLetters = _comboGames.map((g, i) => ({
+    id: g.id,
+    letter: String.fromCharCode(65 + i),
+    name: g.name || ('경기 ' + String.fromCharCode(65 + i))
+  }));
+  const filterHTML = `
+    <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:10px;color:var(--text3);">포함 경기:</span>
+      ${gameLetters.map(g => {
+        const on = _comboProfitFilter.includes(String(g.id));
+        return `<button onclick="comboProfitFilterToggle('${g.id}')"
+          title="${g.name}"
+          style="padding:3px 9px;font-size:11px;font-weight:700;border-radius:12px;cursor:pointer;
+                 border:1px solid ${on ? 'var(--accent)' : 'var(--border)'};
+                 background:${on ? 'rgba(0,229,255,0.15)' : 'var(--bg3)'};
+                 color:${on ? 'var(--accent)' : 'var(--text3)'};">
+          ${g.letter}
+        </button>`;
+      }).join('')}
+      ${_comboProfitFilter.length > 0
+        ? `<button onclick="comboProfitFilterClear()"
+             style="padding:3px 8px;font-size:10px;border-radius:10px;cursor:pointer;
+                    border:1px solid var(--border);background:transparent;color:var(--text3);">초기화</button>`
+        : ''}
+    </div>`;
+
+  // ── 3. 정렬 버튼 ──
+  const sortHTML = `
+    <div style="margin-top:6px;display:flex;gap:5px;align-items:center;">
+      <span style="font-size:10px;color:var(--text3);">정렬:</span>
+      ${[['ev','EV순'],['odds','배당순'],['prob','확률순']].map(([v,l]) => {
+        const on = _comboProfitSort === v;
+        return `<button onclick="comboProfitSortSwitch('${v}')"
+          style="padding:3px 10px;font-size:10px;font-weight:700;border-radius:12px;cursor:pointer;
+                 border:1px solid ${on ? 'rgba(255,215,0,0.5)' : 'var(--border)'};
+                 background:${on ? 'rgba(255,215,0,0.1)' : 'transparent'};
+                 color:${on ? 'var(--gold)' : 'var(--text3)'};">${l}</button>`;
+      }).join('')}
+    </div>`;
+
+  tabsEl.innerHTML = folderTabsHTML + filterHTML + sortHTML;
+
+  // ── 4. 후보 필터링 + 정렬 ──
+  let pool = [...(profitByFolder[_comboProfitActiveTab] || [])];
+
+  // 경기 포함 필터 적용
+  if (_comboProfitFilter.length > 0) {
+    pool = pool.filter(c => _comboProfitFilter.every(fid => c.combo.some(g => String(g.id) === fid)));
+  }
+
+  // 정렬
+  if (_comboProfitSort === 'odds')    pool.sort((a, b) => b.odds - a.odds);
+  else if (_comboProfitSort === 'prob') pool.sort((a, b) => b.calibProb - a.calibProb);
+  else                                  pool.sort((a, b) => b.ev - a.ev);
+
+  const total   = pool.length;
+  const maxPage = Math.max(0, Math.ceil(total / COMBO_PAGE_SIZE) - 1);
+  if (_comboProfitPage > maxPage) _comboProfitPage = 0;
+  const page    = _comboProfitPage;
+  const sliced  = pool.slice(page * COMBO_PAGE_SIZE, (page + 1) * COMBO_PAGE_SIZE);
+
+  // ── 5. 카드 렌더 ──
+  if (total === 0) {
+    listEl.innerHTML = `<div style="text-align:center;color:var(--text3);font-size:12px;padding:16px;">
+      선택한 조건에 맞는 조합이 없어요
+    </div>`;
+    return;
+  }
+
+  // 페이지네이션 바 (위)
+  const pageBar = total > COMBO_PAGE_SIZE ? `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-size:10px;color:var(--text3);">
+        ${_comboProfitFilter.length > 0 ? `<span style="color:var(--accent);">필터 ${_comboProfitFilter.length}개 적용</span> · ` : ''}
+        ${total}개 중 ${page * COMBO_PAGE_SIZE + 1}–${Math.min((page+1)*COMBO_PAGE_SIZE, total)}번
+      </span>
+      <div style="display:flex;gap:6px;">
+        <button onclick="comboProfitPageMove(-1)" ${page===0?'disabled':''} style="padding:4px 10px;font-size:11px;border-radius:8px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:${page===0?'var(--text3)':'var(--text2)'};">◀</button>
+        <span style="font-size:11px;color:var(--text2);padding:4px 2px;">${page+1} / ${maxPage+1}</span>
+        <button onclick="comboProfitPageMove(1)" ${page>=maxPage?'disabled':''} style="padding:4px 10px;font-size:11px;border-radius:8px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:${page>=maxPage?'var(--text3)':'var(--text2)'};">▶</button>
+      </div>
+    </div>` : `<div style="font-size:10px;color:var(--text3);margin-bottom:6px;">
+      ${_comboProfitFilter.length > 0 ? `<span style="color:var(--accent);">필터 ${_comboProfitFilter.length}개 적용</span> · ` : ''}총 ${total}개
+    </div>`;
+
+  listEl.innerHTML = pageBar + sliced
+    .map((c, i) => comboCardHTML(c, page * COMBO_PAGE_SIZE + i + 1, perBet, 'profit'))
     .join('');
 }
 
-// ── 수익용 탭 전환 ──
+// ── 탭 / 필터 / 정렬 / 페이지 조작 ──
 function comboProfitTabSwitch(folder) {
   _comboProfitActiveTab = folder;
+  _comboProfitPage      = 0;
+  _comboProfitFilter    = [];
+  comboRenderProfitTabs(_comboLastProfit, _comboLastPerBet);
+}
+function comboProfitFilterToggle(gameId) {
+  const sid = String(gameId);
+  const idx = _comboProfitFilter.indexOf(sid);
+  if (idx >= 0) _comboProfitFilter.splice(idx, 1);
+  else           _comboProfitFilter.push(sid);
+  _comboProfitPage = 0;
+  comboRenderProfitTabs(_comboLastProfit, _comboLastPerBet);
+}
+function comboProfitFilterClear() {
+  _comboProfitFilter = [];
+  _comboProfitPage   = 0;
+  comboRenderProfitTabs(_comboLastProfit, _comboLastPerBet);
+}
+function comboProfitSortSwitch(sortKey) {
+  _comboProfitSort = sortKey;
+  _comboProfitPage = 0;
+  comboRenderProfitTabs(_comboLastProfit, _comboLastPerBet);
+}
+function comboProfitPageMove(dir) {
+  _comboProfitPage = Math.max(0, _comboProfitPage + dir);
   comboRenderProfitTabs(_comboLastProfit, _comboLastPerBet);
 }
 
@@ -554,13 +673,8 @@ function comboCardHTML(c, idx, perBet, kind) {
     const li      = _comboGames.findIndex(x => x.id === g.id);
     const letter  = String.fromCharCode(65 + li);
     const prob    = parseFloat(g.myProb);
-    // computeComboProb을 단일 레그로 호출해 보정 확률 표시 (카드 UI용)
-    const ss      = window.App?._SS;
-    const useCalib = !!(ss?.calibBuckets?.length);
-    const _singleResult = useCalib && typeof computeComboProb === 'function'
-      ? computeComboProb([{ odds: parseFloat(g.odds), prob }], { buckets: ss.calibBuckets, acf: ss.activeCorrFactor })
-      : null;
-    const calibP  = _singleResult ? _singleResult.calibProb * 100 : prob;
+    // 보정은 결합 확률 단위로만 적용됨 — 레그별 보정 표시는 제거 (오해 방지)
+    const calibP  = prob;
     const diffStr = Math.abs(calibP - prob) >= 0.5
       ? ` <span style="font-size:10px;color:var(--text3);">→ 보정 ${calibP.toFixed(0)}%</span>`
       : '';
@@ -593,6 +707,12 @@ function comboCardHTML(c, idx, perBet, kind) {
       <div>
         <div style="font-size:9px;color:var(--text3);margin-bottom:2px;">EV</div>
         <div style="font-size:13px;font-weight:800;font-family:'JetBrains Mono',monospace;color:${evColor};">${c.ev>=0?'+':''}${(c.ev*100).toFixed(1)}%</div>
+        ${(() => {
+          const rawEV = c.rawProb * (c.odds - 1) - (1 - c.rawProb);
+          return Math.abs(rawEV - c.ev) >= 0.01
+            ? `<div style="font-size:8px;color:var(--text3);text-decoration:line-through;">${rawEV>=0?'+':''}${(rawEV*100).toFixed(1)}%</div>`
+            : '';
+        })()}
       </div>
       <div>
         ${kind === 'recovery'
@@ -628,9 +748,16 @@ function comboSendToRecord(kind, idx) {
   if (kind === 'recovery') {
     c = _comboLastRecov && _comboLastRecov[idx];
   } else {
-    // profit은 현재 활성 탭 폴더의 idx번째 조합
-    const folder = _comboProfitActiveTab;
-    c = _comboLastProfit && _comboLastProfit[folder] && _comboLastProfit[folder][idx];
+    // 현재 뷰(탭+필터+정렬)와 동일한 풀에서 idx 조합 찾기
+    let pool = [...(_comboLastProfit[_comboProfitActiveTab] || [])];
+    if (_comboProfitFilter.length > 0) {
+      pool = pool.filter(combo => _comboProfitFilter.every(fid => combo.combo.some(g => String(g.id) === fid)));
+    }
+    if (_comboProfitSort === 'odds')      pool.sort((a, b) => b.odds - a.odds);
+    else if (_comboProfitSort === 'prob') pool.sort((a, b) => b.calibProb - a.calibProb);
+    else                                   pool.sort((a, b) => b.ev - a.ev);
+    // idx는 카드의 1-based 전체 번호 → 0-based 배열 인덱스
+    c = pool[idx - 1];
   }
   if (!c) { showToast?.('조합 정보를 찾을 수 없어요. 다시 생성해주세요.', 'warn'); return; }
 

@@ -793,7 +793,14 @@ function computeSystemState(scopedBets, allBets, settings, context = {}) {
   const plRatio   = avgLoss > 0 ? avgProfit / avgLoss : 0;
 
   // ── 2. 보정도(ECE) + 과신 보정계수 (allResolved 기준) ─────
-  const predBets = allResolved.filter(b => b.myProb && b.betmanOdds);
+  const predBets = allResolved.filter(b => b.myProb && b.betmanOdds).map(b => {
+    // 다폴 기록: 과거 버전이 myProb에 보정값을 저장했을 수 있음 → folderProbs 원본곱으로 교정
+    if (b.betMode === 'multi' && Array.isArray(b.folderProbs) && b.folderProbs.length >= 2) {
+      const raw = b.folderProbs.reduce((s2, p) => s2 * (parseFloat(p) / 100), 1) * 100;
+      if (raw > 0 && raw < 100 && Math.abs(raw - b.myProb) > 0.5) return { ...b, myProb: raw };
+    }
+    return b;
+  });
   const CALIB_BUCKETS = [
     {min:0,  max:10, mid:5 }, {min:10, max:20, mid:15},
     {min:20, max:30, mid:25}, {min:30, max:40, mid:35},
@@ -1047,6 +1054,21 @@ function computeSystemState(scopedBets, allBets, settings, context = {}) {
     // 보정도
     predBets, calibRows, ece, corrFactor,
     activeCorrFactor: getCalibCorrFactor(corrFactor, n),
+    // 동적 과신 방어 계수 — 최근 50건: 실제 적중 수 / 예측확률 합, 상한 1.0 클립
+    // 기록이 나빠지면 내려가고(할인 강화) 회복하면 1.0까지 올라옴(할인 해제)
+    ...(() => {
+      const GW = 50;
+      const gw = predBets.slice(-GW);
+      let guardFactor = 1.0, guardRatio = null;
+      if (gw.length >= 10) {
+        const sumPred = gw.reduce((a, b) => a + b.myProb / 100, 0);
+        const wins    = gw.filter(b => b.result === 'WIN').length;
+        guardRatio    = sumPred > 0 ? wins / sumPred : 1.0;
+        const clipped = Math.min(guardRatio, 1.0);
+        guardFactor   = gw.length < 30 ? 1 + (clipped - 1) * 0.5 : clipped;
+      }
+      return { guardFactor, guardRatio, guardN: gw.length };
+    })(),
     rawEdge, corrEdge,
     // Decision Layer
     recentEce,

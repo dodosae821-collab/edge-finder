@@ -375,9 +375,20 @@ function _addBetCore() {
   //        → r-adjusted-prob-val은 단폴 전용이므로 다폴에선 읽지 않음
   //          (기존: 비어있으면 getCLVAdjustedProb(이미보정값) 재호출 → 이중보정 버그)
   let _adjProbPct;
+  let _mpEff = _mp;  // 다폴이면 아래에서 원본 결합확률로 교체
   if (mode === 'multi') {
     // 다폴: 폴더 행에서 직접 재계산 (computeComboProb 기반)
     const _rows = document.querySelectorAll('#folder-rows .folder-row');
+    // r-myprob에는 보정값이 들어있으므로 판단 기록(myProb)은 원본 결합확률로 재계산
+    let _logR = 0, _cnt = 0;
+    _rows.forEach(r => {
+      const p = parseFloat(r.querySelector('.folder-prob')?.value) || 0;
+      if (p > 0) { _logR += Math.log(p / 100); _cnt++; }
+    });
+    if (_cnt >= 2) {
+      _mpEff = +(Math.exp(_logR) * 100).toFixed(2);
+      betData.myProb = _mpEff;
+    }
     const _calibFrac = (typeof getCombinedCalibratedProb === 'function')
       ? getCombinedCalibratedProb(_rows)
       : null;
@@ -391,7 +402,7 @@ function _addBetCore() {
   }
   // toProb() 헬퍼 사용 — 직접 /100 금지 (단위 혼용 방지)
   const _adjProb = typeof toProb === 'function' ? toProb(_adjProbPct) : _adjProbPct / 100;
-  const _rawProb = typeof toProb === 'function' ? toProb(_mp)         : _mp / 100;
+  const _rawProb = typeof toProb === 'function' ? toProb(_mpEff)      : _mpEff / 100;
 
   // ── 저장 구조 ──────────────────────────────────────────────
   // ev     → rawProb 기반 (기존 그대로, 과거 데이터 호환)
