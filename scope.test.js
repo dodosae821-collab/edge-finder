@@ -98,10 +98,14 @@ describe("scope='round'", () => {
     result.forEach(b => expect(b.roundId).toBe('r_active'));
   });
 
-  test('활성 회차 없음 → 빈 배열', () => {
+  test('활성 회차 없음 → all로 자동 복구, 전체 반환', () => {
+    // 설계 의도: scope=round인데 활성 회차가 없으면 scope를 all로 자동 복구.
+    // 화면이 텅 비는 것보다 전체 데이터를 보여주는 게 UX상 안전.
     const bets = [bet({ roundId: 'r_old' }), bet()];
     const ctx = buildCtx({ scope: 'round', activeRound: null, bets });
-    expect(ctx.getBetsByScope()).toEqual([]);
+    const result = ctx.getBetsByScope();
+    // 빈 배열이 아니라 전체 반환 (auto-widening)
+    expect(result.length).toBe(bets.length);
   });
 
   test('stale activeRound — roundId가 실제 bets에 없음 → 빈 배열', () => {

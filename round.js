@@ -82,6 +82,9 @@ function lockNewRound(seed) {
   };
   saveRounds([...rounds, newRound]);
   Storage.set(KEYS.CURRENT_ROUND, id);
+  // 새 회차 시작 → 스코프를 회차 뷰로 자동 전환 (새 출발을 바로 보여줌).
+  // 회차 종료 시 all로 자동 복구되는 안전장치와 대칭.
+  if (typeof setCurrentScope === 'function') setCurrentScope('round');
   window.dispatchEvent(new Event('storage'));
   return true;
 }

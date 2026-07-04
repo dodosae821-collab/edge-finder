@@ -20,7 +20,7 @@ function updateGoalStats() {
   // 설정값 자동 반영
   const { startFund = 0, targetFund = 0 } = getSettings();
 
-  const resolved = getBets().filter(b => b.result !== 'PENDING');
+  const resolved = getBets().filter(b => b.result !== 'PENDING' && !b.isSim);
   const wins     = resolved.filter(b => b.result === 'WIN');
 
   // 현재 승률
@@ -52,8 +52,8 @@ function updateGoalStats() {
   }
   function profitInRange(from, to) {
     return betsInRange(from, to)
-      .filter(b => b.result !== 'PENDING')
-      .reduce((s, b) => s + b.profit, 0);
+      .filter(b => b.result !== 'PENDING' && !b.isSim)
+      .reduce((s, b) => s + (Number.isFinite(b.profit) ? b.profit : 0), 0);
   }
 
   const thisWeekBets = betsInRange(thisWeekStart, new Date(thisWeekStart.getTime() + 7 * 86400000));
@@ -97,7 +97,7 @@ function updateGoalStats() {
   // 다음 주 예측 (최근 4주 기반)
   const avgWeeklyCount  = w4Bets.length > 0 ? w4Bets.length / 4 : 0;
   const avgWeeklyProfit = w4Bets.length > 0 ? profit4w / 4 : 0;
-  const resolvedW4      = w4Bets.filter(b => b.result !== 'PENDING');
+  const resolvedW4      = w4Bets.filter(b => b.result !== 'PENDING' && !b.isSim);
   const winsW4          = resolvedW4.filter(b => b.result === 'WIN');
   const wrW4            = resolvedW4.length > 0 ? winsW4.length / resolvedW4.length : (wins.length / Math.max(resolved.length, 1));
   const avgOddsW4       = resolvedW4.length > 0 ? resolvedW4.reduce((s, b) => s + b.betmanOdds, 0) / resolvedW4.length : 1.9;
@@ -227,7 +227,7 @@ function updatePredictTab() {
   // ── 엔진 연동 ──
   const _SS = window.App._SS;
 
-  const resolved  = getBets().filter(b => b.result !== 'PENDING');
+  const resolved  = getBets().filter(b => b.result !== 'PENDING' && !b.isSim);
 
   // 엔진 기초값 우선 사용
   const overallWrFromSS = _SS ? _SS.winRate : null;
@@ -245,7 +245,7 @@ function updatePredictTab() {
   }
 
   // ── ① 승률 추세 ──
-  const sorted = [...getBets()].filter(b => b.result !== 'PENDING')
+  const sorted = [...getBets()].filter(b => b.result !== 'PENDING' && !b.isSim)
     .sort((a, b) => (a.date||'').localeCompare(b.date||''));
 
   function wrOf(arr) {
@@ -608,7 +608,7 @@ function updatePredPowerPanel() {
   const page = document.getElementById('page-predpower');
   if (!page || !page.classList.contains('active')) return;
 
-  const resolved = getBets().filter(b => b.result !== 'PENDING');
+  const resolved = getBets().filter(b => b.result !== 'PENDING' && !b.isSim);
   const predBets = resolved.filter(b => b.myProb && b.betmanOdds);
   if (resolved.length < 5) return;
 
@@ -1120,7 +1120,8 @@ function calcGoal() {
 
   const start      = getCurrentBankroll() || getSettings().startFund || 0;
   const goalTarget = getSettings().targetFund || parseFloat(document.getElementById('goal-target').value) || 0;
-  const target     = goalTarget > start ? goalTarget - start : goalTarget;
+  // 이미 목표 도달 시 남은 목표는 0 (기존: 목표 전액으로 잡혀 '달성 후에도 N주 필요' 표시되던 버그)
+  const target     = Math.max(0, goalTarget - start);
   const nextOdds   = parseFloat(document.getElementById('goal-next-odds').value)  || 0;
   const nextProb   = parseFloat(document.getElementById('goal-next-prob').value)  || 0;
   const nextAmount = parseFloat(document.getElementById('goal-next-amount').value)|| 0;
@@ -1140,7 +1141,7 @@ function calcGoal() {
 
   // 베팅 기록에서 자동 계산 — 엔진 우선
   const _SScg = window.App._SS;
-  const resolved = getBets().filter(b => b.result !== 'PENDING');
+  const resolved = getBets().filter(b => b.result !== 'PENDING' && !b.isSim);
   const wins     = resolved.filter(b => b.result === 'WIN');
   const winRate  = _SScg ? _SScg.winRate : (resolved.length > 0 ? wins.length / resolved.length : 0.50);
   const avgOdds  = _SScg ? _SScg.avgOdds : (resolved.length > 0 ? resolved.reduce((s, b) => s + b.betmanOdds, 0) / resolved.length : (nextOdds || 1.90));
@@ -1178,8 +1179,10 @@ function calcGoal() {
   const seed0 = (resolved.length * 7919) >>> 0;
   const rand  = seededRandGoal(seed0);
 
-  var profitPool = resolved.length >= 5
-    ? resolved.map(function(b){ return b.profit; })
+  // profit이 비유한값인 레코드는 제외 — 하나라도 섞이면 잔액이 NaN으로 전파돼 도달확률 전체가 깨짐
+  var _validProfits = resolved.filter(function(b){ return Number.isFinite(b.profit); });
+  var profitPool = _validProfits.length >= 5
+    ? _validProfits.map(function(b){ return b.profit; })
     : null;
 
   var allPaths = [];
@@ -1304,7 +1307,7 @@ function updateGoalChart(gp10, gp25, gp50, gp90, goalTarget, start, STEPS) {
   if (charts.goal) { charts.goal.destroy(); charts.goal = null; }
 
   // 실제 기록 (뱅크롤 기준)
-  const sortedBets = [...getBets()].filter(b => b.result !== 'PENDING')
+  const sortedBets = [...getBets()].filter(b => b.result !== 'PENDING' && !b.isSim)
     .sort((a, b) => (a.date||'').localeCompare(b.date||''));
   const historyLabels = ['시작'];
   const historyData   = [start];

@@ -499,19 +499,24 @@ function updateStatsAnalysis() {
 
     // 예측 정확도 차트 (내 예상 승률 vs 내재확률 비교)
     if (charts.predAccuracy) charts.predAccuracy.destroy();
+    // 추이 차트는 최근 40건만 — 전체를 그리면 점이 뭉개져 추세를 못 읽음.
+    // 과거 이력은 위 예측 기록 테이블(페이지네이션)에서 확인.
+    const CHART_WIN = 40;
+    const chartBets = predBets.slice(-CHART_WIN);
+    const chartBase = predBets.length - chartBets.length; // 전체 기준 시작 번호 유지
     charts.predAccuracy = safeCreateChart('predAccuracyChart', {
       type: 'line',
       data: {
-        labels: predBets.map((_, i) => `${i+1}번`),
+        labels: chartBets.map((_, i) => `${chartBase + i + 1}번`),
         datasets: [
           {
             label: '내 예상 승률',
-            data: predBets.map(b => b.myProb),
+            data: chartBets.map(b => b.myProb),
             borderColor: '#00e676',
             backgroundColor: 'rgba(0,230,118,0.15)',
             borderWidth: 3,
             pointRadius: 6,
-            pointBackgroundColor: predBets.map(b => b.result === 'WIN' ? '#00e676' : b.result === 'LOSE' ? '#ff3b5c' : '#ffd700'),
+            pointBackgroundColor: chartBets.map(b => b.result === 'WIN' ? '#00e676' : b.result === 'LOSE' ? '#ff3b5c' : '#ffd700'),
             pointBorderColor: '#fff',
             pointBorderWidth: 2,
             tension: 0.3,
@@ -519,7 +524,7 @@ function updateStatsAnalysis() {
           },
           {
             label: '북메이커 내재확률',
-            data: predBets.map(b => parseFloat((1/b.betmanOdds*100).toFixed(1))),
+            data: chartBets.map(b => parseFloat((1/b.betmanOdds*100).toFixed(1))),
             borderColor: '#ffd700',
             backgroundColor: 'rgba(255,215,0,0.08)',
             borderWidth: 2,

@@ -12,7 +12,7 @@
 // ── migrateBets — 형태 보정 (createdAt 보정, result 기본값 세팅) ──────────
 // validateBet 전에 반드시 먼저 실행할 것
 function migrateBets(bets) {
-  return getBets().map(b => {
+  return (bets || []).map(b => {
     const normalized = { ...b };
 
     // createdAt 보정

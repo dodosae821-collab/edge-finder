@@ -156,29 +156,29 @@ describe('applyRoundBet', () => {
     expect(ctx.getActiveRound().remaining).toBe(65000);
   });
 
-  test('remaining ≤ 0 → status: UNLOCKED 자동 전환 + closedAt 기록', () => {
+  test('remaining ≤ 0 → 자동 종료 안 함 (미결 베팅 적중 시 복구 가능)', () => {
     const ctx = buildCtx();
     ctx.lockNewRound(50000);
     ctx.applyRoundBet(50000); // 정확히 소진
 
+    // 설계 의도: remaining=0이어도 자동 UNLOCKED 전환 안 함
+    // 미결 베팅이 적중하면 remaining이 다시 늘 수 있으므로 수동 closeRound()로만 종료
     const active = ctx.getActiveRound();
-    expect(active).toBeNull(); // LOCKED 회차 없음
-
-    const rounds = ctx.getRounds();
-    const closed = rounds.find(r => r.status === 'UNLOCKED');
-    expect(closed).toBeDefined();
-    expect(closed.remaining).toBe(0);
-    expect(closed.closedAt).not.toBeNull();
+    expect(active).not.toBeNull();
+    expect(active.remaining).toBe(0);
+    expect(active.status).toBe('LOCKED');
   });
 
-  test('remaining 초과 차감 → 0으로 floor, UNLOCKED 전환', () => {
+  test('remaining 초과 차감 → 0으로 floor, 자동 종료 안 함', () => {
     const ctx = buildCtx();
     ctx.lockNewRound(30000);
     ctx.applyRoundBet(99999); // 초과 차감
 
-    expect(ctx.getActiveRound()).toBeNull();
-    const rounds = ctx.getRounds();
-    expect(rounds[0].remaining).toBe(0);
+    // 설계 의도: 초과 차감으로 0 floor, 자동 UNLOCKED 전환 안 함
+    const active = ctx.getActiveRound();
+    expect(active).not.toBeNull();
+    expect(active.remaining).toBe(0);
+    expect(active.status).toBe('LOCKED');
   });
 
   test('활성 회차 없을 때 → noop (에러 없이 통과)', () => {
@@ -212,17 +212,26 @@ describe('상태 일관성 — 연속 시나리오', () => {
     expect(ctx.getActiveRound().remaining).toBe(20000);
 
     ctx.applyRoundBet(20000); // 소진
-    expect(ctx.getActiveRound()).toBeNull();
-    const rounds = ctx.getRounds();
-    expect(rounds[0].status).toBe('UNLOCKED');
+    // 설계 의도: remaining=0이어도 자동 종료 안 함
+    const after = ctx.getActiveRound();
+    expect(after).not.toBeNull();
+    expect(after.remaining).toBe(0);
+    expect(after.status).toBe('LOCKED');
   });
 
-  test('lock 후 종료 → lock 재시도 성공 (LOCKED 0개 상태에서)', () => {
+  test('lock 후 수동 종료 → lock 재시도 성공', () => {
     const ctx = buildCtx();
     ctx.lockNewRound(10000);
-    ctx.applyRoundBet(10000); // 소진 → UNLOCKED
-
-    const result = ctx.lockNewRound(20000); // 재시작
+    ctx.applyRoundBet(10000); // remaining=0, 자동 종료 안 함
+    // 수동 종료 후 재시작
+    if (typeof ctx.closeRound === 'function') ctx.closeRound();
+    else {
+      // closeRound가 없는 컨텍스트면 직접 상태 변경
+      const rounds = ctx.getRounds();
+      rounds[0].status = 'UNLOCKED';
+      ctx.saveRounds(rounds);
+    }
+    const result = ctx.lockNewRound(20000);
     expect(result).toBe(true);
     expect(ctx.getActiveRound().seed).toBe(20000);
   });
@@ -230,7 +239,11 @@ describe('상태 일관성 — 연속 시나리오', () => {
   test('rounds 배열에 UNLOCKED, LOCKED 공존 — getActiveRound은 LOCKED만 반환', () => {
     const ctx = buildCtx();
     ctx.lockNewRound(10000);
-    ctx.applyRoundBet(10000); // UNLOCKED
+    ctx.applyRoundBet(10000); // remaining=0, 자동 종료 안 함
+    // 수동 종료 후 새 회차 시작
+    const rounds1 = ctx.getRounds();
+    rounds1[0].status = 'UNLOCKED';
+    ctx.saveRounds(rounds1);
 
     ctx.lockNewRound(20000); // 새 LOCKED
     const active = ctx.getActiveRound();
