@@ -187,19 +187,30 @@ async function handleBridgeImageUpload(file) {
     let ocrText = '';
     let ocrConf  = 0;
     try {
-      // PSM 4 = 단일 컬럼 가변 크기 텍스트 — 영수증 표준 모드.
-      // (기존 11 = sparse text: 흩어진 낱말용 → 좌측 한글 컬럼을 저신뢰 블롭으로
-      //  통째 폐기하는 증상의 원인. 실측: 홈팀 컬럼만 소실되던 패턴과 일치)
-      const r = await Tesseract.recognize(canvas, 'kor+eng', {
-        tessedit_pageseg_mode: '4',
-      });
-      ocrText = r.data.text;
-      ocrConf  = r.data.confidence;
+      // ⚠️ Tesseract.js v5: recognize() 3번째 인자로는 엔진 파라미터(PSM)가 적용 안 됨.
+      //    worker.setParameters() 경로만 유효 — 기존 PSM 설정은 전부 무효였고
+      //    항상 기본 PSM 3으로 동작해 왔음 (v56에서 모드 변경이 무효과였던 원인).
+      const _w = await Tesseract.createWorker('kor+eng');
+      try {
+        await _w.setParameters({ tessedit_pageseg_mode: '4' }); // 단일 컬럼 문서 모드
+        const r = await _w.recognize(canvas);
+        ocrText = r.data.text;
+        ocrConf  = r.data.confidence;
+        // 1차 결과가 빈약하면 균일 블록 모드로 같은 워커에서 재시도
+        if (!ocrText || ocrText.trim().length < 20) {
+          await _w.setParameters({ tessedit_pageseg_mode: '6' });
+          const r6 = await _w.recognize(canvas);
+          if ((r6.data.text || '').length > (ocrText || '').length) {
+            ocrText = r6.data.text; ocrConf = r6.data.confidence;
+          }
+        }
+      } finally {
+        await _w.terminate();
+      }
     } catch {
       try {
-        const r2 = await Tesseract.recognize(canvas, 'kor+eng', {
-          tessedit_pageseg_mode: '6', // 폴백: 균일 텍스트 블록
-        });
+        // 최종 폴백: 구경로 (기본 PSM — 지금까지의 동작과 동일)
+        const r2 = await Tesseract.recognize(canvas, 'kor+eng');
         ocrText = r2.data.text;
         ocrConf  = r2.data.confidence;
       } catch (e2) {
