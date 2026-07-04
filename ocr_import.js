@@ -637,11 +637,32 @@ function parseOcrLines(fullText) {
   // *4자리 경기코드가 2개 이상 보이면 투표용지로 판단.
   // 경기줄은 반드시 *NNNN 코드를 포함 → 없는 줄(제목·일련번호·옆 슬립 조각)은 경기 아님.
   // (실측: 코드 없는 쓰레기 줄 6개가 경기로 등록되던 문제 차단)
-  const _protoSlipMode = (fullText.match(/\*\s?\d{4}/g) || []).length >= 2;
+  // 트리거: 실제 Tesseract 출력에서 살아남는 용지 키워드 (별표 * 는 감열지에서 소실됨 — 실측)
+  const _protoSlipMode = /프로토|승부식|투표금액|적중배당률|회차/.test(fullText);
 
-  for (const line of lines) {
+  // ── 파싱 영역 절단 (용지 규격 고정) ──────────────────────
+  // 시작: "경기  홈 팀 : 원정팀  예상  배당률" 헤더 다음 줄부터
+  // 종료: "예상 적중배당률 : x.xx배" 줄 직전까지
+  // ⚠️ '*'는 단폴 가능 표시일 뿐 — 코드에 있을 수도 없을 수도 있으므로 앵커 금지
+  let _regionStart = -1, _regionEnd = lines.length;
+  for (let _i = 0; _i < lines.length; _i++) {
+    if (_regionStart < 0 && /홈\s*팀/.test(lines[_i]) && /배당/.test(lines[_i])) { _regionStart = _i; continue; }
+    if (_regionStart >= 0 && /적중\s*배당/.test(lines[_i])) { _regionEnd = _i; break; }
+  }
+  const _regionOk = _protoSlipMode && _regionStart >= 0;
+
+  for (let _li = 0; _li < lines.length; _li++) {
+    const line = lines[_li];
     if (FOOTER_KEYWORDS.some(kw => line.includes(kw))) continue;
-    if (_protoSlipMode && !/\*\s?\d{4}/.test(line)) continue;
+    if (_regionOk) {
+      if (_li <= _regionStart || _li >= _regionEnd) continue; // 영역 밖 = 경기 아님
+      if (/^[-–—=~\s]+$/.test(line)) continue;               // 구분선(----) 제거
+    } else if (_protoSlipMode) {
+      // 폴백(헤더 미인식 사진): 배당 소수점 + 예상 키워드 동시 보유 줄만
+      const _hasOdds = /\d{1,2}[.]\d{2}/.test(line);
+      const _hasPick = /승|패|언더|오버|언 더|오 버/.test(line);
+      if (!(_hasOdds && _hasPick)) continue;
+    }
 
     // 결과 용지 행 시도 (스코어 포함)
     let row = parseResultRow(line);
@@ -659,9 +680,12 @@ function parseOcrLines(fullText) {
     // ── 배당 자동 추출: 파서가 못 뽑았으면 줄 끝 d.dd에서 직접 ──
     // (실측: 배당이 줄에 있는데 전부 "배당 입력 필요"로 뜨던 문제)
     if (row && (!row.odds || !(parseFloat(row.odds) > 1))) {
-      const _om = line.match(/(\d{1,2}\.\d{2})\s*$/);
-      if (_om && parseFloat(_om[1]) >= 1.01 && parseFloat(_om[1]) < 100) {
-        row.odds = parseFloat(_om[1]);
+      // $ 앵커 금지 — 용지 우측 세로 인쇄(고객센터/URL)가 줄 끝에 섞임 (실측)
+      // → 줄 안의 마지막 d.dd 토큰을 배당으로 채택
+      const _oms = line.match(/\d{1,2}\.\d{2}/g);
+      if (_oms) {
+        const _cand = parseFloat(_oms[_oms.length - 1]);
+        if (_cand >= 1.01 && _cand < 100) row.odds = _cand;
       }
     }
 
