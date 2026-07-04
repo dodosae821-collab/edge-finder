@@ -187,15 +187,18 @@ async function handleBridgeImageUpload(file) {
     let ocrText = '';
     let ocrConf  = 0;
     try {
+      // PSM 4 = 단일 컬럼 가변 크기 텍스트 — 영수증 표준 모드.
+      // (기존 11 = sparse text: 흩어진 낱말용 → 좌측 한글 컬럼을 저신뢰 블롭으로
+      //  통째 폐기하는 증상의 원인. 실측: 홈팀 컬럼만 소실되던 패턴과 일치)
       const r = await Tesseract.recognize(canvas, 'kor+eng', {
-        tessedit_pageseg_mode: '11',
+        tessedit_pageseg_mode: '4',
       });
       ocrText = r.data.text;
       ocrConf  = r.data.confidence;
     } catch {
       try {
         const r2 = await Tesseract.recognize(canvas, 'kor+eng', {
-          tessedit_pageseg_mode: '4',
+          tessedit_pageseg_mode: '6', // 폴백: 균일 텍스트 블록
         });
         ocrText = r2.data.text;
         ocrConf  = r2.data.confidence;
