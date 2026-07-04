@@ -200,6 +200,10 @@ function _executeRestore(data, mode) {
       if (data.settings) {
         restoreSettings(data.settings);
       }
+      // wallet 복원 (v6.2+ 백업). 구버전 백업엔 없으므로 있을 때만.
+      if (data.wallet && typeof Storage !== 'undefined' && typeof KEYS !== 'undefined') {
+        Storage.setJSON(KEYS.WALLET, data.wallet);
+      }
       if (typeof loadSettingsDisplay === 'function') loadSettingsDisplay();
     }
 
@@ -454,7 +458,10 @@ function restoreData(e) {
 // ── backupData ───────────────────────────────────────────────
 // JSON 백업 내보내기 — data 레이어 (localStorage/bets 접근)
 function backupData() {
-  const data = { bets, settings: getSettings(), exportedAt: new Date().toISOString(), version: '6.1' };
+  // wallet(인출 내역) 포함 — 미포함 시 복원 후 누적자산이 어긋남
+  const _wallet = (typeof Storage !== 'undefined' && typeof KEYS !== 'undefined')
+    ? Storage.getJSON(KEYS.WALLET, null) : null;
+  const data = { bets, settings: getSettings(), wallet: _wallet, exportedAt: new Date().toISOString(), version: '6.2' };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

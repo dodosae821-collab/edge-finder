@@ -25,13 +25,19 @@ function getSettings() {
 function getTotalLifetimeBankroll() {
   const offset = Number(appSettings.lifetimeOffset) || 0;
   const withdrawn = typeof getWalletWithdrawnTotal === 'function' ? getWalletWithdrawnTotal() : 0;
-  return offset + getCurrentBankroll() - withdrawn;
+  // 오프셋은 "입력 시점의 과거 전체 요약" — 그 시점까지의 인출은 이미 오프셋에 반영됨.
+  // 따라서 오프셋 저장 시점(base) 이후 발생한 인출만 차감 (이중차감 방지)
+  const base = Number(appSettings.lifetimeOffsetWithdrawnBase) || 0;
+  return offset + getCurrentBankroll() - Math.max(0, withdrawn - base);
 }
 
 // lifetimeOffset만 저장 (전체 누적 자산 직접 수정용)
 function saveLifetimeOffset(newOffset) {
   const val = parseFloat(String(newOffset).replace(/,/g, '')) || 0;
   appSettings.lifetimeOffset = val;
+  // 이 시점까지의 인출 누적을 기준점으로 스냅샷 — 이후 인출만 자산에서 차감
+  appSettings.lifetimeOffsetWithdrawnBase =
+    (typeof getWalletWithdrawnTotal === 'function' ? getWalletWithdrawnTotal() : 0);
   Storage.setJSON(KEYS.SETTINGS, appSettings);
   if (typeof refreshAllUI === 'function') refreshAllUI();
 }
