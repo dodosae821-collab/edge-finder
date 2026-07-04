@@ -227,7 +227,8 @@ async function handleBridgeImageUpload(file) {
       const _w = await Tesseract.createWorker('kor+eng');
       let _fullLines = [], _leftLines = [];
       try {
-        await _w.setParameters({ tessedit_pageseg_mode: '4' }); // 단일 컬럼 문서 모드
+        // 실측 판정(v58): PSM 4 적용 시 오히려 악화 (홈팀 조각·경기줄 추가 소실)
+        // → 기본 PSM 3(auto)이 이 용지의 최적. 전체 패스는 기본 모드 유지.
         const r = await _w.recognize(canvas);
         ocrText = r.data.text;
         ocrConf  = r.data.confidence;
@@ -253,6 +254,7 @@ async function handleBridgeImageUpload(file) {
           const lctx = lc.getContext('2d');
           lctx.imageSmoothingEnabled = true; lctx.imageSmoothingQuality = 'high';
           lctx.drawImage(canvas, 0, 0, _lw, canvas.height, 0, 0, lc.width, lc.height);
+          await _w.setParameters({ tessedit_pageseg_mode: '6' }); // 존은 균일 블록 모드
           const rl = await _w.recognize(lc);
           _leftLines = (rl.data.lines || []).map(l => ({
             y0: l.bbox.y0 / _sc, y1: l.bbox.y1 / _sc, text: (l.text || '').trim()
