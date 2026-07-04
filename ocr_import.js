@@ -638,7 +638,8 @@ function parseOcrLines(fullText) {
   // 경기줄은 반드시 *NNNN 코드를 포함 → 없는 줄(제목·일련번호·옆 슬립 조각)은 경기 아님.
   // (실측: 코드 없는 쓰레기 줄 6개가 경기로 등록되던 문제 차단)
   // 트리거: 실제 Tesseract 출력에서 살아남는 용지 키워드 (별표 * 는 감열지에서 소실됨 — 실측)
-  const _protoSlipMode = /프로토|승부식|투표금액|적중배당률|회차/.test(fullText);
+  // 실측: 이 사진군에선 '프로토/회차'가 소실되고 '최종경기일자'와 영문 'proto'가 생존
+  const _protoSlipMode = /프로토|승부식|투표금액|적중배당률|회차|최종경기일자|경기일자/.test(fullText) || /proto/i.test(fullText);
 
   // ── 파싱 영역 절단 (용지 규격 고정) ──────────────────────
   // 시작: "경기  홈 팀 : 원정팀  예상  배당률" 헤더 다음 줄부터
@@ -664,8 +665,35 @@ function parseOcrLines(fullText) {
       if (!(_hasOdds && _hasPick)) continue;
     }
 
+    // ── 프로토 경기줄 salvage (기존 파서보다 우선) ──────────
+    // 실측 원문: 홈팀·콜론이 깨져도 "(승|패|언더|오버) ... d.dd" 시그니처는 5/5 생존.
+    // 구조: [홈(훼손 가능)] [:：…] 원정팀 예상 배당
+    let row = null;
+    const _sig = line.match(/(승|패|언더|오버)\s*[^\d]*(\d{1,2}\.\d{2})/);
+    if (_sig) {
+      const _odds = parseFloat(_sig[2]);
+      if (_odds >= 1.01 && _odds < 100) {
+        const _clean = t => t.replace(/[_\.\[\]~|©—=、ㅎ]/g, ' ').replace(/\s+/g, ' ').trim();
+        const _pre   = line.slice(0, line.indexOf(_sig[1]));
+        const _parts = _pre.split(/[:：…]/).map(_clean).filter(Boolean);
+        let _away = _parts.length ? _parts.pop() : '';
+        let _home = _parts.join(' ')
+          .replace(/^[UHh1iℓl|\s]*\*?\d{0,4}[\s\].]*/,'')  // 마켓/경기코드 prefix
+          .replace(/\d+(\.\d+)?/g, '').trim();               // 핸디캡 숫자
+        _away = _away.replace(/\d+(\.\d+)?/g, '').trim();     // 원정 쪽 기준점 숫자
+        if (_away) {
+          row = {
+            gameNum: null, rawHome: _home, rawAway: _away,
+            homeRaw: _home, awayRaw: _away,
+            pick: _sig[1], odds: _odds, handicap: null, marketType: null,
+            isSingleOk: false, score: null, scorePairs: [], rawLine: line
+          };
+        }
+      }
+    }
+
     // 결과 용지 행 시도 (스코어 포함)
-    let row = parseResultRow(line);
+    if (!row) row = parseResultRow(line);
 
     // 스코어 없으면 투표 용지 행(예상결과/배당 포함) 시도
     if (!row) row = parseProtoRow(line);
