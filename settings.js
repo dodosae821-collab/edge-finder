@@ -27,6 +27,12 @@ function getTotalLifetimeBankroll() {
   const withdrawn = typeof getWalletWithdrawnTotal === 'function' ? getWalletWithdrawnTotal() : 0;
   // 오프셋은 "입력 시점의 과거 전체 요약" — 그 시점까지의 인출은 이미 오프셋에 반영됨.
   // 따라서 오프셋 저장 시점(base) 이후 발생한 인출만 차감 (이중차감 방지)
+  // 자동 마이그레이션: 기준점이 없으면(구버전에서 입력된 오프셋) 지금 인출액을 기준점으로.
+  // 오프셋 = 사용자가 입력한 "현실 자산 스냅샷"이므로 그 시점까지의 인출은 이미 반영돼 있음.
+  if (appSettings.lifetimeOffsetWithdrawnBase == null && offset > 0) {
+    appSettings.lifetimeOffsetWithdrawnBase = withdrawn;
+    try { Storage.setJSON(KEYS.SETTINGS, appSettings); } catch (e) {}
+  }
   const base = Number(appSettings.lifetimeOffsetWithdrawnBase) || 0;
   return offset + getCurrentBankroll() - Math.max(0, withdrawn - base);
 }
