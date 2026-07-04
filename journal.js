@@ -577,49 +577,8 @@ function renderPlanFolderRows() {
 }
 
 // savePlan 덮어쓰기
-function savePlan() {
-  const date       = document.getElementById('plan-date')?.value;
-  const confidence = document.getElementById('plan-confidence')?.value || 'mid';
-  const reason     = document.getElementById('plan-reason')?.value?.trim();
-  const mode       = document.getElementById('plan-betmode')?.value || 'single';
+// [정리] 중복 savePlan 구버전 제거 — 아래(원 1067행) 정의가 실행되던 버전
 
-  if (!date) { showToast('날짜는 필수입니다.', 'error'); return; }
-
-  let planData = { id: Date.now(), date, confidence, reason: reason||'', mode, done: false, linkedBetId: null, matchResult: null };
-
-  if (mode === 'single') {
-    const game   = document.getElementById('plan-game')?.value?.trim();
-    const sport  = document.getElementById('plan-sport')?.value?.trim();
-    const odds   = parseFloat(document.getElementById('plan-odds')?.value) || 0;
-    const amount = parseFloat(document.getElementById('plan-amount')?.value) || 0;
-    if (!game) { showToast('경기명은 필수입니다.', 'error'); return; }
-    Object.assign(planData, { game, sport, odds, amount });
-  } else {
-    const amount = parseFloat(document.getElementById('plan-multi-amount')?.value) || 0;
-    const folderGames  = [...document.querySelectorAll('.plan-folder-game')].map(el => el.value.trim());
-    const folderOdds   = [...document.querySelectorAll('.plan-folder-odds')].map(el => parseFloat(el.value)||0);
-    const folderSports = [...document.querySelectorAll('.plan-folder-sport')].map(el => el.value.trim());
-    const folderTypes  = [...document.querySelectorAll('.plan-folder-type')].map(el => el.value || '승/패');
-    if (folderGames.every(g => !g)) { showToast('최소 1개 폴더의 경기명을 입력하세요.', 'error'); return; }
-    const totalOdds = folderOdds.reduce((a,b) => b > 0 ? a*b : a, 1);
-    Object.assign(planData, { game: folderGames.filter(g=>g).join(' + '), amount, totalOdds: parseFloat(totalOdds.toFixed(2)), folderGames, folderOdds, folderSports, folderTypes });
-  }
-
-  const plans = Storage.getJSON(KEYS.PLANS, []);
-  plans.push(planData);
-  plans.sort((a,b) => a.date.localeCompare(b.date));
-  Storage.setJSON(KEYS.PLANS, plans);
-
-  // 초기화
-  ['plan-game','plan-sport','plan-odds','plan-amount','plan-reason','plan-multi-amount'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
-  });
-  setPlanMode('single');
-  renderPlanList();
-  renderPlanVsReal();
-}
-
-// 예정 vs 실제 비교 통계
 function renderPlanVsReal() {
   const el = document.getElementById('plan-vs-real-stats');
   if (!el) return;

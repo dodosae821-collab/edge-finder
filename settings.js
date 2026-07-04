@@ -918,64 +918,8 @@ function confirmResetDays()    { confirmResetAmounts(); }
 function resetAmountsOnly()    { confirmResetAmounts(); }
 
 // ── Adaptive Kelly 모드 배너 ──────────────────────────────────────────────────
-function updateKellyGradeBanner() {
-  const banner   = document.getElementById('kelly-grade-banner');
-  const titleEl  = document.getElementById('kelly-grade-banner-title');
-  const subEl    = document.getElementById('kelly-grade-banner-sub');
-  const multEl   = document.getElementById('kelly-grade-banner-mult');
-  if (!banner) return;
+// [정리] 중복 updateKellyGradeBanner 제거 — mobile_gdrive.js 버전이 실행되던 버전 (로드 순서상 승리)
 
-  const SS = window.App._SS;
-  if (!SS) { banner.style.display = 'none'; return; }
-
-  const m      = SS.multiplier ?? 1;
-  const roi30  = SS.rec30roi  ?? 0;
-  const grade  = SS.grade;
-
-  // 등급 배너 기본
-  if (grade) {
-    titleEl && (titleEl.textContent = `등급 ${grade.letter} · 켈리 배율 ${(grade.mult * 100).toFixed(0)}%`);
-    subEl   && (subEl.textContent   = `엣지 ${grade.edgeSc}점 · 보정 ${grade.calibSc}점 · 일관성 ${grade.consSc}점`);
-    banner.style.background  = `${grade.color}18`;
-    banner.style.borderColor = `${grade.color}44`;
-    banner.style.border      = `1px solid ${grade.color}44`;
-    banner.style.display     = 'flex';
-  }
-
-  // Adaptive Multiplier 뱃지
-  if (multEl) {
-    if (m > 1) {
-      multEl.textContent        = `🔥 공격 모드 ×${m.toFixed(2)}`;
-      multEl.style.background   = 'rgba(255,152,0,0.15)';
-      multEl.style.color        = 'var(--accent2)';
-      multEl.style.border       = '1px solid rgba(255,152,0,0.35)';
-    } else if (m < 1) {
-      multEl.textContent        = `🛡️ 보수 모드 ×${m.toFixed(2)}`;
-      multEl.style.background   = 'rgba(33,150,243,0.12)';
-      multEl.style.color        = '#64b5f6';
-      multEl.style.border       = '1px solid rgba(33,150,243,0.3)';
-    } else {
-      multEl.textContent        = `⚖️ 중립 ×1.00`;
-      multEl.style.background   = 'rgba(255,255,255,0.05)';
-      multEl.style.color        = 'var(--text3)';
-      multEl.style.border       = '1px solid var(--border)';
-    }
-    multEl.title = `최근 30건 ROI: ${roi30 >= 0 ? '+' : ''}${roi30.toFixed(1)}%`;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ── 시즌 히스토리 ─────────────────────────────────────────────────────────────
-//
-//  read-only 열람 전용. 수정/편집 기능 없음.
-//  source of truth = bets (raw bets 직접 집계, _SS 미참조)
-//  window._seasonHistory = 파생 캐시 (재생성 구조, 단독 수정 경로 없음)
-//
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ── 시즌 기록 삭제 ──────────────────────────────────────────
-// 현재 진행 중인 시즌은 삭제 불가 (진행 중 데이터 보호)
-// 삭제 시 해당 finSeason에 속한 베팅 기록을 영구 삭제
 function deleteSeasonHistory(seasonNum) {
   const curSeason = Number.isInteger(appSettings.currentFinSeason) && appSettings.currentFinSeason >= 1
     ? appSettings.currentFinSeason

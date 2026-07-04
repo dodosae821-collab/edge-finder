@@ -56,7 +56,7 @@ function updateCharts() {
 
   // scope 필터 적용 — 'all': 전체 / 'project': 현재 프로젝트만
   const _scopedBets = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
-  const allResolved = _scopedBets.filter(b => b.result !== 'PENDING');
+  const allResolved = _scopedBets.filter(b => b.result !== 'PENDING' && !b.isSim);
 
   // 날짜별 누적 손익 계산
   function buildProfitByDate(days) {
@@ -178,7 +178,7 @@ function calcPredGrade() {
   if (ss && ss.grade !== undefined) return ss.grade;
   // 엔진 없으면 직접 계산 (폴백) — scope 필터 적용
   const _sb = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
-  const resolved = _sb.filter(b => b.result !== 'PENDING');
+  const resolved = _sb.filter(b => b.result !== 'PENDING' && !b.isSim);
   const predBets = resolved.filter(b => b.myProb && b.betmanOdds);
   if (predBets.length < 5) return null;
   const predEdge = predBets.reduce((s,b) => s + (b.myProb - 100/b.betmanOdds), 0) / predBets.length;
@@ -375,7 +375,7 @@ function calcKelly() {
 
   // 베팅 기록 기반 현재 회차 자동 계산 — scope 필터 적용
   const _sb2     = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
-  const resolved  = _sb2.filter(b => b.result !== 'PENDING');
+  const resolved  = _sb2.filter(b => b.result !== 'PENDING' && !b.isSim);
   const cyclePos  = resolved.length % 12;  // 0~11
   const roundNum  = cyclePos + 1;
   const remain    = 12 - cyclePos;
@@ -713,7 +713,7 @@ function renderFolderDetail(key, bets_list) {
     return;
   }
 
-  const resolved = bets_list.filter(b => b.result !== 'PENDING');
+  const resolved = bets_list.filter(b => b.result !== 'PENDING' && !b.isSim);
   const wins     = resolved.filter(b => b.result === 'WIN');
   const profit   = resolved.reduce((s, b) => s + b.profit, 0);
   const invested = resolved.reduce((s, b) => s + b.amount, 0);

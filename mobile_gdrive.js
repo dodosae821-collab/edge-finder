@@ -464,6 +464,9 @@ const _gdriveAutoSync = () => {
 const _GDRIVE_SYNC_KEYS = new Set([
   KEYS.BETS,
   KEYS.SETTINGS,
+  KEYS.WALLET,          // 인출 내역 — 누락 시 기기 간 누적자산 어긋남
+  KEYS.ROUNDS,          // 회차 — 누락 시 진행 중 회차가 기기 간 단절
+  KEYS.ROUND_REVIEWS,   // 회차 회고
   KEYS.PLANS,
   KEYS.DIARIES,
   KEYS.SIM_STATE,

@@ -662,7 +662,7 @@ function updateDashboardKPI() {
     // 이번 회차 손익 (journal.js의 d-round-profit과 별개로 KPI도 업데이트)
     // 누적 손익 (전체 기준 — SS가 round scope이면 전체 SS를 별도 계산)
     const allBets = getBets();
-    const allResolved = allBets.filter(b => b.result === 'WIN' || b.result === 'LOSE');
+    const allResolved = allBets.filter(b => (b.result === 'WIN' || b.result === 'LOSE') && !b.isSim);
     const allProfit = allResolved.reduce((s, b) => s + (b.profit || 0), 0);
     _set('d-round-cumul-profit',
       `${allProfit >= 0 ? '+₩' : '-₩'}${Math.abs(Math.round(allProfit)).toLocaleString()}`,

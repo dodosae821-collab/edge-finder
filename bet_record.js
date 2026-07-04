@@ -1137,7 +1137,7 @@ function updateFibonacci() {
   if (baseInput && !baseInput.value) baseInput.placeholder = base.toLocaleString('ko-KR');
 
   // 베팅 기록에서 최근 연패 시리즈 추출
-  const resolved = getBets().filter(b => b.result !== 'PENDING').sort((a,b) => new Date(a.savedAt) - new Date(b.savedAt));
+  const resolved = getBets().filter(b => b.result !== 'PENDING' && !b.isSim).sort((a,b) => new Date(a.savedAt) - new Date(b.savedAt));
 
   // 현재 연패 계산 (뒤에서부터)
   let streak = 0;

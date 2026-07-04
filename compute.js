@@ -37,6 +37,8 @@ function _seededRand(seed) {
  * @returns {{ avgProfit: number|null, evAvg: number|null }}
  */
 function computeAnalyzeMetrics(bets) {
+  // 시뮬 기록 제외 — 호출부가 raw getBets()를 넘겨도 안전 (멱등)
+  if (Array.isArray(bets)) bets = bets.filter(function(b){ return !b.isSim; });
   const resolved = bets.filter(function(b) { return b.result !== 'PENDING'; });
 
   // 베팅당 평균 손익 (반올림 포함 — 렌더 시 Math 호출 제거)
@@ -210,6 +212,8 @@ function computeSimulation(bets, config) {
  * }}
  */
 function computeJudgeMetrics(bets, filter) {
+  // 시뮬 기록 제외 — 호출부가 raw getBets()를 넘겨도 안전 (멱등)
+  if (Array.isArray(bets)) bets = bets.filter(function(b){ return !b.isSim; });
   const allResolved = bets.filter(function(b) { return b.result !== 'PENDING'; });
   const resolved = (filter === 'all' || filter === undefined)
     ? allResolved : allResolved.slice(-filter);
@@ -576,6 +580,8 @@ function computeBaseStats(bets, avgAmt) {
  * }}
  */
 function computeRiskMetrics(bets, winRate, avgOdds, avgAmt, start) {
+  // 시뮬 기록 제외 — 호출부가 raw getBets()를 넘겨도 안전 (멱등)
+  if (Array.isArray(bets)) bets = bets.filter(function(b){ return !b.isSim; });
   const resolved = bets.filter(function(b) { return b.result !== 'PENDING'; });
 
   // ── 기초 통계 (입력 NaN 무관 — 항상 먼저 계산) ───────────

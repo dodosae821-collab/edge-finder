@@ -633,8 +633,15 @@ function parseOcrLines(fullText) {
   // OCR은 줄이 깨지므로 푸터 키워드가 경기 줄과 합쳐질 수 있음
   // break하면 그 뒤 경기 데이터까지 전부 날아감
 
+  // ── 프로토 투표용지 모드 ──────────────────────────────
+  // *4자리 경기코드가 2개 이상 보이면 투표용지로 판단.
+  // 경기줄은 반드시 *NNNN 코드를 포함 → 없는 줄(제목·일련번호·옆 슬립 조각)은 경기 아님.
+  // (실측: 코드 없는 쓰레기 줄 6개가 경기로 등록되던 문제 차단)
+  const _protoSlipMode = (fullText.match(/\*\s?\d{4}/g) || []).length >= 2;
+
   for (const line of lines) {
     if (FOOTER_KEYWORDS.some(kw => line.includes(kw))) continue;
+    if (_protoSlipMode && !/\*\s?\d{4}/.test(line)) continue;
 
     // 결과 용지 행 시도 (스코어 포함)
     let row = parseResultRow(line);
@@ -647,6 +654,15 @@ function parseOcrLines(fullText) {
         console.warn('[OCR] 파싱 실패 라인 (alias/패턴 검토 필요):', JSON.stringify(line));
       }
       continue;
+    }
+
+    // ── 배당 자동 추출: 파서가 못 뽑았으면 줄 끝 d.dd에서 직접 ──
+    // (실측: 배당이 줄에 있는데 전부 "배당 입력 필요"로 뜨던 문제)
+    if (row && (!row.odds || !(parseFloat(row.odds) > 1))) {
+      const _om = line.match(/(\d{1,2}\.\d{2})\s*$/);
+      if (_om && parseFloat(_om[1]) >= 1.01 && parseFloat(_om[1]) < 100) {
+        row.odds = parseFloat(_om[1]);
+      }
     }
 
     // ── 팀명: raw 그대로 보존 — normalize는 alias 체크만 ────────────────
