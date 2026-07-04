@@ -137,6 +137,40 @@ function getCameraInput() {
   return input;
 }
 
+
+// ── 좌측 컬럼 존 인식 → 홈팀 보강 (y좌표 겹침 매칭) ─────────────
+// rows: parseOcrLines 결과 / zones: { full:[{y0,y1,text}], left:[{y0,y1,text}] }
+function _fillHomeFromLeftZone(rows, zones) {
+  if (!rows || !rows.length || !zones || !zones.full || !zones.full.length || !zones.left || !zones.left.length) return;
+  // 전체 패스에서 경기줄(배당+예상 보유)만 순서대로 — rows와 같은 순서
+  const gameFull = zones.full.filter(l => /\d{1,2}\.\d{2}/.test(l.text) && /승|패|언더|오버/.test(l.text));
+  const clean = t => t.split(/[:：]/)[0]
+    .replace(/^[UHhℓli|\[\]~*\s]*\d{0,4}[\s\].]*/, '')  // 마켓/경기코드 prefix
+    .replace(/\d+(\.\d+)?/g, '')                           // 핸디캡/기준점 숫자
+    .replace(/[_\.\[\]~|©—=、ㅎ*]/g, ' ').replace(/\s+/g, ' ').trim();
+  let filled = 0;
+  rows.forEach((row, i) => {
+    const curKo = (row.rawHome || '').replace(/[^가-힣]/g, '');
+    if (curKo.length >= 3) return;                 // 이미 온전한 홈팀
+    const fl = gameFull[i];                        // 순서 매칭 (같은 텍스트에서 파싱됨)
+    if (!fl) return;
+    // y 겹침이 가장 큰 좌측 줄
+    let best = null, bestOv = 0;
+    for (const ll of zones.left) {
+      const ov = Math.min(fl.y1, ll.y1) - Math.max(fl.y0, ll.y0);
+      if (ov > bestOv) { bestOv = ov; best = ll; }
+    }
+    if (!best || bestOv <= 0) return;
+    const home = clean(best.text);
+    if (home && home.replace(/[^가-힣]/g, '').length >= 2) {
+      row.rawHome = home; row.homeRaw = home;
+      if (row.normHome && typeof row.normHome === 'object') row.normHome.team = home;
+      filled++;
+    }
+  });
+  if (filled) console.log(`[OCR 홈팀보강] 좌측 존에서 ${filled}개 복구`);
+}
+
 // ── 카메라 버튼 클릭 진입점 ───────────────────────────────────
 function openOcrCameraInput() {
   const input = getCameraInput();
@@ -191,23 +225,48 @@ async function handleBridgeImageUpload(file) {
       //    worker.setParameters() 경로만 유효 — 기존 PSM 설정은 전부 무효였고
       //    항상 기본 PSM 3으로 동작해 왔음 (v56에서 모드 변경이 무효과였던 원인).
       const _w = await Tesseract.createWorker('kor+eng');
+      let _fullLines = [], _leftLines = [];
       try {
         await _w.setParameters({ tessedit_pageseg_mode: '4' }); // 단일 컬럼 문서 모드
         const r = await _w.recognize(canvas);
         ocrText = r.data.text;
         ocrConf  = r.data.confidence;
+        _fullLines = (r.data.lines || []).map(l => ({ y0: l.bbox.y0, y1: l.bbox.y1, text: (l.text || '').trim() }));
         // 1차 결과가 빈약하면 균일 블록 모드로 같은 워커에서 재시도
         if (!ocrText || ocrText.trim().length < 20) {
           await _w.setParameters({ tessedit_pageseg_mode: '6' });
           const r6 = await _w.recognize(canvas);
           if ((r6.data.text || '').length > (ocrText || '').length) {
             ocrText = r6.data.text; ocrConf = r6.data.confidence;
+            _fullLines = (r6.data.lines || []).map(l => ({ y0: l.bbox.y0, y1: l.bbox.y1, text: (l.text || '').trim() }));
           }
+        }
+        console.log('[OCR path] ✅ worker PSM 적용 경로 실행, conf=', ocrConf);
+
+        // ── 좌측 컬럼 존별 인식 (홈팀 회수) ──────────────────
+        // 우측의 강한 숫자·배당 블롭이 세그멘테이션을 지배해 좌측 한글이
+        // 저신뢰로 폐기되는 문제 대응: 좌측 55%만 잘라 2배 확대 후 별도 인식
+        try {
+          const _sc = 2, _lw = Math.round(canvas.width * 0.55);
+          const lc = document.createElement('canvas');
+          lc.width = _lw * _sc; lc.height = canvas.height * _sc;
+          const lctx = lc.getContext('2d');
+          lctx.imageSmoothingEnabled = true; lctx.imageSmoothingQuality = 'high';
+          lctx.drawImage(canvas, 0, 0, _lw, canvas.height, 0, 0, lc.width, lc.height);
+          const rl = await _w.recognize(lc);
+          _leftLines = (rl.data.lines || []).map(l => ({
+            y0: l.bbox.y0 / _sc, y1: l.bbox.y1 / _sc, text: (l.text || '').trim()
+          })).filter(l => l.text);
+          console.log('[OCR 좌측컬럼]', _leftLines.map(l => l.text));
+        } catch (eL) {
+          console.warn('[OCR 좌측컬럼 실패]', eL && eL.message);
         }
       } finally {
         await _w.terminate();
       }
-    } catch {
+      window.__OCR_ZONES__ = { full: _fullLines, left: _leftLines };
+    } catch (eW) {
+      console.warn('[OCR path] ⚠️ worker 경로 실패 → 레거시 폴백:', eW && eW.message);
       try {
         // 최종 폴백: 구경로 (기본 PSM — 지금까지의 동작과 동일)
         const r2 = await Tesseract.recognize(canvas, 'kor+eng');
@@ -224,6 +283,8 @@ async function handleBridgeImageUpload(file) {
 
     // ④ 파싱 (ocr_import.js의 parseOcrLines 재사용)
     const parsed = parseOcrLines(ocrText);
+    // 좌측 컬럼 존 인식 결과로 훼손된 홈팀 보강 (y좌표 매칭)
+    try { _fillHomeFromLeftZone(parsed, window.__OCR_ZONES__); } catch (e) { console.warn('[OCR 홈팀보강 실패]', e && e.message); }
 
     if (!parsed || parsed.length === 0) {
       hideBridgeLoading();
