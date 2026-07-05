@@ -7,7 +7,9 @@ let _comboGames = [];   // [{ id, name, odds, myProb, group }]
 let _comboGroupCounter = 0;
 let _comboLastRecov  = [];  // 마지막 생성된 원금회수용 조합 목록 (베팅 기록 전송용)
 let _comboLastProfit = {};  // { 3: [...], 4: [...], 5: [...], 6: [...] } 폴더별 전체 후보
-let _comboLastPerBet = 0;   // 마지막 생성 기준 조합당 금액
+let _comboLastPerBet = 0;
+let _comboDeathBands = {};   // 한 끗 사망 배당대 카운트 (통계 탭과 공용 계산)
+let _comboDeathThr   = Infinity;   // 마지막 생성 기준 조합당 금액
 
 // ── 초기화 (탭 진입 시 호출) ──
 function comboInit() {
@@ -327,6 +329,12 @@ function comboGenerate() {
 
   _comboLastRecov  = selectedRecov;
   _comboLastProfit = profitByFolder;   // { 3:[...], 4:[...], 5:[...], 6:[...] }
+  // 한 끗 사망 배당대 캐시 (카드 뱃지용) — 전체 한끗의 25%+ 집중 배당대만 경고
+  try {
+    const _oms = (typeof computeOneMissStats === 'function') ? computeOneMissStats() : null;
+    _comboDeathBands = _oms ? _oms.byOdds : {};
+    _comboDeathThr   = _oms ? Math.max(8, _oms.oneMissN * 0.25) : Infinity;
+  } catch (e) { _comboDeathBands = {}; _comboDeathThr = Infinity; }
   _comboLastPerBet = perBet;
   comboRenderResult(selectedRecov, profitByFolder, perBet, total, useCalib, ss);
 }
@@ -681,7 +689,13 @@ function comboCardHTML(c, idx, perBet, kind) {
     return `<div style="font-size:11px;color:var(--text2);padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
       <span style="color:var(--text3);font-weight:700;">${letter}</span>
       ${g.name}
-      <span style="float:right;font-family:'JetBrains Mono',monospace;color:var(--text3);">${parseFloat(g.odds).toFixed(2)}배 · ${prob}%${diffStr}</span>
+      <span style="float:right;font-family:'JetBrains Mono',monospace;color:var(--text3);">${(() => {
+        const _b = (typeof _oddsBand === 'function') ? _oddsBand(parseFloat(g.odds)) : null;
+        const _c = _b ? (_comboDeathBands[_b] || 0) : 0;
+        return _c >= _comboDeathThr
+          ? `<span title="이 배당대 레그가 한 끗 낙첨에서 ${_c}회 사망 — 상습 사망 구간" style="color:var(--red);font-size:10px;">💀${_c} </span>`
+          : '';
+      })()}${parseFloat(g.odds).toFixed(2)}배 · ${prob}%${diffStr}</span>
     </div>`;
   }).join('');
 

@@ -1,4 +1,6 @@
 function updateStatsAnalysis() {
+  try { renderOneMissAnalysis(); } catch (e) { console.warn('[한끗분석]', e && e.message); }
+  try { renderLegPerformance(); } catch (e) { console.warn('[레그성적표]', e && e.message); }
   // scope 필터 적용
   const _scopedBets = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
   const resolved = _scopedBets.filter(b => b.result !== 'PENDING');
@@ -1170,3 +1172,153 @@ function updateKellyHistory() {
   }
 }
 
+
+
+// ============================================================
+// 🎯 한 끗 분석 + 레그 성적표 — folderResults 기반 레그 단위 분석
+// ============================================================
+function _oddsBand(o) {
+  return o < 1.5 ? '1.5 미만' : o < 2 ? '1.5~2' : o < 3 ? '2~3' : '3 이상';
+}
+
+// 한 끗 통계 (조합기 사망 레그 경고에서도 공용 — 복사본 금지)
+function computeOneMissStats() {
+  const multiLosses = getBets().filter(b =>
+    !b.isSim && b.result === 'LOSE' &&
+    Array.isArray(b.folderOdds) && b.folderOdds.length >= 2 &&
+    Array.isArray(b.folderResults) && b.folderResults.some(Boolean));
+  const oneMiss = multiLosses.filter(b => b.folderResults.filter(r => r === 'LOSE').length === 1);
+  const bySport = {}, byOdds = {};
+  let hypo = 0, hypoN = 0;
+  oneMiss.forEach(b => {
+    const i = b.folderResults.findIndex(r => r === 'LOSE');
+    if (i < 0) return;
+    const sp = (Array.isArray(b.folderSports) && b.folderSports[i]) || '미지정';
+    bySport[sp] = (bySport[sp] || 0) + 1;
+    const o = parseFloat(b.folderOdds[i]) || 0;
+    byOdds[_oddsBand(o)] = (byOdds[_oddsBand(o)] || 0) + 1;
+    let rest = 1, ok = true;
+    b.folderOdds.forEach((oo, j) => {
+      if (j === i) return;
+      const v = parseFloat(oo);
+      if (!(v > 1)) ok = false; else rest *= v;
+    });
+    if (ok && Number.isFinite(b.amount) && b.amount > 0) {
+      const ro = (typeof betmanRound === 'function') ? betmanRound(rest) : Math.round(rest * 100) / 100;
+      hypo += b.amount * (ro - 1) + b.amount;
+      hypoN++;
+    }
+  });
+  return { total: multiLosses.length, oneMissN: oneMiss.length,
+           rate: multiLosses.length ? oneMiss.length / multiLosses.length * 100 : 0,
+           bySport, byOdds, hypo, hypoN };
+}
+
+function renderOneMissAnalysis() {
+  const el = document.getElementById('one-miss-content');
+  if (!el) return;
+  const st = computeOneMissStats();
+  if (st.total < 5) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:11px;">폴더별 결과가 기록된 낙첨 다폴이 5건 이상 쌓이면 표시됩니다.</div>';
+    return;
+  }
+  const top = obj => Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([k, v]) => `${k} <b style="color:var(--text2);">${v}건</b>`).join(' · ');
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center;margin-bottom:12px;">
+      <div style="background:var(--bg3);border-radius:8px;padding:12px;">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">한 끗 낙첨률</div>
+        <div style="font-size:24px;font-weight:800;color:var(--warn);font-family:'JetBrains Mono',monospace;">${st.rate.toFixed(0)}%</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px;">${st.oneMissN} / ${st.total}건 (폴더기록 있는 낙첨 다폴)</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:12px;">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">그 폴더 뺐으면 (n−1 가정)</div>
+        <div style="font-size:20px;font-weight:800;color:${st.hypo >= 0 ? 'var(--green)' : 'var(--red)'};font-family:'JetBrains Mono',monospace;">${st.hypo >= 0 ? '+' : ''}₩${Math.round(st.hypo).toLocaleString()}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px;">${st.hypoN}건 낙첨→적중 전환분 · 참고용</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.9;">
+      <div>💀 사망 레그 종목: ${top(st.bySport) || '—'}</div>
+      <div>💀 사망 레그 배당대: ${top(st.byOdds) || '—'}</div>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:10px;line-height:1.6;">
+      ℹ️ 레그 승률 55~60% 기준이면 낙첨 중 한 끗 ~50%는 수학적 기대치와 일치 — 불운이 아니라
+      레그 판단이 정직하다는 신호입니다. 특정 종목·배당대가 <b>반복해서</b> 사망하면 그게 조합에서 뺄 후보입니다.
+    </div>`;
+}
+
+// ── 레그 성적표: 배당대·종목별 레그 단위 실적 ──────────────
+// 표본 규칙: 적중 조합 = 전 레그 적중 확정(폴더기록 불요) / 낙첨 조합 = 폴더기록 완비분만
+function computeLegStats() {
+  const bets = getBets().filter(b =>
+    !b.isSim && (b.result === 'WIN' || b.result === 'LOSE') &&
+    Array.isArray(b.folderOdds) && b.folderOdds.length >= 2);
+  const bands = {}, sports = {};
+  bets.forEach(b => {
+    const n = b.folderOdds.length;
+    let results = null;
+    if (b.result === 'WIN') results = Array(n).fill('WIN');
+    else if (Array.isArray(b.folderResults) &&
+             b.folderResults.filter(r => r === 'WIN' || r === 'LOSE').length === n) {
+      results = b.folderResults;
+    }
+    if (!results) return;
+    for (let i = 0; i < n; i++) {
+      const o = parseFloat(b.folderOdds[i]);
+      if (!(o > 1)) continue;
+      const r = results[i];
+      if (r !== 'WIN' && r !== 'LOSE') continue;
+      const band = _oddsBand(o);
+      const bd = bands[band] = bands[band] || { n: 0, w: 0, ps: 0, pn: 0 };
+      bd.n++; if (r === 'WIN') bd.w++;
+      const p = parseFloat(Array.isArray(b.folderProbs) ? b.folderProbs[i] : NaN);
+      if (p > 0 && p < 100) { bd.ps += p; bd.pn++; }
+      const sp = (Array.isArray(b.folderSports) && b.folderSports[i]) || '미지정';
+      const sd = sports[sp] = sports[sp] || { n: 0, w: 0 };
+      sd.n++; if (r === 'WIN') sd.w++;
+    }
+  });
+  return { bands, sports };
+}
+
+function renderLegPerformance() {
+  const el = document.getElementById('leg-perf-content');
+  if (!el) return;
+  const { bands, sports } = computeLegStats();
+  const order = ['1.5 미만', '1.5~2', '2~3', '3 이상'];
+  const totalN = order.reduce((s2, k) => s2 + (bands[k]?.n || 0), 0);
+  if (totalN < 20) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:11px;">레그 표본 20개 이상 쌓이면 표시됩니다 (적중 조합 + 폴더기록 완비 낙첨 기준).</div>';
+    return;
+  }
+  const rows = order.filter(k => bands[k]?.n >= 5).map(k => {
+    const d = bands[k];
+    const wr = d.w / d.n * 100;
+    const pred = d.pn ? d.ps / d.pn : null;
+    const gap = pred != null ? wr - pred : null;
+    const gapStr = gap == null ? '—'
+      : `<span style="color:${gap >= 0 ? 'var(--green)' : 'var(--red)'};">${gap >= 0 ? '+' : ''}${gap.toFixed(0)}%p</span>`;
+    return `<tr>
+      <td style="padding:5px 4px;color:var(--text2);">${k}</td>
+      <td style="padding:5px 4px;text-align:center;color:var(--text3);">${d.n}</td>
+      <td style="padding:5px 4px;text-align:center;color:var(--text3);">${pred != null ? pred.toFixed(0) + '%' : '—'}</td>
+      <td style="padding:5px 4px;text-align:center;font-weight:700;color:${wr >= (pred ?? 50) ? 'var(--green)' : 'var(--warn)'};">${wr.toFixed(0)}%</td>
+      <td style="padding:5px 4px;text-align:center;">${gapStr}</td>
+    </tr>`;
+  }).join('');
+  const spLine = Object.entries(sports).filter(([, d]) => d.n >= 8)
+    .sort((a, b) => b[1].n - a[1].n).slice(0, 5)
+    .map(([k, d]) => `${k} <b style="color:var(--text2);">${(d.w / d.n * 100).toFixed(0)}%</b><span style="color:var(--text3);">(${d.n})</span>`)
+    .join(' · ');
+  el.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+      <thead><tr style="color:var(--text3);border-bottom:1px solid var(--border);">
+        <th style="text-align:left;padding:5px 4px;">배당대</th><th>레그 수</th><th>예측 평균</th><th>실제 적중</th><th>차이</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="font-size:11px;color:var(--text2);margin-top:10px;">종목별 실제 적중: ${spLine || '—'}</div>
+    <div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6;">
+      ℹ️ 차이(+)는 예측보다 잘 맞히는 배당대, (−)는 과신 배당대. 조합을 짤 때 (−) 배당대 레그가 진짜 위험 요소입니다.
+    </div>`;
+}
