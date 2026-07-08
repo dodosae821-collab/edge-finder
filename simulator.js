@@ -8,6 +8,17 @@ let simPrefixA = 2, simPrefixB = 3;
 
 function simFmt(n) { return Math.round(n).toLocaleString('ko-KR'); }
 
+// 사용자 피드백 토스트 — 홀딩/결과 처리 시 "왜 안 됐는지" 화면에 보여주기 위한 공통 헬퍼.
+// (이전엔 가드 조건에 걸리면 아무 메시지 없이 조용히 return 되어 "반응 없음"처럼 보였음)
+function simToast(msg, kind) {
+  const bg = kind === 'error' ? 'rgba(255,59,92,0.92)' : kind === 'warn' ? 'rgba(255,159,10,0.92)' : 'rgba(0,230,118,0.9)';
+  const toast = document.createElement('div');
+  toast.textContent = msg;
+  toast.style.cssText = `position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:${bg};color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;max-width:88vw;text-align:center;`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2600);
+}
+
 function simSwitchTab(name) {
   ['play','tree','stats','goals','config'].forEach(t => {
     const tc = document.getElementById('sim-tc-' + t);
@@ -926,9 +937,25 @@ function simHold() {
   if(!showC) { const b4el = document.getElementById('sim-i-b4'); if(b4el) b4el.value = ''; }
   const f1  = document.getElementById('sim-f-a1');
   const f2  = document.getElementById('sim-f-a2');
-  if (!tot || tot > simState.balance) return;
-  if (!f1?.checked && !f2?.checked) return;
-  if (simPending) return; // 이미 홀딩중이면 무시
+
+  // ── 아래 3가지 조건은 예전엔 알림 없이 그냥 return 되어 "홀딩 눌렀는데 반응 없음"으로 보였음.
+  //    원인을 토스트로 바로 알려주도록 수정.
+  if (simPending) {
+    simToast('⚠️ 아직 결과 처리 안 된 홀딩이 있어요. 먼저 결과 버튼을 눌러 확정하세요.', 'warn');
+    return;
+  }
+  if (!tot) {
+    simToast('⚠️ 세이브/A/B/C 베팅금이 모두 0이에요. 금액을 입력하세요.', 'warn');
+    return;
+  }
+  if (tot > simState.balance) {
+    simToast(`⚠️ 입력한 총액(${simFmt(tot)}원)이 보유 잔액(${simFmt(simState.balance)}원)보다 많아요.`, 'warn');
+    return;
+  }
+  if (!f1?.checked && !f2?.checked) {
+    simToast('⚠️ A(안전) 단폴/다폴 중 하나를 선택해야 홀딩할 수 있어요.', 'warn');
+    return;
+  }
 
   const ex2 = b2 > 0 ? simCalcExcess(b2, o2) : 0;
   const ex3 = b3 > 0 ? simCalcExcess(b3, o3) : 0;
@@ -1058,33 +1085,13 @@ function simApplyPending(key) {
   simState.balance = newBal;
   simState.round++;
   simPending = null;
+  simToast(`🎲 결과 반영: 잔액 ${simFmt(newBal)}원 (전략베팅 시뮬 잔액만 변경 · 베팅기록 미접촉)`, key === 'lose' ? 'error' : 'ok');
 
-  // 베팅기록 자동 추가
-  const aWin = ['both','only2','onlyA','ab','ac'].includes(key);
-  const bWin = ['both','only3','onlyB','ab','bc'].includes(key);
-  const cWin = ['both','onlyC','ac','bc'].includes(key);
-
-  const simRecords = [];
-  if (p.b2 > 0) {
-    simRecords.push({ id: String(Date.now())+'simA', isSim: true, finSeason: -1, date:new Date().toISOString().split('T')[0], game:p.memo||'-', sport:'', type:'승/패', mode:p.memo.includes('/')?'multi':'single', amount:p.b2, betmanOdds:p.o2, result:aWin?'WIN':'LOSE', profit:aWin?Math.round(p.b2*p.o2)-p.b2:-p.b2, memo:'[전략베팅 A]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
-  }
-  if (p.b3 > 0) {
-    simRecords.push({ id: String(Date.now()+1)+'simB', isSim: true, finSeason: -1, date:new Date().toISOString().split('T')[0], game:p.memoB||'-', sport:'', type:'승/패', mode:p.memoB.includes('/')?'multi':'single', amount:p.b3, betmanOdds:p.o3, result:bWin?'WIN':'LOSE', profit:bWin?Math.round(p.b3*p.o3)-p.b3:-p.b3, memo:'[전략베팅 B]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
-  }
-  if ((p.b4||0) > 0) {
-    simRecords.push({ id: String(Date.now()+2)+'simC', isSim: true, finSeason: -1, date:new Date().toISOString().split('T')[0], game:p.memoC||'-', sport:'', type:'승/패', mode:(p.memoC||'').includes('/')?'multi':'single', amount:p.b4, betmanOdds:p.o4, result:cWin?'WIN':'LOSE', profit:cWin?Math.round(p.b4*p.o4)-p.b4:-p.b4, memo:'[전략베팅 C]', emotion:'보통', myProb:null, folderOdds:[], folderProbs:[], folderSports:[], folderTypes:[], folderResults:[] });
-  }
-  if (simRecords.length > 0) {
-    saveBets([...simRecords, ...getBets()]);  // unshift 동작 유지 (앞에 추가)
-    _gdriveAutoSync && _gdriveAutoSync();
-    updateAll();
-    const isLoseKey = key === 'lose';
-    const toast = document.createElement('div');
-    toast.textContent = isLoseKey ? '📋 실패 기록이 히스토리에 저장됐어요' : '✅ 베팅기록에 추가됐어요';
-    toast.style.cssText = `position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:${isLoseKey?'rgba(255,59,92,0.9)':'rgba(0,230,118,0.9)'};color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;`;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2000);
-  }
+  // ★ 수정: "성공/실패" 결과 버튼은 전략베팅 시뮬 잔액만 바꿉니다.
+  //   베팅기록과 연동되는 지점은 오직 홀딩(simHold → simTransmitPending) 하나뿐이며,
+  //   그때 이미 미결(PENDING)로 베팅기록에 넘어가 있습니다.
+  //   따라서 여기서 베팅기록에 WIN/LOSE 기록을 추가로 쓰지 않습니다. (이전엔 여기서 saveBets로
+  //   다시 한 번 베팅기록에 써서 중복/불필요한 반영이 생겼던 부분 — 완전히 제거함)
 
   try { Storage.setJSON(KEYS.SIM_STATE, simState); Storage.set(KEYS.SIM_GOAL, SIM_GOAL); Storage.remove(KEYS.SIM_PENDING); } catch(e) {}
   simRenderPending();
