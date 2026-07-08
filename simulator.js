@@ -134,6 +134,373 @@ function simGetHint(bal) {
   return { zone, sv, b2, b3, b4 };
 }
 
+// ============================================================
+// 몬테카를로 도달/파산 시뮬레이터 (순수 함수 · DOM 참조 0)
+//   로드맵(배분)이 실측 레그 적중률로 목표에 실제 도달/파산할 확률을 계산.
+//   "길은 사용자가 그렸고, 그 길이 진짜 닿는지를 본인 데이터로 검증한다."
+//
+//   회차 머니 모델(앱 simApplyPending과 동일):
+//     next_bal = 세이브(sv) + Σ round(betᵢ.amount × betᵢ.odds)   (당첨 갈래만)
+//     파산 = 잔액이 최소단위(minUnit) 미만
+//
+//   인자:
+//     startBal    시작 잔액
+//     goal        목표 금액
+//     legWinRates 배당대별 실측 적중률 맵 { '1.5~2': 0.59, ... } (0~1)
+//     allocFn(bal) → { sv, bets:[{amount, odds}] }  잔액→이번 회차 배분
+//     maxRounds   최대 회차 (미달 판정 상한)
+//     trials      시행 횟수
+//     minUnit     최소 베팅단위(파산 기준, 기본 10000)
+//     rng         난수 [0,1) (테스트 주입용, 기본 Math.random)
+//     oddsBandFn  배당→배당대 (기본 _oddsBand, 없으면 내장)
+//     fallbackRate(odds) 실측 없는 배당대의 폴백 승률 (기본 암시확률 1/odds)
+//
+//   반환: { reachProb, bustProb, missProb, medianRounds, p10Rounds, p90Rounds, trials }
+//         medianRounds/p10/p90 = 도달 성공한 시행의 목표 도달 회차 분포 (없으면 null)
+// ============================================================
+function _simBandBuiltin(o) {
+  return o < 1.5 ? '1.5 미만' : o < 2 ? '1.5~2' : o < 3 ? '2~3' : '3 이상';
+}
+
+function simMonteCarloPath(opts) {
+  const o = opts || {};
+  const startBal = +o.startBal || 0;
+  const goal     = +o.goal || 0;
+  const legWinRates = o.legWinRates || {};
+  const allocFn  = typeof o.allocFn === 'function' ? o.allocFn : null;
+  const maxRounds = Number.isFinite(o.maxRounds) ? o.maxRounds : 40;
+  const trials    = Number.isFinite(o.trials) ? o.trials : 3000;
+  const minUnit   = Number.isFinite(o.minUnit) ? o.minUnit : 10000;
+  const rng       = typeof o.rng === 'function' ? o.rng : Math.random;
+  const bandFn    = typeof o.oddsBandFn === 'function' ? o.oddsBandFn
+                  : (typeof _oddsBand === 'function' ? _oddsBand : _simBandBuiltin);
+  const fallbackRate = typeof o.fallbackRate === 'function'
+                  ? o.fallbackRate
+                  : (odds) => Math.min(0.98, Math.max(0.01, 1 / (odds > 1 ? odds : 1.01)));
+
+  if (!allocFn || !(goal > 0) || !(startBal >= 0)) {
+    return { reachProb: 0, bustProb: 0, missProb: 1, medianRounds: null, p10Rounds: null, p90Rounds: null, trials: 0 };
+  }
+
+  const rateFor = (odds) => {
+    const band = bandFn(odds);
+    const r = legWinRates[band];
+    return (typeof r === 'number' && r >= 0 && r <= 1) ? r : fallbackRate(odds);
+  };
+
+  let reach = 0, bust = 0, miss = 0;
+  const reachRounds = [];
+
+  for (let t = 0; t < trials; t++) {
+    let bal = startBal;
+    let r = 0;
+    let done = null; // 'reach' | 'bust' | 'miss'
+
+    while (r < maxRounds) {
+      if (bal >= goal) { done = 'reach'; break; }
+      const alloc = allocFn(bal) || {};
+      const sv = Math.max(0, +alloc.sv || 0);
+      const bets = Array.isArray(alloc.bets)
+        ? alloc.bets.filter(b => b && +b.amount > 0 && +b.odds > 1)
+        : [];
+      const stake = bets.reduce((s, b) => s + (+b.amount), 0);
+
+      if (stake <= 0) {
+        // 베팅 불가(전부 세이브/0) → 더 못 나아감. 세이브가 목표면 도달, 아니면 미달.
+        done = (sv >= goal || bal >= goal) ? 'reach' : 'miss';
+        break;
+      }
+
+      r++;
+      let next = sv;
+      for (const b of bets) {
+        if (rng() < rateFor(+b.odds)) next += Math.round((+b.amount) * (+b.odds));
+      }
+      bal = next;
+
+      if (bal >= goal) { done = 'reach'; break; }
+      if (bal < minUnit) { done = 'bust'; break; }
+    }
+    if (done === null) done = (bal >= goal) ? 'reach' : 'miss'; // maxRounds 소진
+
+    if (done === 'reach') { reach++; reachRounds.push(r); }
+    else if (done === 'bust') bust++;
+    else miss++;
+  }
+
+  reachRounds.sort((a, b) => a - b);
+  const pct = (arr, q) => arr.length ? arr[Math.min(arr.length - 1, Math.floor(q * (arr.length - 1)))] : null;
+
+  return {
+    reachProb: reach / trials,
+    bustProb:  bust / trials,
+    missProb:  miss / trials,
+    medianRounds: pct(reachRounds, 0.5),
+    p10Rounds:    pct(reachRounds, 0.1),
+    p90Rounds:    pct(reachRounds, 0.9),
+    trials,
+  };
+}
+
+// ── 배분 팩토리 (allocFn 생성기) ────────────────────────────
+// 로드맵 제안 배분: simGetHint 재사용 (배분 비율 복제 금지) + 배당 부여
+function simMakeRoadmapAlloc(odds) {
+  const od = odds || {};
+  return (bal) => {
+    const h = simGetHint(bal);
+    if (!h) {
+      // bal < 40000: 초반 규칙 연장 (세이브 28% + A 나머지)
+      const sv = Math.round(bal * 0.28 / 10000) * 10000;
+      const amt = bal - sv;
+      return { sv, bets: amt > 0 ? [{ amount: amt, odds: od.o2 || 2 }] : [] };
+    }
+    const bets = [];
+    if (h.b2 > 0) bets.push({ amount: h.b2, odds: od.o2 || 2 });
+    if (h.b3 > 0) bets.push({ amount: h.b3, odds: od.o3 || 3 });
+    if (h.b4 > 0) bets.push({ amount: h.b4, odds: od.o4 || 4 });
+    return { sv: h.sv, bets };
+  };
+}
+
+// 사용자 입력 배분: 현재 sv/b2/b3/b4 비율을 잔액에 스케일 (같은 성향 투영)
+function simMakeInputAlloc(cur) {
+  const c = cur || {};
+  const base = (+c.sv || 0) + (+c.b2 || 0) + (+c.b3 || 0) + (+c.b4 || 0);
+  return (bal) => {
+    const k = base > 0 ? bal / base : 0;
+    const r = v => Math.round((+v || 0) * k / 10000) * 10000;
+    const bets = [];
+    if (c.b2 > 0) bets.push({ amount: r(c.b2), odds: c.o2 || 2 });
+    if (c.b3 > 0) bets.push({ amount: r(c.b3), odds: c.o3 || 3 });
+    if (c.b4 > 0) bets.push({ amount: r(c.b4), odds: c.o4 || 4 });
+    return { sv: r(c.sv), bets };
+  };
+}
+
+// 세이브 방파제 체인: 잔액 대부분 세이브 + 남은 실탄 한 방 (잃을수록 판돈 축소)
+//   [확정 규칙] 최소 베팅단위 100원(배트맨) · 실탄이 100원 단위 내림으로 0이 되면 그 회차 종료.
+function simMakeBreakwaterAlloc(o) {
+  const cfg = o || {};
+  const saveRatio = Number.isFinite(cfg.saveRatio) ? cfg.saveRatio : 0.55;
+  const odds = cfg.odds || 3;
+  const unit = Number.isFinite(cfg.unit) ? cfg.unit : 100; // 배트맨 최소 단위
+  return (bal) => {
+    // 남은 실탄 = 잔액 − 세이브. float 오차 방지 위해 세이브를 원 단위로 반올림 후 차감,
+    // 그 실탄을 100원 단위 내림. 나머지는 전부 세이브(방파제).
+    const betRaw = bal - Math.round(bal * saveRatio);
+    let stake = Math.floor(betRaw / unit) * unit;
+    if (!(stake > 0)) stake = 0;
+    const sv = bal - stake;
+    return { sv, bets: stake > 0 ? [{ amount: stake, odds }] : [] }; // 실탄 0 → 종료
+  };
+}
+
+// 목표 역산: 목표금액 ÷ 베팅액 = 필요 배당
+function simRequiredOdds(target, stake) {
+  if (!(stake > 0)) return null;
+  return target / stake;
+}
+
+// ── Step 3 (선택): 세이브 비율 최적화 제안 (순수) ────────────────
+// 세이브 40~60% 그리드를 돌려 도달확률 최대 지점 탐색. 어디까지나 제안(원칙1).
+function simSuggestSaveRatio(o) {
+  const opt = o || {};
+  const startBal = opt.startBal, goal = opt.goal;
+  const legWinRates = opt.legWinRates || {};
+  const fallbackRate = opt.fallbackRate;
+  const oddsBandFn = opt.oddsBandFn;
+  const odds = opt.odds || { o2: 2 };
+  const betWeights = Array.isArray(opt.betWeights) && opt.betWeights.some(w => w > 0) ? opt.betWeights : [1, 0, 0];
+  const grid = opt.grid || [0.40, 0.45, 0.50, 0.55, 0.60];
+  const trials = Number.isFinite(opt.trials) ? opt.trials : 600;
+  const rng = opt.rng;
+  const wsum = betWeights.reduce((s, w) => s + Math.max(0, w), 0) || 1;
+  const od = [odds.o2, odds.o3, odds.o4];
+
+  let best = null;
+  for (const sr of grid) {
+    const allocFn = (bal) => {
+      const sv = Math.round(bal * sr / 10000) * 10000;
+      const rest = bal - sv;
+      const bets = [];
+      betWeights.forEach((w, i) => {
+        if (w > 0 && od[i] > 1) {
+          const amt = Math.round(rest * (w / wsum) / 10000) * 10000;
+          if (amt > 0) bets.push({ amount: amt, odds: od[i] });
+        }
+      });
+      if (!bets.length && rest > 0) bets.push({ amount: rest, odds: od[0] || 2 });
+      return { sv, bets };
+    };
+    const r = simMonteCarloPath({ startBal, goal, legWinRates, fallbackRate, oddsBandFn, allocFn, trials, rng });
+    if (!best || r.reachProb > best.reachProb) best = { ratio: sr, reachProb: r.reachProb, bustProb: r.bustProb };
+  }
+  return best;
+}
+
+// ── Step 2: 도달/파산 확률 거울 (실시간, DOM 계층) ──────────────
+// 현재 입력 배분 읽기
+function simReadAlloc() {
+  return {
+    sv: parseInt(document.getElementById('sim-i-sv')?.value) || 0,
+    b2: parseInt(document.getElementById('sim-i-b2')?.value) || 0,
+    b3: parseInt(document.getElementById('sim-i-b3')?.value) || 0,
+    b4: parseInt(document.getElementById('sim-i-b4')?.value) || 0,
+    o2: simGetOdds('a'), o3: simGetOdds('b'), o4: simGetOdds('c'),
+    bal: simState.balance,
+  };
+}
+
+// computeLegStats(stats.js) 재사용 → 배당대별 실측률(n>=5) + 예측 폴백 맵
+function simBuildLegRates() {
+  const rates = {}, pred = {}, meta = {};
+  const order = ['1.5 미만', '1.5~2', '2~3', '3 이상'];
+  if (typeof computeLegStats === 'function') {
+    const { bands } = computeLegStats();
+    order.forEach(k => {
+      const d = bands[k];
+      if (!d) { meta[k] = { n: 0, real: false }; return; }
+      meta[k] = { n: d.n, w: d.w, real: d.n >= 5 };
+      if (d.n >= 5) rates[k] = d.w / d.n;              // 실측 (표본 충분)
+      if (d.pn > 0) pred[k] = (d.ps / d.pn) / 100;     // 예측 평균 (폴백)
+    });
+  }
+  return { rates, pred, meta };
+}
+
+function simRenderProbMirror() {
+  const host = document.getElementById('sim-prob-mirror');
+  if (!host) return;
+  const bal = simState.balance, goal = SIM_GOAL;
+  if (!(bal > 0) || !(goal > bal)) { host.innerHTML = ''; return; } // 이미 목표 이상/무효 → 숨김
+
+  const { rates, pred, meta } = simBuildLegRates();
+  const bandOf = (typeof _oddsBand === 'function') ? _oddsBand : _simBandBuiltin;
+  const fallbackRate = (odds) => {
+    const b = bandOf(odds);
+    return (typeof pred[b] === 'number') ? pred[b] : Math.min(0.98, Math.max(0.02, 1 / (odds > 1 ? odds : 1.01)));
+  };
+
+  const cur = simReadAlloc();
+  const odds = { o2: cur.o2, o3: cur.o3, o4: cur.o4 };
+  const common = { startBal: bal, goal, legWinRates: rates, fallbackRate, trials: 1500, maxRounds: 40 };
+
+  const roadmap = simMonteCarloPath({ ...common, allocFn: simMakeRoadmapAlloc(odds) });
+  const hasInput = (cur.b2 + cur.b3 + cur.b4) > 0;
+  const user = hasInput ? simMonteCarloPath({ ...common, allocFn: simMakeInputAlloc(cur) }) : null;
+
+  const pct = v => (v * 100).toFixed(0);
+  const roundsStr = r => (r.medianRounds == null ? '—'
+    : `${r.medianRounds}회 <span style="color:var(--text3)">(${r.p10Rounds}~${r.p90Rounds})</span>`);
+
+  const order = ['1.5 미만', '1.5~2', '2~3', '3 이상'];
+  const cov = order.map(k => {
+    const m = meta[k] || { n: 0 };
+    if (!m.n) return null;
+    return `${k} <b style="color:${m.real ? 'var(--green)' : 'var(--text3)'}">${m.real ? (rates[k] * 100).toFixed(0) + '%' : '폴백'}</b><span style="color:var(--text3)">(${m.n})</span>`;
+  }).filter(Boolean).join(' · ');
+
+  const usedBands = [...new Set([cur.o2, cur.o3, cur.o4].filter(o => o > 1).map(bandOf))];
+  const fallbackUsed = usedBands.filter(b => typeof rates[b] !== 'number');
+
+  // Step3: 세이브 비율 최적 제안 (회색 · 강제 아님)
+  let optLine = '';
+  try {
+    const weights = hasInput ? [cur.b2, cur.b3, cur.b4] : [1, 0, 0];
+    const best = simSuggestSaveRatio({ startBal: bal, goal, legWinRates: rates, fallbackRate, odds, betWeights: weights, trials: 500 });
+    if (best) optLine = `<br>💡 세이브 <b style="color:var(--text2)">${(best.ratio * 100).toFixed(0)}%</b>면 도달확률이 가장 높아 (${(best.reachProb * 100).toFixed(0)}%) — 참고만, 결정은 너.`;
+  } catch (e) {}
+
+  host.innerHTML = `
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
+      <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:2px;">이 길이 목표에 닿을 확률 — 네 실측 레그 적중률 기준</div>
+      <div style="font-size:9px;color:var(--text3);margin-bottom:12px;">제안일 뿐이야. 금액을 바꾸면 확률도 바로 따라 움직여.</div>
+      ${user ? `
+      <div style="margin-bottom:10px;">
+        <div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:6px;">지금 네 입력이면</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
+          <div><div style="font-size:9px;color:var(--text3)">도달</div><div style="font-size:20px;font-weight:900;color:var(--green);font-family:'JetBrains Mono',monospace">${pct(user.reachProb)}%</div></div>
+          <div><div style="font-size:9px;color:var(--text3)">파산</div><div style="font-size:20px;font-weight:900;color:var(--red);font-family:'JetBrains Mono',monospace">${pct(user.bustProb)}%</div></div>
+          <div><div style="font-size:9px;color:var(--text3)">예상 회차</div><div style="font-size:14px;font-weight:700;color:var(--text2);font-family:'JetBrains Mono',monospace;padding-top:4px">${roundsStr(user)}</div></div>
+        </div>
+      </div>` : `<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">금액을 입력하면 '네 입력' 기준 확률이 여기 떠. 아래는 제안 배분 기준.</div>`}
+      <div style="border-top:1px solid var(--border);padding-top:10px;opacity:0.72;">
+        <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:6px;">제안(로드맵)대로면</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
+          <div><div style="font-size:9px;color:var(--text3)">도달</div><div style="font-size:16px;font-weight:800;color:var(--text3);font-family:'JetBrains Mono',monospace">${pct(roadmap.reachProb)}%</div></div>
+          <div><div style="font-size:9px;color:var(--text3)">파산</div><div style="font-size:16px;font-weight:800;color:var(--text3);font-family:'JetBrains Mono',monospace">${pct(roadmap.bustProb)}%</div></div>
+          <div><div style="font-size:9px;color:var(--text3)">예상 회차</div><div style="font-size:13px;font-weight:700;color:var(--text3);font-family:'JetBrains Mono',monospace;padding-top:3px">${roundsStr(roadmap)}</div></div>
+        </div>
+      </div>
+      <div style="font-size:9px;color:var(--text3);margin-top:12px;line-height:1.6;border-top:1px solid var(--border);padding-top:8px;">
+        실측 커버리지: ${cov || '레그 표본 부족 — 전부 폴백(암시확률/예측 승률)'}
+        ${fallbackUsed.length ? `<br><span style="color:var(--warn)">⚠ ${fallbackUsed.join(', ')} 배당대는 실측 부족 → 예측/암시 승률 사용 (장밋빛 아님, 정직하게)</span>` : ''}
+        ${optLine}
+      </div>
+    </div>`;
+}
+
+let _simMirrorTimer = null;
+function simScheduleProbMirror() {
+  if (_simMirrorTimer) clearTimeout(_simMirrorTimer);
+  _simMirrorTimer = setTimeout(() => { try { simRenderProbMirror(); } catch (e) {} }, 140);
+}
+
+// ── 세이브 방파제 체인 (확정 규칙: 100원 단위, 실탄 0 종료) ──────
+function simRenderBreakwater() {
+  const host = document.getElementById('sim-bw-result');
+  if (!host) return;
+  const bal = simState.balance, goal = SIM_GOAL;
+
+  const saveRatio = Math.min(0.95, Math.max(0.05, (parseFloat(document.getElementById('sim-bw-save')?.value) || 55) / 100));
+  const odds = Math.max(1.01, parseFloat(document.getElementById('sim-bw-odds')?.value) || 3);
+
+  const alloc = simMakeBreakwaterAlloc({ saveRatio, odds, unit: 100 });
+  const cur = alloc(bal);
+  const stake = (cur.bets[0] && cur.bets[0].amount) || 0;
+  const reqOdds = simRequiredOdds(goal, stake); // 목표 한방 필요배당
+
+  const { rates, pred } = simBuildLegRates();
+  const bandOf = (typeof _oddsBand === 'function') ? _oddsBand : _simBandBuiltin;
+  const fallbackRate = (o) => { const b = bandOf(o); return (typeof pred[b] === 'number') ? pred[b] : Math.min(0.98, Math.max(0.02, 1 / (o > 1 ? o : 1.01))); };
+  const band = bandOf(odds);
+  const rateUsed = (typeof rates[band] === 'number') ? rates[band] : fallbackRate(odds);
+  const isReal = typeof rates[band] === 'number';
+
+  let mc = null;
+  if (bal > 0 && goal > bal && stake > 0) {
+    mc = simMonteCarloPath({ startBal: bal, goal, legWinRates: rates, fallbackRate, allocFn: alloc, trials: 1500, maxRounds: 60, minUnit: 100 });
+  }
+
+  const cell = (label, val, col, sz) => `<div><div style="font-size:9px;color:var(--text3)">${label}</div><div style="font-size:${sz || 15}px;font-weight:800;color:${col};font-family:'JetBrains Mono',monospace">${val}</div></div>`;
+
+  host.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-bottom:10px;">
+      ${cell('🛡 세이브(방파제)', simFmt(cur.sv) + '원', 'var(--gold)')}
+      ${cell('🔥 실탄(이번 판)', simFmt(stake) + '원', 'var(--accent)')}
+      ${cell('목표 한방 필요배당', reqOdds ? '×' + reqOdds.toFixed(1) : '—', 'var(--text2)')}
+    </div>
+    ${stake <= 0
+      ? `<div style="font-size:11px;color:var(--red);">실탄 0원 — 여기가 체인 종료 지점이야. (더 태울 실탄 없음)</div>`
+      : mc
+        ? `<div style="border-top:1px solid var(--border);padding-top:10px;opacity:0.85;">
+            <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">이 방식으로 목표(${simFmt(goal)}원)까지 — ${band} 적중률 <b style="color:${isReal ? 'var(--green)' : 'var(--text3)'}">${(rateUsed * 100).toFixed(0)}%</b>${isReal ? ' 실측' : ' 폴백'} 기준</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
+              ${cell('도달', (mc.reachProb * 100).toFixed(0) + '%', 'var(--green)', 18)}
+              ${cell('파산', (mc.bustProb * 100).toFixed(0) + '%', 'var(--red)', 18)}
+              ${cell('예상 회차', mc.medianRounds == null ? '—' : mc.medianRounds + '회', 'var(--text2)', 13)}
+            </div>
+            <div style="font-size:9px;color:var(--text3);margin-top:8px;line-height:1.6;">세이브가 원금을 계속 지켜서 파산이 느린 대신, 목표 도달도 느려. 제안일 뿐 — 결정은 너.</div>
+          </div>`
+        : `<div style="font-size:10px;color:var(--text3);">현재 잔액이 목표 이상이거나 실탄이 없어 시뮬레이션 생략.</div>`}`;
+}
+
+let _simBwTimer = null;
+function simScheduleBreakwater() {
+  if (_simBwTimer) clearTimeout(_simBwTimer);
+  _simBwTimer = setTimeout(() => { try { simRenderBreakwater(); } catch (e) {} }, 140);
+}
+
 function simOnInput() {
   const sv  = parseInt(document.getElementById('sim-i-sv')?.value)  || 0;
   const b2  = parseInt(document.getElementById('sim-i-b2')?.value)  || 0;
@@ -146,7 +513,7 @@ function simOnInput() {
 
   // C베팅 자동 표시 (보유 금액 130만원 이상)
   const showC = simState.balance >= 1300000;
-  ['sim-c-memo-wrap','sim-c-bet-wrap','sim-c-odds-wrap','sim-c-folder-wrap'].forEach(id => {
+  ['sim-c-memo-wrap','sim-c-bet-wrap','sim-c-odds-wrap','sim-c-folder-wrap','sim-judge-c'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.style.display = showC ? 'block' : 'none';
   });
@@ -266,6 +633,12 @@ function simOnInput() {
       </div>`;
     }).join('');
   }
+
+  // 판단 데이터 입력 UI 동기화 (폴더 수 변경 반영)
+  try { simRenderJudge(); } catch (e) {}
+  // 도달/파산 확률 거울 실시간 갱신 (원칙3 — 입력 바꾸면 확률도 즉시 따라감)
+  simScheduleProbMirror();
+  simScheduleBreakwater();
 }
 
 let simHistOpen = false;
@@ -388,6 +761,149 @@ function simRestart() {
   simRender(); simOnInput();
 }
 
+// ============================================================
+// 전략베팅 판단 데이터 입력 (단폴: 종목·예측승률 / 다폴: 폴더별 배당·승률·종목)
+//   → 홀딩 시 buildStrategyBet(bet_record.js) 경유로 베팅기록 미결(PENDING) 전송.
+//   목적: myProb·폴더 데이터가 실려 과신방어/레그성적표/한끗/사망레그경고가
+//         전략베팅 갈래까지 커버 (지시서 목표).
+// ============================================================
+const SIM_SPORT_OPTS = ['축구', '야구', '농구', '배구', '기타'];
+
+function simSportSelectHtml(cls, id) {
+  const opts = ['<option value="">종목</option>']
+    .concat(SIM_SPORT_OPTS.map(s => `<option value="${s}">${s}</option>`)).join('');
+  const idAttr = id ? ` id="${id}"` : '';
+  return `<select class="${cls}"${idAttr} style="padding:6px 8px;font-size:12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);">${opts}</select>`;
+}
+
+// 갈래별 폴더 수 (단폴=1, 미선택=0)
+function simBranchFolderCount(which) {
+  if (which === 'a') return document.getElementById('sim-f-a2')?.checked ? 2 : (document.getElementById('sim-f-a1')?.checked ? 1 : 0);
+  if (which === 'b') return document.getElementById('sim-f-b2')?.checked ? 2 : (document.getElementById('sim-f-b1')?.checked ? 1 : 0);
+  if (document.getElementById('sim-f-c4')?.checked) return 4;
+  if (document.getElementById('sim-f-c3')?.checked) return 3;
+  if (document.getElementById('sim-f-c2')?.checked) return 2;
+  return 0;
+}
+
+// 판단 데이터 입력 UI 렌더 (폴더 수 변경 시 재구성, 기존 입력값 보존)
+function simRenderJudge() {
+  ['a', 'b', 'c'].forEach(which => {
+    const host = document.getElementById(`sim-judge-${which}`);
+    if (!host) return;
+    const count = simBranchFolderCount(which);
+    const bucket = count >= 2 ? String(count) : 'single';
+    if (host.dataset.bucket === bucket) return; // 구조 동일 → 재구성 스킵 (포커스/입력 보존)
+    host.dataset.bucket = bucket;
+    const label = which.toUpperCase();
+    const color = which === 'a' ? 'var(--accent)' : which === 'b' ? 'var(--green)' : 'var(--accent2)';
+
+    if (count >= 2) {
+      // 다폴: 폴더별 행 (기존 값 보존)
+      const prev = host.querySelectorAll('.sim-fold-row');
+      const keep = Array.from(prev).map(r => ({
+        sport: r.querySelector('.sim-fold-sport')?.value || '',
+        odds:  r.querySelector('.sim-fold-odds')?.value  || '',
+        prob:  r.querySelector('.sim-fold-prob')?.value  || '',
+      }));
+      let rows = '';
+      for (let i = 0; i < count; i++) {
+        const k = keep[i] || { sport: '', odds: '', prob: '' };
+        rows += `<div class="sim-fold-row" style="display:grid;grid-template-columns:64px 1fr 1fr;gap:5px;margin-bottom:5px;align-items:center;">
+          ${simSportSelectHtml('sim-fold-sport')}
+          <input type="number" class="sim-fold-odds" placeholder="배당" step="0.01" min="1" value="${k.odds}" style="padding:6px 8px;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);">
+          <input type="number" class="sim-fold-prob" placeholder="승률%" min="1" max="99" step="0.1" value="${k.prob}" style="padding:6px 8px;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);">
+        </div>`;
+      }
+      host.innerHTML = `<div style="font-size:10px;color:${color};margin-bottom:5px;font-weight:600;">${label} · ${count}폴 폴더별 입력</div>${rows}`;
+      host.querySelectorAll('.sim-fold-sport').forEach((s, i) => { if (keep[i]) s.value = keep[i].sport; });
+    } else {
+      // 단폴: 종목 + 예측승률 (미선택도 단폴 취급, 값 보존)
+      const prevSport = document.getElementById(`sim-sport-${which}`)?.value || '';
+      const prevProb  = document.getElementById(`sim-prob-${which}`)?.value  || '';
+      host.innerHTML = `<div style="font-size:10px;color:${color};margin-bottom:5px;font-weight:600;">${label} · 단폴</div>
+        <div style="display:grid;grid-template-columns:64px 1fr;gap:5px;align-items:center;">
+          ${simSportSelectHtml('sim-sport-single', `sim-sport-${which}`)}
+          <input type="number" id="sim-prob-${which}" placeholder="예측 승률 %" min="1" max="99" step="0.1" value="${prevProb}" style="padding:6px 8px;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);">
+        </div>`;
+      const sel = document.getElementById(`sim-sport-${which}`);
+      if (sel) sel.value = prevSport;
+    }
+  });
+}
+
+// 갈래(A/B/C) 데이터 수집 → buildStrategyBet 입력 객체. 금액<=0이면 null (미전송).
+function simGetBranch(which) {
+  const map = {
+    a: { amt: 'sim-i-b2', odds: 'a', memo: 'sim-i-memo' },
+    b: { amt: 'sim-i-b3', odds: 'b', memo: 'sim-i-memo-b' },
+    c: { amt: 'sim-i-b4', odds: 'c', memo: 'sim-i-memo-c' },
+  };
+  const cfg = map[which];
+  if (!cfg) return null;
+  const amount = parseInt(document.getElementById(cfg.amt)?.value) || 0;
+  if (amount <= 0) return null;   // 규칙3: 금액>0 갈래만 전송
+
+  const count = simBranchFolderCount(which);
+  const betmanOdds = simGetOdds(cfg.odds);
+  const gameMemo = document.getElementById(cfg.memo)?.value.trim() || '';
+  const label = which.toUpperCase();
+  const base = { game: gameMemo || '-', betmanOdds, amount, memo: `[전략베팅 ${label}]`, folderMemos: [] };
+
+  if (count >= 2) {
+    const rows = document.querySelectorAll(`#sim-judge-${which} .sim-fold-row`);
+    const folderOdds = [], folderProbs = [], folderSports = [], folderTypes = [];
+    rows.forEach(r => {
+      folderOdds.push(parseFloat(r.querySelector('.sim-fold-odds')?.value) || null);
+      folderProbs.push(parseFloat(r.querySelector('.sim-fold-prob')?.value) || null);
+      folderSports.push(r.querySelector('.sim-fold-sport')?.value || '');
+      folderTypes.push('승/패');
+    });
+    // 다폴 결합 예측승률 (로그 합) — EV/과신방어 계산에 필요 (>=2 유효 시)
+    const _p = folderProbs.filter(p => p > 0);
+    let myProb = null;
+    if (_p.length >= 2) {
+      let _lr = 0; _p.forEach(p => { _lr += Math.log(p / 100); });
+      myProb = +(Math.exp(_lr) * 100).toFixed(2);
+    }
+    return {
+      ...base, mode: 'multi', folderCount: String(count), type: '승/패', myProb,
+      sport: folderSports.filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', '),
+      folderOdds, folderProbs, folderSports, folderTypes,
+    };
+  }
+  const sport = document.getElementById(`sim-sport-${which}`)?.value || '';
+  const myProb = parseFloat(document.getElementById(`sim-prob-${which}`)?.value) || null;
+  return {
+    ...base, mode: 'single', folderCount: '', sport, type: '승/패', myProb,
+    folderOdds: [], folderProbs: [], folderSports: [], folderTypes: [],
+  };
+}
+
+// 홀딩 전송: 금액>0 갈래마다 독립 PENDING 레코드로 베팅기록에 등록.
+//   ★ 각 갈래 독립 (규칙1) · isSim:false (분석 커버) · 실회차 예산 미접촉.
+//   반환: 전송된 미결 건수.
+function simTransmitPending() {
+  if (typeof buildStrategyBet !== 'function' || typeof saveBets !== 'function' || typeof getBets !== 'function') return 0;
+  const recs = ['a', 'b', 'c'].map(simGetBranch).filter(Boolean).map(buildStrategyBet);
+  if (!recs.length) return 0;
+  saveBets([...getBets(), ...recs], { refresh: false });
+  return recs.length;
+}
+
+// 판단 데이터 입력값 초기화 (홀딩 후 폼 리셋 시)
+function simClearJudgeInputs() {
+  ['a', 'b', 'c'].forEach(w => {
+    const p = document.getElementById(`sim-prob-${w}`); if (p) p.value = '';
+    const s = document.getElementById(`sim-sport-${w}`); if (s) s.value = '';
+    document.querySelectorAll(`#sim-judge-${w} .sim-fold-row`).forEach(r => {
+      const o = r.querySelector('.sim-fold-odds'); if (o) o.value = '';
+      const pr = r.querySelector('.sim-fold-prob'); if (pr) pr.value = '';
+      const sp = r.querySelector('.sim-fold-sport'); if (sp) sp.value = '';
+    });
+  });
+}
+
 // 홀딩 상태
 let simPending = null; // { sv, b2, b3, o2, o3, ex2, ex3, memo, memoB, folderCount, round, bothAmt, only2Amt, only3Amt, loseAmt }
 
@@ -403,7 +919,7 @@ function simHold() {
 
   // C베팅 자동 표시 (보유 금액 130만원 이상)
   const showC = simState.balance >= 1300000;
-  ['sim-c-memo-wrap','sim-c-bet-wrap','sim-c-odds-wrap','sim-c-folder-wrap'].forEach(id => {
+  ['sim-c-memo-wrap','sim-c-bet-wrap','sim-c-odds-wrap','sim-c-folder-wrap','sim-judge-c'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.style.display = showC ? 'block' : 'none';
   });
@@ -439,8 +955,14 @@ function simHold() {
     }
   };
 
+  // ── 홀딩 = 미결 전송 ──────────────────────────────────────
+  //   금액>0 갈래를 베팅기록 미결(PENDING)로 등록. 반드시 입력칸 초기화 前에 수집.
+  //   각 갈래 독립 · isSim:false · 실회차 예산 미접촉 (지시서 규칙1·4).
+  try { simTransmitPending(); } catch (e) { console.warn('[simHold] 미결 전송 실패:', e); }
+
   // 입력칸 초기화
   ['sim-i-sv','sim-i-b2','sim-i-b3','sim-i-b4','sim-i-memo','sim-i-memo-b','sim-i-memo-c'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  simClearJudgeInputs();
   simResetOdds();
   simRenderPending();
   simOnInput();

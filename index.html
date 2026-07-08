@@ -2950,6 +2950,15 @@ window.addEventListener('unhandledrejection', function(e) {
           <div id="sim-folder-warn" style="display:none;margin-top:6px;font-size:11px;color:var(--red);">A/B 베팅 폴더 수를 모두 선택해야 진행할 수 있어요</div>
         </div>
 
+        <!-- ── 판단 데이터 입력 (홀딩 시 베팅기록 미결로 전송 → 과신방어/레그성적표 커버) ── -->
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">판단 데이터 (홀딩 → 베팅기록 미결 등록)</div>
+          <div style="font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.5;">예측 승률·종목을 넣으면 홀딩 시 각 갈래가 베팅기록 미결로 등록돼 과신방어·레그성적표가 커버합니다. 다폴은 폴더별 배당·승률을 입력하세요.</div>
+          <div id="sim-judge-a" style="margin-bottom:8px;"></div>
+          <div id="sim-judge-b" style="margin-bottom:8px;"></div>
+          <div id="sim-judge-c" style="display:none;"></div>
+        </div>
+
         <div id="sim-excess-note" style="display:none;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);border-radius:6px;padding:7px 10px;font-size:11px;color:var(--gold);margin-bottom:8px;"></div>
         <div id="sim-isum" style="font-size:12px;color:var(--text3);margin-bottom:12px;">합계: 0원 / 보유: 10,000원</div>
 
@@ -2975,6 +2984,26 @@ window.addEventListener('unhandledrejection', function(e) {
       <div style="margin-bottom:14px;">
         <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:8px;">시나리오 미리보기</div>
         <div id="sim-sc-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
+      </div>
+
+      <!-- ── 도달/파산 확률 거울 (실측 레그 적중률 기반 몬테카를로) ── -->
+      <div id="sim-prob-mirror" style="margin-bottom:14px;"></div>
+
+      <!-- ── 세이브 방파제 체인 (선택 전략) ── -->
+      <div id="sim-breakwater" style="margin-bottom:14px;">
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
+          <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:2px;">세이브 방파제 체인 (선택 전략)</div>
+          <div style="font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.6;">원금 대부분을 세이브로 지키고 남은 실탄만 태우는 방식. 잃을수록 판돈이 줄어 파산이 느려져. 실탄이 100원 단위로 0이 되면 그 체인은 종료.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+            <label style="font-size:10px;color:var(--text3);display:block;">세이브 비율 (%)
+              <input id="sim-bw-save" type="number" min="5" max="95" step="5" value="55" oninput="simScheduleBreakwater()" style="width:100%;margin-top:4px;padding:7px 9px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);">
+            </label>
+            <label style="font-size:10px;color:var(--text3);display:block;">목표 배당 (실탄 한 방)
+              <input id="sim-bw-odds" type="number" min="1.1" step="0.1" value="3.0" oninput="simScheduleBreakwater()" style="width:100%;margin-top:4px;padding:7px 9px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);">
+            </label>
+          </div>
+          <div id="sim-bw-result"></div>
+        </div>
       </div>
 
       <div class="card">

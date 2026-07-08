@@ -374,35 +374,27 @@ function _addBetCore() {
   // 다폴: getCombinedCalibratedProb(폴더 행)으로 직접 계산
   //        → r-adjusted-prob-val은 단폴 전용이므로 다폴에선 읽지 않음
   //          (기존: 비어있으면 getCLVAdjustedProb(이미보정값) 재호출 → 이중보정 버그)
-  let _adjProbPct;
-  let _mpEff = _mp;  // 다폴이면 아래에서 원본 결합확률로 교체
-  if (mode === 'multi') {
-    // 다폴: 폴더 행에서 직접 재계산 (computeComboProb 기반)
-    const _rows = document.querySelectorAll('#folder-rows .folder-row');
-    // r-myprob에는 보정값이 들어있으므로 판단 기록(myProb)은 원본 결합확률로 재계산
-    let _logR = 0, _cnt = 0;
-    _rows.forEach(r => {
-      const p = parseFloat(r.querySelector('.folder-prob')?.value) || 0;
-      if (p > 0) { _logR += Math.log(p / 100); _cnt++; }
-    });
-    if (_cnt >= 2) {
-      _mpEff = +(Math.exp(_logR) * 100).toFixed(2);
-      betData.myProb = _mpEff;
-    }
-    const _calibFrac = (typeof getCombinedCalibratedProb === 'function')
-      ? getCombinedCalibratedProb(_rows)
-      : null;
-    _adjProbPct = _calibFrac != null ? _calibFrac * 100 : _mp;
-  } else {
-    // 단폴: hidden 필드 우선, 없으면 getCLVAdjustedProb(myProb)
-    const _adjProbEl = document.getElementById('r-adjusted-prob-val');
-    _adjProbPct = (_adjProbEl && parseFloat(_adjProbEl.value) > 0)
-      ? parseFloat(_adjProbEl.value)
-      : (typeof getCLVAdjustedProb === 'function' && _mp ? getCLVAdjustedProb(_mp) : _mp);
-  }
-  // toProb() 헬퍼 사용 — 직접 /100 금지 (단위 혼용 방지)
-  const _adjProb = typeof toProb === 'function' ? toProb(_adjProbPct) : _adjProbPct / 100;
-  const _rawProb = typeof toProb === 'function' ? toProb(_mpEff)      : _mpEff / 100;
+  // ── 파생 계산 위임 (computeBetDerived — buildStrategyBet와 공유) ──
+  //   기존 로직과 동일: 다폴은 폴더별 승률로 myProb 재계산 + computeComboProb 보정,
+  //   단폴은 hidden 필드(r-adjusted-prob-val) 우선 → 없으면 getCLVAdjustedProb.
+  //   DOM 의존이던 부분(folder-rows, hidden 필드)만 인자로 뽑아 넘김.
+  const _adjProbEl = document.getElementById('r-adjusted-prob-val');
+  const _adjHint = (mode !== 'multi' && _adjProbEl && parseFloat(_adjProbEl.value) > 0)
+    ? parseFloat(_adjProbEl.value) : null;
+  const _der = computeBetDerived({
+    mode,
+    betmanOdds:  _od,
+    myProb:      _mp,
+    folderOdds:  betData.folderOdds,
+    folderProbs: betData.folderProbs,
+    adjustedProbHint: _adjHint,
+  });
+  // 다폴 원본 결합확률로 판단 기록(myProb) 교체 (단폴이면 _mp 그대로 = 변화 없음)
+  if (mode === 'multi') betData.myProb = _der.myProbEff;
+  const _mpEff = _der.myProbEff;
+  const _adjProbPct = _der.adjustedProbPct;
+  const _adjProb = _der.adjProbFrac;
+  const _rawProb = _der.rawProbFrac;
 
   // ── 저장 구조 ──────────────────────────────────────────────
   // ev     → rawProb 기반 (기존 그대로, 과거 데이터 호환)
@@ -410,7 +402,7 @@ function _addBetCore() {
   // evCalibrated → adjustedProb 기반 (실행 기준, Kelly 연동)
   // calibProb    → 보정 확률 (재계산/검증용 별도 보존)
   // "raw는 판단 기록, calibrated는 실행 기준"
-  betData.ev    = (_mp && _od && _od > 1) ? (_rawProb * (_od-1)) - (1 - _rawProb) : null;
+  betData.ev    = _der.ev;
   betData.evRaw = betData.ev; // 명시적 참조용 (동일값)
   betData.adjustedProb = _adjProbPct; // 보정 확률 % 저장
 
@@ -542,6 +534,129 @@ function _addBetCore() {
     clearRecordForm?.();
     updateAll?.();
   }
+}
+
+
+// ============================================================
+// 공통 파생 계산 헬퍼 (DOM 비의존 · 부작용 없음)
+//   _addBetCore(수동 폼)와 buildStrategyBet(전략베팅 홀딩 전송)가 공유.
+//   목적: ev/adjustedProb/evCalibrated/calibProb 계산을 단일 진실원으로 유지
+//         (복사본 드리프트 방지 — _NEXT 지시서 "중복 코드 금지").
+//
+//   입력 d: {
+//     mode:'single'|'multi',
+//     betmanOdds:number,          // 단폴=단일배당, 다폴=조합 최종배당
+//     myProb:number|null,         // % (사용자 입력 원본)
+//     folderOdds:number[],        // 다폴 폴더별 배당 (null 허용)
+//     folderProbs:number[],       // 다폴 폴더별 승률 % (null 허용)
+//     adjustedProbHint:number|null // 단폴 hidden 필드(r-adjusted-prob-val) 값. 없으면 null
+//   }
+//   반환: { myProbEff, adjustedProbPct, rawProbFrac, adjProbFrac, ev, evCalibrated, calibProb }
+//
+//   단위 규칙은 _addBetCore와 동일: myProb/adjustedProb는 %, calibProb는 0~1.
+// ============================================================
+function computeBetDerived(d) {
+  const _od = Number(d.betmanOdds) || 0;
+  const _mp = (d.myProb != null && d.myProb !== '') ? Number(d.myProb) : null;
+  let _mpEff = _mp;   // 다폴이면 아래에서 원본 결합확률로 교체
+  let _adjProbPct;
+
+  if (d.mode === 'multi') {
+    // 다폴: 폴더별 승률로 원본 결합확률(myProb) 재계산 — 로그 합 방식
+    const probs = (d.folderProbs || []).map(p => Number(p) || 0).filter(p => p > 0);
+    if (probs.length >= 2) {
+      let _logR = 0;
+      probs.forEach(p => { _logR += Math.log(p / 100); });
+      _mpEff = +(Math.exp(_logR) * 100).toFixed(2);
+    }
+    // 보정 결합확률 — computeComboProb 직접 위임 (DOM getCombinedCalibratedProb와 동일 로직)
+    let _calibFrac = null;
+    if (typeof computeComboProb === 'function') {
+      const odds = d.folderOdds || [];
+      const legs = [];
+      (d.folderProbs || []).forEach((p, i) => {
+        const pr = Number(p) || 0;
+        if (pr > 0) legs.push({ odds: Number(odds[i]) || 99, prob: pr });
+      });
+      if (legs.length) _calibFrac = computeComboProb(legs, {}).calibProb;
+    }
+    _adjProbPct = _calibFrac != null ? _calibFrac * 100 : _mp;
+  } else {
+    // 단폴: hint(hidden 필드) 우선, 없으면 getCLVAdjustedProb(myProb)
+    _adjProbPct = (d.adjustedProbHint != null && d.adjustedProbHint > 0)
+      ? d.adjustedProbHint
+      : (typeof getCLVAdjustedProb === 'function' && _mp ? getCLVAdjustedProb(_mp) : _mp);
+  }
+
+  const _adjProb = typeof toProb === 'function' ? toProb(_adjProbPct) : _adjProbPct / 100;
+  const _rawProb = typeof toProb === 'function' ? toProb(_mpEff)      : _mpEff / 100;
+
+  const ev = (_mp && _od && _od > 1) ? (_rawProb * (_od - 1)) - (1 - _rawProb) : null;
+  let evCalibrated = null, calibProb = null;
+  if (_mp && _od && _od > 1) {
+    evCalibrated = (_adjProb * (_od - 1)) - (1 - _adjProb);
+    calibProb    = _adjProb;
+  }
+  return { myProbEff: _mpEff, adjustedProbPct: _adjProbPct, rawProbFrac: _rawProb, adjProbFrac: _adjProb, ev, evCalibrated, calibProb };
+}
+
+
+// ── 전략베팅 홀딩 → 베팅기록 미결(PENDING) 레코드 생성 ──────────
+//   각 갈래(A/B/C)를 독립된 정식 베팅으로 등록하기 위한 순수 빌더.
+//   ★ isSim:false — 과신방어/레그성적표/한끗/사망레그경고가 커버하도록.
+//   ★ roundId/applyRoundBet 미부여 — 전략탭은 시뮬머니(SIM_START)라
+//     실회차 예산과 분리 (지시서 규칙4 "홀딩=베팅기록에서 독립").
+//   ★ finSeason 미설정 — saveBets가 현재 시즌 자동 부여 (isSim=false 경로).
+function buildStrategyBet(b) {
+  const der = computeBetDerived({
+    mode: b.mode,
+    betmanOdds: b.betmanOdds,
+    myProb: b.myProb,
+    folderOdds: b.folderOdds,
+    folderProbs: b.folderProbs,
+    adjustedProbHint: null,
+  });
+  const isMulti = b.mode === 'multi';
+  const rec = {
+    id: Date.now() + Math.floor(Math.random() * 100000),
+    isSim: false,
+    date: new Date().toISOString().split('T')[0],
+    game: b.game || '-',
+    mode: b.mode,
+    folderCount: isMulti ? (b.folderCount || '') : '',
+    sport: b.sport || '',
+    type: b.type || '승/패',
+    betmanOdds: b.betmanOdds,
+    amount: b.amount,
+    result: 'PENDING',
+    profit: 0,
+    isValue: der.ev != null && der.ev >= 0,
+    myProb: (isMulti ? der.myProbEff : b.myProb) ?? null,
+    memo: b.memo || '',
+    folderMemos: b.folderMemos || [],
+    folderOdds:  isMulti ? (b.folderOdds  || []) : [],
+    folderProbs: isMulti ? (b.folderProbs || []) : [],
+    folderSports:isMulti ? (b.folderSports|| []) : [],
+    folderTypes: isMulti ? (b.folderTypes || []) : [],
+    emotion: '보통',
+    violations: [],
+    savedAt: new Date().toISOString(),
+    ev: der.ev,
+    evRaw: der.ev,
+    adjustedProb: der.adjustedProbPct,
+    evCalibrated: der.evCalibrated,
+    calibProb: der.calibProb,
+    source: 'strategy',   // 추적용 태그 (역동기화 아님 — 지시서: 매칭ID 만들지 말 것)
+  };
+  if (b.myProb && b.betmanOdds && typeof getDecisionSnapshot === 'function') {
+    try { rec.decision = getDecisionSnapshot(Number(b.myProb), Number(b.betmanOdds)); } catch (e) {}
+  }
+  return rec;
+}
+
+if (typeof window !== 'undefined') {
+  window.computeBetDerived = computeBetDerived;
+  window.buildStrategyBet  = buildStrategyBet;
 }
 
 
