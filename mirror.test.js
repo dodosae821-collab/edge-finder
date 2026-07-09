@@ -31,7 +31,10 @@ const { simBuildLegRates, simRenderProbMirror } = sandbox;
 
 const BODY = `
   <input id="sim-i-sv"><input id="sim-i-b2"><input id="sim-i-b3"><input id="sim-i-b4">
-  <input id="sim-o-dec-a"><input id="sim-o-dec-b"><input id="sim-prefix-b-input"><input id="sim-o-c-direct">
+  <input type="radio" name="fa" id="sim-f-a1"><input type="radio" name="fa" id="sim-f-a2"><input type="radio" name="fa" id="sim-f-a3"><input type="radio" name="fa" id="sim-f-a4"><input type="radio" name="fa" id="sim-f-a5"><input type="radio" name="fa" id="sim-f-a6">
+  <input type="radio" name="fb" id="sim-f-b1"><input type="radio" name="fb" id="sim-f-b2"><input type="radio" name="fb" id="sim-f-b3"><input type="radio" name="fb" id="sim-f-b4"><input type="radio" name="fb" id="sim-f-b5"><input type="radio" name="fb" id="sim-f-b6">
+  <input type="radio" name="fc" id="sim-f-c1"><input type="radio" name="fc" id="sim-f-c2"><input type="radio" name="fc" id="sim-f-c3"><input type="radio" name="fc" id="sim-f-c4"><input type="radio" name="fc" id="sim-f-c5"><input type="radio" name="fc" id="sim-f-c6">
+  <div id="sim-judge-a"></div><div id="sim-judge-b"></div><div id="sim-judge-c"></div>
   <div id="sim-prob-mirror"></div>
   <input id="sim-bw-save" value="55"><input id="sim-bw-odds" value="3.0">
   <div id="sim-bw-result"></div>`;
@@ -55,7 +58,8 @@ describe('Step2 실측률 빌드', () => {
 
 describe('Step2 거울 반응성', () => {
   test('입력 없으면 제안만, 금액 입력하면 "지금 네 입력이면" 블록 등장', () => {
-    document.getElementById('sim-o-dec-a').value = '00'; // 2.00
+    sandbox.simRenderJudge();
+    document.querySelector('#sim-judge-a .sim-fold-odds').value = '2.00';
     // 입력 전
     simRenderProbMirror();
     const noInput = document.getElementById('sim-prob-mirror').innerHTML;

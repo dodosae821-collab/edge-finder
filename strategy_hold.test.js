@@ -49,10 +49,9 @@ const getBets = () => _bets;
 const BODY = `
   <input id="sim-i-sv"><input id="sim-i-b2"><input id="sim-i-b3"><input id="sim-i-b4">
   <input id="sim-i-memo"><input id="sim-i-memo-b"><input id="sim-i-memo-c">
-  <input id="sim-o-dec-a"><input id="sim-o-dec-b"><input id="sim-prefix-b-input"><input id="sim-o-c-direct">
-  <input type="radio" name="fa" id="sim-f-a1"><input type="radio" name="fa" id="sim-f-a2">
-  <input type="radio" name="fb" id="sim-f-b1"><input type="radio" name="fb" id="sim-f-b2">
-  <input type="radio" name="fc" id="sim-f-c2"><input type="radio" name="fc" id="sim-f-c3"><input type="radio" name="fc" id="sim-f-c4">
+  <input type="radio" name="fa" id="sim-f-a1"><input type="radio" name="fa" id="sim-f-a2"><input type="radio" name="fa" id="sim-f-a3"><input type="radio" name="fa" id="sim-f-a4"><input type="radio" name="fa" id="sim-f-a5"><input type="radio" name="fa" id="sim-f-a6">
+  <input type="radio" name="fb" id="sim-f-b1"><input type="radio" name="fb" id="sim-f-b2"><input type="radio" name="fb" id="sim-f-b3"><input type="radio" name="fb" id="sim-f-b4"><input type="radio" name="fb" id="sim-f-b5"><input type="radio" name="fb" id="sim-f-b6">
+  <input type="radio" name="fc" id="sim-f-c1"><input type="radio" name="fc" id="sim-f-c2"><input type="radio" name="fc" id="sim-f-c3"><input type="radio" name="fc" id="sim-f-c4"><input type="radio" name="fc" id="sim-f-c5"><input type="radio" name="fc" id="sim-f-c6">
   <div id="sim-judge-a"></div><div id="sim-judge-b"></div><div id="sim-judge-c"></div>`;
 
 beforeEach(() => { _bets = []; document.body.innerHTML = BODY; });
@@ -65,17 +64,16 @@ describe('전략베팅 홀딩 → 베팅기록 미결 전송', () => {
   test('A 단폴 + B 다폴 → 미결 2건, 폴더/myProb 실림', () => {
     check('sim-f-a1');
     setVal('sim-i-b2', '10000');
-    setVal('sim-o-dec-a', '50');
     setVal('sim-i-memo', '맨시티 승');
     check('sim-f-b2');
     setVal('sim-i-b3', '20000');
-    setVal('sim-prefix-b-input', '3');
-    setVal('sim-o-dec-b', '00');
     setVal('sim-i-memo-b', '레알/바르샤');
 
     simRenderJudge();
     setVal('sim-sport-a', '축구');
     setVal('sim-prob-a', '55');
+    // A 단폴 경기 배당 2.50 → 합산 배당 자동
+    document.querySelector('#sim-judge-a .sim-fold-odds').value = '2.50';
 
     const bRows = document.querySelectorAll('#sim-judge-b .sim-fold-row');
     expect(bRows.length).toBe(2);
@@ -119,10 +117,9 @@ describe('전략베팅 홀딩 → 베팅기록 미결 전송', () => {
     setVal('sim-i-b2', '0');
     check('sim-f-b1');
     setVal('sim-i-b3', '10000');
-    setVal('sim-prefix-b-input', '2');
-    setVal('sim-o-dec-b', '00');
     simRenderJudge();
     setVal('sim-prob-b', '50');
+    document.querySelector('#sim-judge-b .sim-fold-odds').value = '2.00';
 
     const n = simTransmitPending();
     expect(n).toBe(1);
@@ -135,9 +132,9 @@ describe('전략베팅 홀딩 → 베팅기록 미결 전송', () => {
   test('홀딩 후 전략 성공/실패는 베팅기록 미결을 바꾸지 않음 (연결 안 됨)', () => {
     check('sim-f-a1');
     setVal('sim-i-b2', '10000');
-    setVal('sim-o-dec-a', '00');
     simRenderJudge();
     setVal('sim-prob-a', '50');
+    document.querySelector('#sim-judge-a .sim-fold-odds').value = '2.00';
     simTransmitPending();
 
     const before = JSON.stringify(getBets());

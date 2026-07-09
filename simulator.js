@@ -4,7 +4,7 @@ const SIM_START = 10000;
 let simState = { balance: SIM_START, round: 1, history: [], goalReached: false, goalHistory: [] };
 let simSnaps = [];
 let simChartInst = null;
-let simPrefixA = 2, simPrefixB = 3;
+
 
 function simFmt(n) { return Math.round(n).toLocaleString('ko-KR'); }
 
@@ -34,73 +34,31 @@ function simSwitchTab(name) {
   if (name === 'goals') simRenderGoalHistory();
 }
 
+// 갈래 합산 배당 — 판단 데이터의 경기(폴더) 배당에서 자동 계산.
+//   베팅기록 폼(calcMultiEV)과 동일 규칙: 다폴 = betmanRound(각 배당의 곱), 단폴 = 입력 배당 그대로.
+//   유효 배당(>=1.01) 없으면 0 반환 (미입력 상태).
 function simGetOdds(which) {
-  if(which === 'c') {
-    return parseFloat(document.getElementById('sim-o-c-direct')?.value) || 1.0;
-  }
-  const raw = document.getElementById(`sim-o-dec-${which}`)?.value || '';
-  let prefix;
-  if (which === 'b') {
-    // B는 직접 입력한 앞자리 숫자 사용
-    const bPrefixEl = document.getElementById('sim-prefix-b-input');
-    prefix = bPrefixEl ? (parseInt(bPrefixEl.value) || simPrefixB) : simPrefixB;
-  } else {
-    prefix = simPrefixA;
-  }
-  if(raw === '') return prefix + 0;
-  const dec = raw.length <= 1 ? (parseInt(raw)||0) * 10 : parseInt(raw)||0;
-  return prefix + dec / 100;
-}
-
-function simOnInputBPrefix() {
-  const bPrefixEl = document.getElementById('sim-prefix-b-input');
-  if (bPrefixEl) {
-    const val = parseInt(bPrefixEl.value);
-    if (!isNaN(val) && val >= 1) simPrefixB = val;
-  }
-  simOnInput();
-}
-
-function simSetPrefix(which, val) {
-  if (which === 'a') {
-    simPrefixA = val;
-    document.getElementById('sim-prefix-a').textContent = val + '.';
-    [1,2,3].forEach(n => {
-      const btn = document.getElementById(`sim-btn-a-${n}`);
-      const active = n === val;
-      btn.style.borderColor = active ? 'var(--accent)' : 'var(--border)';
-      btn.style.background  = active ? 'rgba(0,229,255,0.1)' : 'var(--bg3)';
-      btn.style.color       = active ? 'var(--accent)' : 'var(--text3)';
-    });
-  } else {
-    simPrefixB = val;
-    // B는 직접 입력 방식 — input 값 동기화
-    const bPrefixEl = document.getElementById('sim-prefix-b-input');
-    if (bPrefixEl) bPrefixEl.value = val;
-  }
-  simOnInput();
+  const host = document.getElementById(`sim-judge-${which}`);
+  if (!host) return 0;
+  const odds = Array.from(host.querySelectorAll('.sim-fold-odds'))
+    .map(i => parseFloat(i.value) || 0)
+    .filter(o => o >= 1.01);
+  if (!odds.length) return 0;
+  if (odds.length === 1) return odds[0];
+  const prod = odds.reduce((p, o) => p * o, 1);
+  return (typeof betmanRound === 'function') ? betmanRound(prod) : Math.round(prod * 100) / 100;
 }
 
 function simResetOdds() {
-  simPrefixA = 2; simPrefixB = 3;
-  const dc = document.getElementById('sim-o-c-direct'); if(dc) dc.value = '';
-  const da = document.getElementById('sim-o-dec-a');
-  const db = document.getElementById('sim-o-dec-b');
-  if (da) da.value = '0';
-  if (db) db.value = '0';
-  simSetPrefix('a', 2);
-  simSetPrefix('b', 3);
-  const bPrefixEl = document.getElementById('sim-prefix-b-input');
-  if (bPrefixEl) bPrefixEl.value = '3';
-  // A폴더 초기화
-  ['sim-f-a1','sim-f-a2'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=false; });
-  ['sim-lbl-af1','sim-lbl-af2'].forEach(id => { const el=document.getElementById(id); if(el){el.style.borderColor='var(--border)';el.style.background='var(--bg2)';} });
-  // B폴더 초기화
-  ['sim-f-b1','sim-f-b2'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=false; });
-  ['sim-lbl-bf1','sim-lbl-bf2'].forEach(id => { const el=document.getElementById(id); if(el){el.style.borderColor='var(--border)';el.style.background='var(--bg2)';} });
-  // C폴더 초기화
-  ['sim-f-c2','sim-f-c3','sim-f-c4'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=false; });
-  ['sim-lbl-cf2','sim-lbl-cf3','sim-lbl-cf4'].forEach(id => { const el=document.getElementById(id); if(el){el.style.borderColor='var(--border)';el.style.background='var(--bg2)';} });
+  // 폴더 라디오 초기화 (1~6폴 전 갈래)
+  ['a','b','c'].forEach(w => {
+    for (let n = 1; n <= 6; n++) {
+      const el = document.getElementById(`sim-f-${w}${n}`); if (el) el.checked = false;
+      const lblId = `sim-lbl-${w}f${n}`;
+      const lbl = document.getElementById(lblId);
+      if (lbl) { lbl.style.borderColor = 'var(--border)'; lbl.style.background = 'var(--bg2)'; }
+    }
+  });
 }
 
 function simCalcExcess(bet, odds) {
@@ -550,38 +508,40 @@ function simOnInput() {
     } else exNote.style.display = 'none';
   }
 
-  const opEl = document.getElementById('sim-odds-preview');
-  if (opEl) opEl.textContent = showC ? `A:${o2.toFixed(2)} / B:${o3.toFixed(2)} / C:${o4.toFixed(2)}x` : `A:${o2.toFixed(2)} / B:${o3.toFixed(2)}`;
+  // 합산 배당 자동 표시 (판단 데이터 경기 배당 → betmanRound)
+  const _dispOdds = (id, o) => { const el = document.getElementById(id); if (el) el.textContent = o >= 1.01 ? '×' + o.toFixed(2) : '—'; };
+  _dispOdds('sim-odds-disp-a', o2);
+  _dispOdds('sim-odds-disp-b', o3);
+  _dispOdds('sim-odds-disp-c', o4);
 
-  const aChecked = document.getElementById('sim-f-a1')?.checked || document.getElementById('sim-f-a2')?.checked;
-  const bChecked = document.getElementById('sim-f-b1')?.checked || document.getElementById('sim-f-b2')?.checked;
-  const cChecked = document.getElementById('sim-f-c2')?.checked || document.getElementById('sim-f-c3')?.checked || document.getElementById('sim-f-c4')?.checked;
+  const _anyChecked = w => { for (let n = 1; n <= 6; n++) { if (document.getElementById(`sim-f-${w}${n}`)?.checked) return true; } return false; };
+  const aChecked = _anyChecked('a');
+  const bChecked = _anyChecked('b');
+  const cChecked = _anyChecked('c');
   const hasBetB  = b3 > 0;
   const hasBetC  = b4 > 0;
+  // 금액>0 갈래는 배당(경기 기록)도 있어야 홀딩 가능 — 배당은 판단 데이터에서 자동 산출
+  const oddsOk = (b2 > 0 ? o2 >= 1.01 : true) && (hasBetB ? o3 >= 1.01 : true) && (hasBetC && showC ? o4 >= 1.01 : true);
   const folderChecked = aChecked && (hasBetB ? bChecked : true) && (hasBetC && showC ? cChecked : true);
   const fwEl = document.getElementById('sim-folder-warn');
-  if (fwEl) fwEl.style.display = (!folderChecked && tot>0) ? 'block' : 'none';
+  if (fwEl) {
+    const showWarn = (!folderChecked || !oddsOk) && tot > 0;
+    fwEl.textContent = !folderChecked ? 'A/B 베팅 폴더 수를 모두 선택해야 진행할 수 있어요'
+                                      : '금액 넣은 갈래는 판단 데이터에 경기 배당을 입력해야 해요 (합산 배당 자동 계산)';
+    fwEl.style.display = showWarn ? 'block' : 'none';
+  }
 
-  // A 폴더 하이라이트
-  [['sim-f-a1','sim-lbl-af1','var(--gold)','rgba(255,215,0,0.08)'],
-   ['sim-f-a2','sim-lbl-af2','var(--green)','rgba(0,230,118,0.08)']].forEach(([fid,lid,col,bg])=>{
-    const checked = document.getElementById(fid)?.checked;
-    const lbl = document.getElementById(lid);
-    if(lbl){ lbl.style.borderColor=checked?col:'var(--border)'; lbl.style.background=checked?bg:'var(--bg2)'; }
-  });
-  // B 폴더 하이라이트
-  [['sim-f-b1','sim-lbl-bf1','var(--gold)','rgba(255,215,0,0.08)'],
-   ['sim-f-b2','sim-lbl-bf2','var(--green)','rgba(0,230,118,0.08)']].forEach(([fid,lid,col,bg])=>{
-    const checked = document.getElementById(fid)?.checked;
-    const lbl = document.getElementById(lid);
-    if(lbl){ lbl.style.borderColor=checked?col:'var(--border)'; lbl.style.background=checked?bg:'var(--bg2)'; }
-  });
-  // C 폴더 하이라이트
-  ['sim-lbl-cf2','sim-lbl-cf3','sim-lbl-cf4'].forEach((lid,i)=>{
-    const fid = ['sim-f-c2','sim-f-c3','sim-f-c4'][i];
-    const checked = document.getElementById(fid)?.checked;
-    const lbl = document.getElementById(lid);
-    if(lbl){ lbl.style.borderColor=checked?'var(--accent2)':'var(--border)'; lbl.style.background=checked?'rgba(255,107,53,0.08)':'var(--bg2)'; }
+  // 폴더 하이라이트 (1~6폴 전 갈래)
+  [['a', 'var(--green)', 'rgba(0,230,118,0.08)'],
+   ['b', 'var(--green)', 'rgba(0,230,118,0.08)'],
+   ['c', 'var(--accent2)', 'rgba(255,107,53,0.08)']].forEach(([w, col, bg]) => {
+    for (let n = 1; n <= 6; n++) {
+      const checked = document.getElementById(`sim-f-${w}${n}`)?.checked;
+      const lbl = document.getElementById(`sim-lbl-${w}f${n}`);
+      const c = n === 1 ? 'var(--gold)' : col;
+      const b = n === 1 ? 'rgba(255,215,0,0.08)' : bg;
+      if (lbl) { lbl.style.borderColor = checked ? c : 'var(--border)'; lbl.style.background = checked ? b : 'var(--bg2)'; }
+    }
   });
 
   // 홀딩 버튼 상태 업데이트
@@ -593,7 +553,7 @@ function simOnInput() {
       holdBtn.style.opacity = '0.5';
       holdBtn.style.cursor = 'default';
     } else {
-      const canHold = !over && tot > 0 && folderChecked && bal > 0;
+      const canHold = !over && tot > 0 && folderChecked && oddsOk && bal > 0;
       holdBtn.textContent = '⏸ 홀딩';
       holdBtn.disabled = !canHold;
       holdBtn.style.opacity = canHold ? '1' : '0.4';
@@ -777,69 +737,90 @@ function simRestart() {
 //   → 홀딩 시 buildStrategyBet(bet_record.js) 경유로 베팅기록 미결(PENDING) 전송.
 //   목적: myProb·폴더 데이터가 실려 과신방어/레그성적표/한끗/사망레그경고가
 //         전략베팅 갈래까지 커버 (지시서 목표).
+//   종목/유형 선택 = tags_ui.js의 기존 피커(openSportPicker/openSimTypePicker) 재사용.
+//   SPORT_CATS·TYPE_OPTIONS 복제 금지 — 베팅기록 폼과 동일 UI/데이터.
 // ============================================================
-const SIM_SPORT_OPTS = ['축구', '야구', '농구', '배구', '기타'];
 
-function simSportSelectHtml(cls, id) {
-  const opts = ['<option value="">종목</option>']
-    .concat(SIM_SPORT_OPTS.map(s => `<option value="${s}">${s}</option>`)).join('');
-  const idAttr = id ? ` id="${id}"` : '';
-  return `<select class="${cls}"${idAttr} style="padding:6px 8px;font-size:12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);">${opts}</select>`;
+// 판단 유닛 공통 마크업: 종목 이모지 4버튼 + 세부종목 배지 + 유형 2버튼 + 유형 배지
+//   hidden: sportId(단폴은 id 유지 — 하위호환) 또는 클래스만(.sim-fold-sport/.sim-fold-type)
+function simJudgePickerHtml(o) {
+  const sportHiddenAttr = o.sportId ? `id="${o.sportId}" class="sim-sport-h ${o.sportClass || ''}"` : `class="sim-sport-h ${o.sportClass || ''}"`;
+  const typeHiddenAttr  = o.typeId  ? `id="${o.typeId}" class="sim-type-h ${o.typeClass || ''}"`   : `class="sim-type-h ${o.typeClass || ''}"`;
+  const eb = (cat, ico) => `<button type="button" onclick="openSportPicker('sim',this,'${cat}')" style="padding:4px 2px;font-size:11px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text3);cursor:pointer;line-height:1;">${ico}</button>`;
+  const tb = (cat, ico) => `<button type="button" onclick="openSimTypePicker(this,'${cat}')" style="padding:4px 2px;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text3);cursor:pointer;line-height:1;">${ico}</button>`;
+  return `
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <input type="hidden" ${sportHiddenAttr} value="">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:2px;">
+        ${eb('축구','⚽')}${eb('야구','⚾')}${eb('농구','🏀')}${eb('배구','🏐')}
+      </div>
+      <div class="sim-sport-label" style="font-size:9px;color:var(--text3);text-align:center;min-height:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">종목 선택</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <input type="hidden" ${typeHiddenAttr} value="">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;">
+        ${tb('일반','🏁')}${tb('전반','⏱️')}
+      </div>
+      <div class="sim-type-label" style="font-size:9px;color:var(--accent);text-align:center;min-height:12px;">유형</div>
+    </div>`;
 }
 
-// 갈래별 폴더 수 (단폴=1, 미선택=0)
+// 갈래별 폴더 수 (1~6폴 라디오, 미선택=0)
 function simBranchFolderCount(which) {
-  if (which === 'a') return document.getElementById('sim-f-a2')?.checked ? 2 : (document.getElementById('sim-f-a1')?.checked ? 1 : 0);
-  if (which === 'b') return document.getElementById('sim-f-b2')?.checked ? 2 : (document.getElementById('sim-f-b1')?.checked ? 1 : 0);
-  if (document.getElementById('sim-f-c4')?.checked) return 4;
-  if (document.getElementById('sim-f-c3')?.checked) return 3;
-  if (document.getElementById('sim-f-c2')?.checked) return 2;
+  for (let n = 6; n >= 1; n--) {
+    if (document.getElementById(`sim-f-${which}${n}`)?.checked) return n;
+  }
   return 0;
 }
 
 // 판단 데이터 입력 UI 렌더 (폴더 수 변경 시 재구성, 기존 입력값 보존)
+//   행 수 = max(폴더수, 1). 모든 행에 경기 배당 입력 → 합산 배당 자동 산출(simGetOdds).
 function simRenderJudge() {
   ['a', 'b', 'c'].forEach(which => {
     const host = document.getElementById(`sim-judge-${which}`);
     if (!host) return;
     const count = simBranchFolderCount(which);
-    const bucket = count >= 2 ? String(count) : 'single';
+    const n = Math.max(count, 1);
+    const bucket = String(n);
     if (host.dataset.bucket === bucket) return; // 구조 동일 → 재구성 스킵 (포커스/입력 보존)
     host.dataset.bucket = bucket;
     const label = which.toUpperCase();
     const color = which === 'a' ? 'var(--accent)' : which === 'b' ? 'var(--green)' : 'var(--accent2)';
 
-    if (count >= 2) {
-      // 다폴: 폴더별 행 (기존 값 보존)
-      const prev = host.querySelectorAll('.sim-fold-row');
-      const keep = Array.from(prev).map(r => ({
-        sport: r.querySelector('.sim-fold-sport')?.value || '',
-        odds:  r.querySelector('.sim-fold-odds')?.value  || '',
-        prob:  r.querySelector('.sim-fold-prob')?.value  || '',
-      }));
-      let rows = '';
-      for (let i = 0; i < count; i++) {
-        const k = keep[i] || { sport: '', odds: '', prob: '' };
-        rows += `<div class="sim-fold-row" style="display:grid;grid-template-columns:64px 1fr 1fr;gap:5px;margin-bottom:5px;align-items:center;">
-          ${simSportSelectHtml('sim-fold-sport')}
-          <input type="number" class="sim-fold-odds" placeholder="배당" step="0.01" min="1" value="${k.odds}" style="padding:6px 8px;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);">
-          <input type="number" class="sim-fold-prob" placeholder="승률%" min="1" max="99" step="0.1" value="${k.prob}" style="padding:6px 8px;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);">
-        </div>`;
-      }
-      host.innerHTML = `<div style="font-size:10px;color:${color};margin-bottom:5px;font-weight:600;">${label} · ${count}폴 폴더별 입력</div>${rows}`;
-      host.querySelectorAll('.sim-fold-sport').forEach((s, i) => { if (keep[i]) s.value = keep[i].sport; });
-    } else {
-      // 단폴: 종목 + 예측승률 (미선택도 단폴 취급, 값 보존)
-      const prevSport = document.getElementById(`sim-sport-${which}`)?.value || '';
-      const prevProb  = document.getElementById(`sim-prob-${which}`)?.value  || '';
-      host.innerHTML = `<div style="font-size:10px;color:${color};margin-bottom:5px;font-weight:600;">${label} · 단폴</div>
-        <div style="display:grid;grid-template-columns:64px 1fr;gap:5px;align-items:center;">
-          ${simSportSelectHtml('sim-sport-single', `sim-sport-${which}`)}
-          <input type="number" id="sim-prob-${which}" placeholder="예측 승률 %" min="1" max="99" step="0.1" value="${prevProb}" style="padding:6px 8px;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);">
-        </div>`;
-      const sel = document.getElementById(`sim-sport-${which}`);
-      if (sel) sel.value = prevSport;
+    // 라벨 텍스트까지 보존해 배지 복원
+    const keepUnit = u => ({
+      sport: u.querySelector('.sim-sport-h')?.value || '',
+      sportLbl: u.querySelector('.sim-sport-label')?.textContent || '',
+      type: u.querySelector('.sim-type-h')?.value || '',
+      typeLbl: u.querySelector('.sim-type-label')?.textContent || '',
+      odds: u.querySelector('.sim-fold-odds')?.value || '',
+      prob: u.querySelector('.sim-fold-prob')?.value || '',
+    });
+    const restoreUnit = (u, k) => {
+      if (!k) return;
+      const sh = u.querySelector('.sim-sport-h'); if (sh && k.sport) sh.value = k.sport;
+      const sl = u.querySelector('.sim-sport-label'); if (sl && k.sport) { sl.textContent = k.sportLbl || k.sport; sl.style.color = 'var(--accent)'; }
+      const th = u.querySelector('.sim-type-h'); if (th && k.type) th.value = k.type;
+      const tl = u.querySelector('.sim-type-label'); if (tl && k.type) tl.textContent = k.typeLbl || k.type;
+      const oi = u.querySelector('.sim-fold-odds'); if (oi && k.odds) oi.value = k.odds;
+      const pi = u.querySelector('.sim-fold-prob'); if (pi && k.prob) pi.value = k.prob;
+    };
+
+    const keep = Array.from(host.querySelectorAll('.sim-judge-unit')).map(keepUnit);
+    const single = n === 1;
+    let rows = '';
+    for (let i = 0; i < n; i++) {
+      // 단폴은 기존 id 유지 (하위호환: sim-sport-w / sim-type-w / sim-prob-w)
+      const ids = single ? { sportId: `sim-sport-${which}`, typeId: `sim-type-${which}` } : {};
+      const probIdAttr = single ? `id="sim-prob-${which}" ` : '';
+      rows += `<div class="sim-judge-unit sim-fold-row" style="display:grid;grid-template-columns:76px 52px 1fr 1fr;gap:5px;margin-bottom:5px;align-items:start;">
+        ${simJudgePickerHtml({ ...ids, sportClass: 'sim-fold-sport', typeClass: 'sim-fold-type' })}
+        <input type="number" class="sim-fold-odds" placeholder="배당" step="0.01" min="1" oninput="simOnInput()" style="padding:6px 8px;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);">
+        <input type="number" ${probIdAttr}class="sim-fold-prob" placeholder="승률%" min="1" max="99" step="0.1" oninput="simOnInput()" style="padding:6px 8px;font-size:12px;font-family:'JetBrains Mono',monospace;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);">
+      </div>`;
     }
+    host.innerHTML = `<div style="font-size:10px;color:${color};margin-bottom:5px;font-weight:600;">${label} · ${single ? '단폴' : count + '폴 폴더별 입력'} <span style="color:var(--text3);font-weight:400;">경기 배당·승률 입력 → 합산 배당 자동</span></div>${rows}`;
+    host.querySelectorAll('.sim-judge-unit').forEach((u, i) => restoreUnit(u, keep[i]));
   });
 }
 
@@ -868,7 +849,7 @@ function simGetBranch(which) {
       folderOdds.push(parseFloat(r.querySelector('.sim-fold-odds')?.value) || null);
       folderProbs.push(parseFloat(r.querySelector('.sim-fold-prob')?.value) || null);
       folderSports.push(r.querySelector('.sim-fold-sport')?.value || '');
-      folderTypes.push('승/패');
+      folderTypes.push(r.querySelector('.sim-fold-type')?.value || '승/패'); // 피커 선택값 (미선택 시 기본)
     });
     // 다폴 결합 예측승률 (로그 합) — EV/과신방어 계산에 필요 (>=2 유효 시)
     const _p = folderProbs.filter(p => p > 0);
@@ -884,9 +865,10 @@ function simGetBranch(which) {
     };
   }
   const sport = document.getElementById(`sim-sport-${which}`)?.value || '';
+  const stype = document.getElementById(`sim-type-${which}`)?.value || '승/패'; // 피커 선택값 (미선택 시 기본)
   const myProb = parseFloat(document.getElementById(`sim-prob-${which}`)?.value) || null;
   return {
-    ...base, mode: 'single', folderCount: '', sport, type: '승/패', myProb,
+    ...base, mode: 'single', folderCount: '', sport, type: stype, myProb,
     folderOdds: [], folderProbs: [], folderSports: [], folderTypes: [],
   };
 }
@@ -905,13 +887,11 @@ function simTransmitPending() {
 // 판단 데이터 입력값 초기화 (홀딩 후 폼 리셋 시)
 function simClearJudgeInputs() {
   ['a', 'b', 'c'].forEach(w => {
-    const p = document.getElementById(`sim-prob-${w}`); if (p) p.value = '';
-    const s = document.getElementById(`sim-sport-${w}`); if (s) s.value = '';
-    document.querySelectorAll(`#sim-judge-${w} .sim-fold-row`).forEach(r => {
-      const o = r.querySelector('.sim-fold-odds'); if (o) o.value = '';
-      const pr = r.querySelector('.sim-fold-prob'); if (pr) pr.value = '';
-      const sp = r.querySelector('.sim-fold-sport'); if (sp) sp.value = '';
-    });
+    const host = document.getElementById(`sim-judge-${w}`);
+    if (!host) return;
+    host.querySelectorAll('input').forEach(i => { i.value = ''; });
+    host.querySelectorAll('.sim-sport-label').forEach(l => { l.textContent = '종목 선택'; l.style.color = 'var(--text3)'; });
+    host.querySelectorAll('.sim-type-label').forEach(l => { l.textContent = '유형'; });
   });
 }
 
@@ -935,8 +915,7 @@ function simHold() {
     if(el) el.style.display = showC ? 'block' : 'none';
   });
   if(!showC) { const b4el = document.getElementById('sim-i-b4'); if(b4el) b4el.value = ''; }
-  const f1  = document.getElementById('sim-f-a1');
-  const f2  = document.getElementById('sim-f-a2');
+  const aCnt = simBranchFolderCount('a');
 
   // ── 아래 3가지 조건은 예전엔 알림 없이 그냥 return 되어 "홀딩 눌렀는데 반응 없음"으로 보였음.
   //    원인을 토스트로 바로 알려주도록 수정.
@@ -952,8 +931,13 @@ function simHold() {
     simToast(`⚠️ 입력한 총액(${simFmt(tot)}원)이 보유 잔액(${simFmt(simState.balance)}원)보다 많아요.`, 'warn');
     return;
   }
-  if (!f1?.checked && !f2?.checked) {
-    simToast('⚠️ A(안전) 단폴/다폴 중 하나를 선택해야 홀딩할 수 있어요.', 'warn');
+  if (!aCnt) {
+    simToast('⚠️ A(안전) 폴더 수(1~6폴)를 선택해야 홀딩할 수 있어요.', 'warn');
+    return;
+  }
+  // 금액>0 갈래는 판단 데이터에 경기 배당이 있어야 함 (합산 배당 자동 산출)
+  if ((b2 > 0 && o2 < 1.01) || (b3 > 0 && o3 < 1.01) || (b4 > 0 && showC && o4 < 1.01)) {
+    simToast('⚠️ 금액 넣은 갈래는 판단 데이터에 경기 배당을 입력하세요 (합산 배당 자동 계산).', 'warn');
     return;
   }
 
@@ -962,7 +946,7 @@ function simHold() {
   const memo  = document.getElementById('sim-i-memo')?.value.trim() || '';
   const memoB = document.getElementById('sim-i-memo-b')?.value.trim() || '';
   const memoC = document.getElementById('sim-i-memo-c')?.value.trim() || '';
-  const folderCount = f1?.checked ? 1 : 2;
+  const folderCount = aCnt;
 
   const w2 = Math.round(b2*o2), w3 = Math.round(b3*o3), w4 = Math.round(b4*o4);
   simPending = {

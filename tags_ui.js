@@ -384,11 +384,12 @@ function openSportPicker(target, btnOrCat, cat) {
   const btnsEl = document.getElementById('sport-picker-btns');
   if (!modal) return;
 
-  // target: 'record' | 'ev' | 'folder'
-  // folder: btnOrCat = the clicked emoji button, cat = category
+  // target: 'record' | 'ev' | 'folder' | 'sim'
+  // folder/sim: btnOrCat = the clicked emoji button, cat = category
   // record/ev: btnOrCat = category string
-  const category = target === 'folder' ? cat : btnOrCat;
-  _sportPickerCtx = { target, folderBtn: target === 'folder' ? btnOrCat : null };
+  const isBtnTarget = target === 'folder' || target === 'sim';
+  const category = isBtnTarget ? cat : btnOrCat;
+  _sportPickerCtx = { target, folderBtn: isBtnTarget ? btnOrCat : null };
 
   const sports = SPORT_CATS[category] || [];
   const icons = { '축구':'⚽', '야구':'⚾', '농구':'🏀', '배구':'🏐' };
@@ -492,6 +493,37 @@ function selectFolderType(val, icon, label) {
   calcMultiEV();
 }
 
+// ── 전략베팅(sim) 유형 피커 — openFolderTypePicker 패턴 재사용 ──
+//   TYPE_OPTIONS 그대로 사용 (복사본 금지). 대상: .sim-judge-unit 내 .sim-type-h/.sim-type-label
+let _simTypeBtn = null;
+
+function openSimTypePicker(btn, category) {
+  _simTypeBtn = btn;
+  const modal = document.getElementById('type-picker-modal');
+  const title = document.getElementById('type-picker-title');
+  const btns  = document.getElementById('type-picker-btns');
+  if (!modal || !title || !btns) return;
+  title.textContent = `${category === '일반' ? '🏁 일반' : '⏱️ 전반'} — 형식 선택`;
+  btns.innerHTML = (TYPE_OPTIONS[category] || []).map(o =>
+    `<button type="button" onclick="selectSimType('${o.val}','${o.icon}','${o.label}')"
+      style="padding:10px 4px;font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;">
+      ${o.icon}<br><span style="font-size:10px;">${o.label}</span>
+    </button>`
+  ).join('');
+  modal.style.display = 'flex';
+}
+
+function selectSimType(val, icon, label) {
+  if (!_simTypeBtn) { closeTypePicker(); return; }
+  const unit = _simTypeBtn.closest('.sim-judge-unit');
+  const hidden = unit?.querySelector('.sim-type-h');
+  const labelEl = unit?.querySelector('.sim-type-label');
+  if (hidden) hidden.value = val;
+  if (labelEl) labelEl.textContent = `${icon} ${label}`;
+  _simTypeBtn = null;
+  closeTypePicker();
+}
+
 function closeTypePicker() {
   const modal = document.getElementById('type-picker-modal');
   if (modal) modal.style.display = 'none';
@@ -553,6 +585,15 @@ function selectSport(val) {
       if (labelEl) { labelEl.textContent = val; labelEl.style.color = 'var(--accent)'; }
     }
     calcMultiEV();
+  } else if (target === 'sim' && folderBtn) {
+    // 전략베팅 판단 유닛(갈래 단폴 or 다폴 폴더행) — 베팅기록과 동일 패턴 재사용
+    const unit = folderBtn.closest('.sim-judge-unit');
+    if (unit) {
+      const hidden = unit.querySelector('.sim-sport-h');
+      const labelEl = unit.querySelector('.sim-sport-label');
+      if (hidden) hidden.value = val;
+      if (labelEl) { labelEl.textContent = val; labelEl.style.color = 'var(--accent)'; }
+    }
   }
 
   closeSportPicker();
