@@ -310,6 +310,13 @@ function simTransmitPending() {
   if (typeof buildStrategyBet !== 'function' || typeof saveBets !== 'function' || typeof getBets !== 'function') return 0;
   const recs = ['a', 'b', 'c'].map(simGetBranch).filter(Boolean).map(buildStrategyBet);
   if (!recs.length) return 0;
+  // 현재 회차 반영: 베팅기록 폼과 동일하게 roundId 부여 + 회차 예산 차감
+  //   (v63의 "회차 미접촉" 설계를 사용자 확인으로 폐기 — 홀딩 미결도 정식 회차 소속)
+  if (typeof attachRoundToBet === 'function') recs.forEach(r => attachRoundToBet(r));
+  if (typeof applyRoundBet === 'function') {
+    const totalAmt = recs.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    if (totalAmt > 0) applyRoundBet(totalAmt);
+  }
   saveBets([...getBets(), ...recs], { refresh: false });
   return recs.length;
 }

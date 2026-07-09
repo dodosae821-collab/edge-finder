@@ -604,8 +604,8 @@ function computeBetDerived(d) {
 // ── 전략베팅 홀딩 → 베팅기록 미결(PENDING) 레코드 생성 ──────────
 //   각 갈래(A/B/C)를 독립된 정식 베팅으로 등록하기 위한 순수 빌더.
 //   ★ isSim:false — 과신방어/레그성적표/한끗/사망레그경고가 커버하도록.
-//   ★ roundId/applyRoundBet 미부여 — 전략탭은 시뮬머니(SIM_START)라
-//     실회차 예산과 분리 (지시서 규칙4 "홀딩=베팅기록에서 독립").
+//   ★ 회차 연결은 전송부(simTransmitPending)에서 수행 — attachRoundToBet + applyRoundBet.
+//     (v73: "회차 미접촉" 초기 설계를 사용자 확인으로 폐기, 홀딩 미결도 현재 회차 소속)
 //   ★ finSeason 미설정 — saveBets가 현재 시즌 자동 부여 (isSim=false 경로).
 function buildStrategyBet(b) {
   const der = computeBetDerived({

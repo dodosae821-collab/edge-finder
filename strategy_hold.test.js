@@ -31,6 +31,10 @@ const sandbox = {
   getCLVAdjustedProb: (p) => p,
   getDecisionSnapshot: (mp, od) => ({ myProb: mp, odds: od, label: 'OK', factor: 1.0 }),
   Storage: { setJSON: () => {}, getJSON: (k, def) => (def !== undefined ? def : null) },
+  // 회차 스텁 — attach/apply 호출 추적
+  _round: null,
+  attachRoundToBet: (b) => { if (sandbox._round) b.roundId = sandbox._round.id; return b; },
+  applyRoundBet: (amt) => { if (sandbox._round) sandbox._round.remaining -= amt; },
   KEYS: { SIM_PENDING: 'k', SIM_STATE: 's', TEMPLATES: 't' },
 };
 sandbox.globalThis = sandbox;
@@ -63,6 +67,36 @@ const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.v
 const check = (id) => { const el = document.getElementById(id); if (el) el.checked = true; };
 
 describe('전략베팅 홀딩 → 베팅기록 미결 전송', () => {
+
+  test('현재 회차 반영: 활성 회차 있으면 roundId 부여 + 예산 차감', () => {
+    sandbox._round = { id: 'R7', remaining: 100000 };
+    check('sim-f-a1');
+    setVal('sim-i-b2', '10000');
+    check('sim-f-b1');
+    setVal('sim-i-b3', '20000');
+    simRenderJudge();
+    setVal('sim-prob-a', '55');
+    document.querySelector('#sim-judge-a .sim-fold-odds').value = '2.0';
+    setVal('sim-prob-b', '50');
+    document.querySelector('#sim-judge-b .sim-fold-odds').value = '2.5';
+
+    const n = simTransmitPending();
+    expect(n).toBe(2);
+    getBets().forEach(r => expect(r.roundId).toBe('R7'));       // 회차 소속
+    expect(sandbox._round.remaining).toBe(100000 - 30000);      // 총액 차감
+    sandbox._round = null;
+  });
+
+  test('회차 없으면 roundId 미부여·차감 없음 (무해)', () => {
+    sandbox._round = null;
+    check('sim-f-a1');
+    setVal('sim-i-b2', '10000');
+    simRenderJudge();
+    setVal('sim-prob-a', '55');
+    document.querySelector('#sim-judge-a .sim-fold-odds').value = '2.0';
+    simTransmitPending();
+    expect(getBets()[0].roundId).toBeUndefined();
+  });
 
   test('A 단폴 + B 다폴 → 미결 2건, 폴더/myProb 실림', () => {
     check('sim-f-a1');

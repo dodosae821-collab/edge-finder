@@ -117,6 +117,7 @@ function switchTabFromDropdown(name, el) {
   if (name === 'predict')   { updateGoalStats(); updatePredictTab(); }
   if (name === 'predpower') updatePredPowerPanel();
   if (name === 'verify')    { if (typeof renderVerifyPage === 'function') renderVerifyPage(); }
+  if (name === 'kbo-analysis') { if (typeof renderKboF5 === 'function') renderKboF5(); }
   if (name === 'settings')  { if (typeof renderSeasonHistory === 'function') renderSeasonHistory(); }
   if (name === 'wallet')    { if (typeof renderWalletPage === 'function') renderWalletPage(); }
   if (name === 'simulator') {
