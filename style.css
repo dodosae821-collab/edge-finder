@@ -1258,3 +1258,63 @@
   font-size: 11px;
   color: var(--text3);
 }
+
+/* ============================================================
+   구조 정리(v71): 인라인 스타일 → 클래스 추출
+   원칙: 정적 표시 스타일만. JS가 동적으로 토글하는 display/border는
+         인라인 유지 (인라인이 클래스보다 우선이라 동작 불변).
+   ============================================================ */
+
+/* 힌트/캡션 텍스트 (index.html 최다 반복) */
+.hint            { font-size:10px; color:var(--text3); }
+.hint-mb4        { font-size:10px; color:var(--text3); margin-bottom:4px; }
+.hint-mb5        { font-size:10px; color:var(--text3); margin-bottom:5px; }
+.hint-mb6        { font-size:10px; color:var(--text3); margin-bottom:6px; }
+.hint-mt3        { font-size:10px; color:var(--text3); margin-top:3px; }
+.hint-mt4        { font-size:10px; color:var(--text3); margin-top:4px; }
+.hint11          { font-size:11px; color:var(--text3); }
+.hint11-mb12     { font-size:11px; color:var(--text3); margin-bottom:12px; }
+.lbl-right       { margin-left:auto; font-size:10px; color:var(--text3); font-weight:400; }
+.mb16            { margin-bottom:16px; }
+.stat-card       { background:var(--bg3); border-radius:8px; padding:12px; text-align:center; }
+
+/* 전략베팅 — 숫자 입력칸 공통 */
+.sim-num {
+  padding:6px 8px; font-size:12px; font-family:'JetBrains Mono',monospace;
+  background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text2);
+}
+
+/* 전략베팅 — 판단 유닛(종목/유형 피커 + 배당/승률) */
+.sim-judge-row   { display:grid; grid-template-columns:76px 52px 1fr 1fr; gap:5px; margin-bottom:5px; align-items:start; }
+.sim-picker-col  { display:flex; flex-direction:column; gap:2px; }
+.sim-emoji-grid  { display:grid; grid-template-columns:repeat(4,1fr); gap:2px; }
+.sim-type-grid   { display:grid; grid-template-columns:1fr 1fr; gap:2px; }
+.sim-emoji-btn   { padding:4px 2px; font-size:11px; background:var(--bg3); border:1px solid var(--border); border-radius:4px; color:var(--text3); cursor:pointer; line-height:1; }
+.sim-typesel-btn { padding:4px 2px; font-size:12px; background:var(--bg3); border:1px solid var(--border); border-radius:4px; color:var(--text3); cursor:pointer; line-height:1; }
+.sim-sport-label { font-size:9px; color:var(--text3); text-align:center; min-height:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sim-type-label  { font-size:9px; color:var(--accent); text-align:center; min-height:12px; }
+
+/* 전략베팅 — 폴더 수 라디오 라벨 */
+.sim-radio-lbl   { display:flex; align-items:center; justify-content:center; gap:3px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:6px 2px; cursor:pointer; }
+.sim-radio-txt   { font-size:11px; font-weight:600; color:var(--text); }
+.sim-radio-dot   { width:12px; height:12px; }
+
+/* 전략베팅 — 합산 배당 카드 + 수동 수정 컨트롤 */
+.sim-odds-card   { background:var(--bg3); border-radius:6px; padding:8px; text-align:center; }
+.sim-odds-card-a { border:1px solid rgba(0,229,255,0.3); }
+.sim-odds-card-b { border:1px solid rgba(0,230,118,0.3); }
+.sim-odds-card-c { border:1px solid rgba(255,107,53,0.3); }
+.sim-odds-head   { display:flex; justify-content:center; align-items:center; gap:4px; margin-bottom:3px; }
+.sim-odds-val    { font-size:15px; font-weight:800; font-family:'JetBrains Mono',monospace; }
+.sim-mini-btn    { padding:0 3px; font-size:9px; background:transparent; border:1px solid var(--border); border-radius:4px; color:var(--text3); cursor:pointer; line-height:14px; }
+.sim-edit-input  { width:100%; padding:5px 6px; font-size:12px; font-family:'JetBrains Mono',monospace; background:var(--bg2); border:1px solid var(--gold); border-radius:4px; color:var(--text); }
+.sim-edit-ok     { padding:5px 8px; font-size:10px; background:rgba(255,215,0,0.1); border:1px solid var(--gold); border-radius:4px; color:var(--gold); cursor:pointer; white-space:nowrap; }
+
+/* 정리 2라운드 — 추가 반복 패턴 */
+.hint-mt2        { font-size:10px; color:var(--text3); margin-top:2px; }
+.hint-mb8        { font-size:10px; color:var(--text3); margin-bottom:8px; }
+.sec-title       { font-size:10px; color:var(--text3); letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; }
+.empty-note      { text-align:center; color:var(--text3); padding:20px; }
+.big-num         { font-size:20px; font-weight:700; }
+.stat-card-14    { background:var(--bg3); border-radius:8px; padding:14px; text-align:center; }
+.pill            { padding:4px 10px; font-size:13px; }

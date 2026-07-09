@@ -30,7 +30,10 @@ const load = f => vm.runInContext(fs.readFileSync(path.join(__dirname, f), 'utf8
 load('ev.js');
 load('bet_record.js');
 load('tags_ui.js');     // SPORT_CATS, openSportPicker, selectSport, openSimTypePicker, selectSimType
-load('simulator.js');   // simRenderJudge, simGetBranch, simTransmitPending
+load('sim_state.js');
+load('sim_engine.js');
+load('sim_render.js');
+load('sim_actions.js');   // simRenderJudge, simGetBranch, simTransmitPending
 
 const S = sandbox;
 
@@ -41,10 +44,13 @@ const BODY = `
   <input type="radio" name="fb" id="sim-f-b1"><input type="radio" name="fb" id="sim-f-b2"><input type="radio" name="fb" id="sim-f-b3"><input type="radio" name="fb" id="sim-f-b4"><input type="radio" name="fb" id="sim-f-b5"><input type="radio" name="fb" id="sim-f-b6">
   <input type="radio" name="fc" id="sim-f-c1"><input type="radio" name="fc" id="sim-f-c2"><input type="radio" name="fc" id="sim-f-c3"><input type="radio" name="fc" id="sim-f-c4"><input type="radio" name="fc" id="sim-f-c5"><input type="radio" name="fc" id="sim-f-c6">
   <div id="sim-judge-a"></div><div id="sim-judge-b"></div><div id="sim-judge-c"></div>
+  <div id="sim-odds-edit-a" style="display:none"></div><input id="sim-odds-input-a">
+  <div id="sim-odds-edit-b" style="display:none"></div><input id="sim-odds-input-b">
+  <div id="sim-odds-edit-c" style="display:none"></div><input id="sim-odds-input-c">
   <div id="sport-picker-modal" style="display:none"><div id="sport-picker-title"></div><div id="sport-picker-btns"></div></div>
   <div id="type-picker-modal" style="display:none"><div id="type-picker-title"></div><div id="type-picker-btns"></div></div>`;
 
-beforeEach(() => { _bets = []; document.body.innerHTML = BODY; });
+beforeEach(() => { _bets = []; document.body.innerHTML = BODY; S.simResetOdds(); });
 const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
 const check = (id) => { const el = document.getElementById(id); if (el) el.checked = true; };
 
@@ -211,5 +217,56 @@ describe('전략베팅 세부종목·유형 피커 (tags_ui 재사용)', () => {
 
     // 배당 미입력이면 0 (미입력 상태)
     expect(S.simGetOdds('c')).toBe(0);
+  });
+
+  test('배당 수동 수정: 자동 2.1(곱 2.01)을 베트맨 실지급 2.0으로 오버라이드', () => {
+    // 사용자 시나리오: 1.34×1.50 = 2.01 → betmanRound = 2.1 (시스템), 베트맨 실지급은 2.0
+    check('sim-f-b2');
+    setVal('sim-i-b3', '10000');
+    S.simRenderJudge();
+    const bu = document.querySelectorAll('#sim-judge-b .sim-judge-unit');
+    bu[0].querySelector('.sim-fold-odds').value = '1.34';
+    bu[1].querySelector('.sim-fold-odds').value = '1.50';
+    bu[0].querySelector('.sim-fold-prob').value = '70';
+    bu[1].querySelector('.sim-fold-prob').value = '65';
+    expect(S.simGetOdds('b')).toBeCloseTo(2.1, 5);   // 기본: 자동 고정
+
+    // ✏️ 수정 → 2.0 입력 → 확인
+    setVal('sim-odds-input-b', '2.0');
+    S.simApplyOddsEdit('b');
+    expect(S.simGetOdds('b')).toBeCloseTo(2.0, 5);   // 오버라이드 반영
+
+    // 홀딩 전송 레코드에도 수정 배당 실림
+    const n = S.simTransmitPending();
+    expect(n).toBe(1);
+    expect(_bets[0].betmanOdds).toBeCloseTo(2.0, 5);
+
+    // ↺ 자동 복귀
+    S.simResetOddsOverride('b');
+    expect(S.simGetOdds('b')).toBeCloseTo(2.1, 5);
+  });
+
+  test('배당 오버라이드: 홀딩 후 리셋(simResetOdds)이 자동으로 복귀시킴', () => {
+    check('sim-f-a1');
+    S.simRenderJudge();
+    document.querySelector('#sim-judge-a .sim-fold-odds').value = '2.50';
+    setVal('sim-odds-input-a', '2.40');
+    S.simApplyOddsEdit('a');
+    expect(S.simGetOdds('a')).toBeCloseTo(2.40, 5);
+
+    S.simResetOdds();   // 홀딩 후 호출되는 리셋
+    // 리셋은 라디오도 풀지만, 오버라이드 해제 확인이 핵심 — 판단 행은 남아있어 자동값 반환
+    expect(S.simGetOdds('a')).toBeCloseTo(2.50, 5);
+  });
+
+  test('배당 오버라이드: 자동값과 같은 값 입력은 오버라이드로 남지 않음', () => {
+    check('sim-f-a1');
+    S.simRenderJudge();
+    document.querySelector('#sim-judge-a .sim-fold-odds').value = '2.50';
+    setVal('sim-odds-input-a', '2.50');   // 자동값과 동일
+    S.simApplyOddsEdit('a');
+    // 이후 경기 배당을 바꾸면 자동이 그대로 따라가야 함 (고정 아님)
+    document.querySelector('#sim-judge-a .sim-fold-odds').value = '2.60';
+    expect(S.simGetOdds('a')).toBeCloseTo(2.60, 5);
   });
 });

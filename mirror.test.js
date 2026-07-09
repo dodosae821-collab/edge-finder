@@ -25,7 +25,10 @@ sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
 const load = f => vm.runInContext(fs.readFileSync(path.join(__dirname, f), 'utf8'), sandbox, { filename: f });
 load('stats.js');       // computeLegStats, _oddsBand
-load('simulator.js');   // simBuildLegRates, simRenderProbMirror, simMonteCarloPath ...
+load('sim_state.js');
+load('sim_engine.js');
+load('sim_render.js');
+load('sim_actions.js');   // simBuildLegRates, simRenderProbMirror, simMonteCarloPath ...
 
 const { simBuildLegRates, simRenderProbMirror } = sandbox;
 

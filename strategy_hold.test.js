@@ -1,6 +1,6 @@
 // strategy_hold.test.js  (testEnvironment: jsdom)
 // 대상: 전략베팅 홀딩 → 베팅기록 미결(PENDING) 전송 경로
-//   simGetBranch / simTransmitPending / simRenderJudge (simulator.js)
+//   simGetBranch / simTransmitPending (sim_actions.js) · simRenderJudge (sim_render.js)
 //   buildStrategyBet / computeBetDerived (bet_record.js)
 //   computeComboProb (ev.js)
 
@@ -40,7 +40,10 @@ vm.createContext(sandbox);
 const load = f => vm.runInContext(fs.readFileSync(path.join(__dirname, f), 'utf8'), sandbox, { filename: f });
 load('ev.js');
 load('bet_record.js');
-load('simulator.js');
+load('sim_state.js');
+load('sim_engine.js');
+load('sim_render.js');
+load('sim_actions.js');
 
 // 샌드박스 함수 핸들
 const { simRenderJudge, simTransmitPending, computeBetDerived } = sandbox;

@@ -3,7 +3,7 @@ const vm = require('vm');
 const fs = require('fs');
 const path = require('path');
 
-// simulator.js 로드 (top-level은 DOMContentLoaded 리스너뿐 → jsdom 안전)
+// sim 모듈 로드 (state→engine→render→actions, top-level은 DOMContentLoaded 리스너뿐 → jsdom 안전)
 const sandbox = {
   window, document, console, navigator: window.navigator, localStorage: window.localStorage,
   setTimeout, clearTimeout, setInterval, clearInterval,
@@ -13,7 +13,7 @@ const sandbox = {
 };
 sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
-vm.runInContext(fs.readFileSync(path.join(__dirname, 'simulator.js'), 'utf8'), sandbox, { filename: 'simulator.js' });
+['sim_state.js','sim_engine.js','sim_render.js','sim_actions.js'].forEach(f => vm.runInContext(fs.readFileSync(path.join(__dirname, f), 'utf8'), sandbox, { filename: f }));
 const { simMonteCarloPath, simMakeRoadmapAlloc, simMakeInputAlloc, simMakeBreakwaterAlloc, simRequiredOdds } = sandbox;
 
 // 시드 고정 RNG (mulberry32)

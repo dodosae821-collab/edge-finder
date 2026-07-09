@@ -164,7 +164,7 @@ window.addEventListener('unhandledrejection', function(e) {
     </div>
     <div id="retro-bet-card" style="background:var(--bg3);border-radius:8px;padding:14px;margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-        <span style="font-size:11px;color:var(--text3);" id="retro-bet-date">—</span>
+        <span class="hint11" id="retro-bet-date">—</span>
         <span style="font-size:11px;color:var(--gold);" id="retro-bet-odds">—</span>
       </div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px;" id="retro-bet-game">—</div>
@@ -193,11 +193,11 @@ window.addEventListener('unhandledrejection', function(e) {
     <div style="font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.8;">
       <div style="margin-bottom:8px;padding:10px;background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.2);border-radius:8px;">
         <strong style="color:var(--accent);">누적 추가</strong><br>
-        <span style="font-size:11px;color:var(--text3);">기존 기록을 유지하고 새 기록을 추가합니다.<br>중복(날짜·경기·타입·배당 동일)은 자동 제외됩니다.</span>
+        <span class="hint11">기존 기록을 유지하고 새 기록을 추가합니다.<br>중복(날짜·경기·타입·배당 동일)은 자동 제외됩니다.</span>
       </div>
       <div style="padding:10px;background:rgba(255,59,92,0.07);border:1px solid rgba(255,59,92,0.2);border-radius:8px;">
         <strong style="color:var(--red);">완전 교체</strong><br>
-        <span style="font-size:11px;color:var(--text3);">기존 기록을 삭제하고 파일의 기록으로 교체합니다.<br>⚠️ 현재 데이터는 자동 백업 후 교체됩니다.</span>
+        <span class="hint11">기존 기록을 삭제하고 파일의 기록으로 교체합니다.<br>⚠️ 현재 데이터는 자동 백업 후 교체됩니다.</span>
       </div>
     </div>
     <div style="display:flex;gap:8px;">
@@ -362,7 +362,7 @@ window.addEventListener('unhandledrejection', function(e) {
     <div style="display:none;"></div>
 
     <!-- ── 전체 scope 카드 8개 ── -->
-    <div class="grid-4" style="margin-bottom:16px;" id="cards-all">
+    <div class="grid-4 mb16" id="cards-all">
       <!-- 1 전체 투자금액 -->
       <div class="card">
         <div class="card-title">💳 <span>전체 투자금액</span></div>
@@ -439,7 +439,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <div class="card-title">⚡ <span id="d-round-profit-title">이번 회차 손익</span></div>
         <div class="stat-val" id="d-round-profit">—</div>
         <div class="stat-label" id="d-round-profit-label">회차 시드 고정 후 기준</div>
-        <div id="d-round-bet-count" style="font-size:10px;color:var(--text3);margin-top:4px;"></div>
+        <div id="d-round-bet-count" class="hint-mt4"></div>
       </div>
       <!-- 3 현재 회차 뱅크롤 -->
       <div class="card" style="border-color:rgba(0,229,255,0.3);">
@@ -545,7 +545,7 @@ window.addEventListener('unhandledrejection', function(e) {
       <!-- 입력 -->
       <div class="card">
         <div class="card-title">⚾ <span>경기 배당 입력</span>
-          <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">베트맨 배당을 직접 입력하세요</span>
+          <span class="lbl-right">베트맨 배당을 직접 입력하세요</span>
         </div>
 
         <div class="form-group">
@@ -637,7 +637,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
         <!-- 현재 뱅크롤 고정 표시 -->
         <div style="margin-top:12px;padding:12px 14px;background:var(--bg3);border-radius:6px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:11px;color:var(--text3);">💰 현재 뱅크롤</span>
+          <span class="hint11">💰 현재 뱅크롤</span>
           <span class="mono" id="ev-bankroll-fixed" style="font-size:16px;font-weight:700;color:var(--gold);">—</span>
         </div>
       </div>
@@ -653,7 +653,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
           <div id="ev-result" class="hidden">
             <!-- 최고 추천 강조 -->
-            <div id="ev-best-card" style="margin-bottom:16px;"></div>
+            <div id="ev-best-card" class="mb16"></div>
 
             <!-- 권장 베팅 사이즈 -->
             <div id="ev-bet-size-box" style="display:none;margin-bottom:16px;padding:14px;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.3);border-radius:8px;">
@@ -680,14 +680,14 @@ window.addEventListener('unhandledrejection', function(e) {
             </div>
 
             <!-- EV 순위 바 -->
-            <div id="ev-ranking" style="margin-bottom:16px;"></div>
+            <div id="ev-ranking" class="mb16"></div>
 
             <!-- 플핸 경고 -->
             <div id="ev-plhan-warning" class="alert alert-danger mt-8" style="display:none;"></div>
 
             <!-- 손익분기 테이블 -->
             <div style="margin-top:16px;">
-              <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">상세 비교표</div>
+              <div class="sec-title">상세 비교표</div>
               <div id="ev-table"></div>
             </div>
 
@@ -724,11 +724,11 @@ window.addEventListener('unhandledrejection', function(e) {
       <div class="card-title">📊 <span>핸디캡별 EV 비교 차트</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div>
-          <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">EV % 비교</div>
+          <div class="sec-title">EV % 비교</div>
           <div class="chart-container"><canvas id="evChart"></canvas></div>
         </div>
         <div>
-          <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">베팅금액 기준 기대수익 (₩)</div>
+          <div class="sec-title">베팅금액 기준 기대수익 (₩)</div>
           <div class="chart-container"><canvas id="evAmountChart"></canvas></div>
         </div>
       </div>
@@ -787,7 +787,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <div style="margin-bottom:10px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
             <label style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;">종목 / 형식</label>
-            <span id="mode-hint-single" style="font-size:10px;color:var(--text3);">각 1개 선택</span>
+            <span id="mode-hint-single" class="hint">각 1개 선택</span>
             <span id="mode-hint-multi" style="font-size:10px;color:var(--accent2);display:none;">복수 선택 가능</span>
           </div>
           <div style="display:grid;grid-template-columns:1fr 3px 1fr;gap:0 6px;">
@@ -952,7 +952,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <!-- 베팅 템플릿 -->
         <div style="margin-bottom:10px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <span style="font-size:11px;color:var(--text3);">📋 베팅 템플릿</span>
+            <span class="hint11">📋 베팅 템플릿</span>
             <button onclick="saveBetTemplate()" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--accent);font-size:10px;padding:3px 8px;border-radius:4px;cursor:pointer;">+ 현재 저장</button>
           </div>
           <div id="template-list" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
@@ -1032,11 +1032,11 @@ window.addEventListener('unhandledrejection', function(e) {
         </div>
         <!-- 페이지네이션 -->
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <div style="font-size:11px;color:var(--text3);" id="record-page-info">—</div>
+          <div class="hint11" id="record-page-info">—</div>
           <div style="display:flex;gap:4px;align-items:center;">
-            <button class="btn btn-outline btn-sm" onclick="goRecordPage('prev')"  style="padding:4px 10px;font-size:13px;">‹</button>
+            <button class="btn btn-outline btn-sm pill" onclick="goRecordPage('prev')" >‹</button>
             <span class="mono" id="record-page-num" style="font-size:12px;min-width:50px;text-align:center;color:var(--text2);">1 / 1</span>
-            <button class="btn btn-outline btn-sm" onclick="goRecordPage('next')"  style="padding:4px 10px;font-size:13px;">›</button>
+            <button class="btn btn-outline btn-sm pill" onclick="goRecordPage('next')" >›</button>
           </div>
         </div>
         <div class="table-wrap">
@@ -1180,13 +1180,13 @@ window.addEventListener('unhandledrejection', function(e) {
       </div>
       <!-- 페이지네이션 -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div style="font-size:11px;color:var(--text3);" id="vault-page-info">—</div>
+        <div class="hint11" id="vault-page-info">—</div>
         <div style="display:flex;gap:4px;align-items:center;">
-          <button class="btn btn-outline btn-sm" onclick="goVaultPage('first')" style="padding:4px 10px;font-size:13px;">«</button>
-          <button class="btn btn-outline btn-sm" onclick="goVaultPage('prev')"  style="padding:4px 10px;font-size:13px;">‹</button>
+          <button class="btn btn-outline btn-sm pill" onclick="goVaultPage('first')">«</button>
+          <button class="btn btn-outline btn-sm pill" onclick="goVaultPage('prev')" >‹</button>
           <span class="mono" id="vault-page-num" style="font-size:12px;min-width:60px;text-align:center;color:var(--text2);">1 / 1</span>
-          <button class="btn btn-outline btn-sm" onclick="goVaultPage('next')"  style="padding:4px 10px;font-size:13px;">›</button>
-          <button class="btn btn-outline btn-sm" onclick="goVaultPage('last')"  style="padding:4px 10px;font-size:13px;">»</button>
+          <button class="btn btn-outline btn-sm pill" onclick="goVaultPage('next')" >›</button>
+          <button class="btn btn-outline btn-sm pill" onclick="goVaultPage('last')" >»</button>
         </div>
       </div>
       <div class="table-wrap">
@@ -1219,7 +1219,7 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="section-title">📈 통계 1 — 내 베팅 성과</div>
 
     <!-- 상단 요약 카드 4개 -->
-    <div class="grid-4" id="stat-cards-top" style="margin-bottom:16px;">
+    <div class="grid-4 mb16" id="stat-cards-top">
       <div class="card">
         <div class="card-title">🏆 <span>현재 승률</span></div>
         <div class="stat-val green" id="sa-total-wr">—</div>
@@ -1244,13 +1244,13 @@ window.addEventListener('unhandledrejection', function(e) {
     </div>
 
     <!-- 종목별 + 폴더별 통계 -->
-    <div class="grid-2" style="margin-bottom:16px;">
+    <div class="grid-2 mb16">
       <div class="card">
         <div class="card-title">🏅 <span>종목별 통계</span></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>종목</th><th>베팅수/적중</th><th>적중률</th><th>평균배당</th><th>손익분기</th></tr></thead>
-            <tbody id="sport-stat-table"><tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px;">데이터 없음</td></tr></tbody>
+            <tbody id="sport-stat-table"><tr><td colspan="5" class="empty-note">데이터 없음</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1259,7 +1259,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <div class="table-wrap">
           <table style="font-size:12px;">
             <thead><tr><th>구분</th><th>베팅수</th><th>적중</th><th>적중률</th><th>손익</th><th>ROI</th><th>평균배당</th></tr></thead>
-            <tbody id="folder-stat-table"><tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">데이터 없음</td></tr></tbody>
+            <tbody id="folder-stat-table"><tr><td colspan="7" class="empty-note">데이터 없음</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1271,7 +1271,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <div class="card-title">💹 <span>배당 구간별 수익 분석</span></div>
         <table style="width:100%;font-size:12px;">
           <thead><tr><th>배당 구간</th><th>베팅수</th><th>적중률</th><th>손익</th><th>손익분기</th><th>판정</th></tr></thead>
-          <tbody id="odds-range-table"><tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px;">데이터 없음</td></tr></tbody>
+          <tbody id="odds-range-table"><tr><td colspan="6" class="empty-note">데이터 없음</td></tr></tbody>
         </table>
       </div>
       <div class="card">
@@ -1294,19 +1294,19 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="section-title">🔍 통계 2 — 패턴 분석</div>
 
     <!-- 단폴/다폴 + 베팅 형식별 -->
-    <div class="grid-2" style="margin-bottom:16px;">
+    <div class="grid-2 mb16">
       <div class="card">
         <div class="card-title">📌 <span>단폴 vs 다폴</span></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-          <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">단폴 적중률</div>
+          <div class="stat-card-14">
+            <div class="hint-mb4">단폴 적중률</div>
             <div class="mono" id="sa-single-wr" style="font-size:22px;font-weight:700;color:var(--gold);">—</div>
-            <div id="sa-single-count" style="font-size:10px;color:var(--text3);margin-top:3px;">단폴 0건</div>
+            <div id="sa-single-count" class="hint-mt3">단폴 0건</div>
           </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">다폴 적중률</div>
+          <div class="stat-card-14">
+            <div class="hint-mb4">다폴 적중률</div>
             <div class="mono" id="sa-multi-wr" style="font-size:22px;font-weight:700;color:var(--green);">—</div>
-            <div id="sa-multi-count" style="font-size:10px;color:var(--text3);margin-top:3px;">다폴 0건</div>
+            <div id="sa-multi-count" class="hint-mt3">다폴 0건</div>
           </div>
         </div>
       </div>
@@ -1315,32 +1315,32 @@ window.addEventListener('unhandledrejection', function(e) {
         <div class="table-wrap">
           <table>
             <thead><tr><th>형식</th><th>베팅수</th><th>적중</th><th>적중률</th><th>손익</th><th>ROI</th></tr></thead>
-            <tbody id="type-stat-table"><tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px;">데이터 없음</td></tr></tbody>
+            <tbody id="type-stat-table"><tr><td colspan="6" class="empty-note">데이터 없음</td></tr></tbody>
           </table>
         </div>
       </div>
     </div>
 
     <!-- 시장 유형별 ROI 카드 (논문 3 기반) -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card mb16">
       <div class="card-title">🏪 <span>시장 유형별 ROI 분석</span>
-        <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">논문 근거: Altmann 2004 — 비효율 시장에서 엣지가 더 크다</span>
+        <span class="lbl-right">논문 근거: Altmann 2004 — 비효율 시장에서 엣지가 더 크다</span>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:8px;">
         <div id="market-card-win"   style="background:var(--bg3);border-radius:10px;padding:16px;text-align:center;border:1px solid var(--border);">
           <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">🏆 승/패</div>
           <div id="market-roi-win"  style="font-size:24px;font-weight:900;margin-bottom:4px;">—</div>
-          <div id="market-sub-win"  style="font-size:10px;color:var(--text3);">—</div>
+          <div id="market-sub-win"  class="hint">—</div>
         </div>
         <div id="market-card-handi" style="background:var(--bg3);border-radius:10px;padding:16px;text-align:center;border:1px solid var(--border);">
           <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">⚖️ 핸디캡</div>
           <div id="market-roi-handi" style="font-size:24px;font-weight:900;margin-bottom:4px;">—</div>
-          <div id="market-sub-handi" style="font-size:10px;color:var(--text3);">—</div>
+          <div id="market-sub-handi" class="hint">—</div>
         </div>
         <div id="market-card-ou"    style="background:var(--bg3);border-radius:10px;padding:16px;text-align:center;border:1px solid var(--border);">
           <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">📊 언/옵</div>
           <div id="market-roi-ou"   style="font-size:24px;font-weight:900;margin-bottom:4px;">—</div>
-          <div id="market-sub-ou"   style="font-size:10px;color:var(--text3);">—</div>
+          <div id="market-sub-ou"   class="hint">—</div>
         </div>
       </div>
       <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:6px;">⏱️ 전반</div>
@@ -1348,17 +1348,17 @@ window.addEventListener('unhandledrejection', function(e) {
         <div id="market-card-ht-win"   style="background:var(--bg3);border-radius:10px;padding:16px;text-align:center;border:1px solid var(--border);">
           <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">🏆 전반 승/패</div>
           <div id="market-roi-ht-win"  style="font-size:24px;font-weight:900;margin-bottom:4px;">—</div>
-          <div id="market-sub-ht-win"  style="font-size:10px;color:var(--text3);">—</div>
+          <div id="market-sub-ht-win"  class="hint">—</div>
         </div>
         <div id="market-card-ht-handi" style="background:var(--bg3);border-radius:10px;padding:16px;text-align:center;border:1px solid var(--border);">
           <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">⚖️ 전반 핸디캡</div>
           <div id="market-roi-ht-handi" style="font-size:24px;font-weight:900;margin-bottom:4px;">—</div>
-          <div id="market-sub-ht-handi" style="font-size:10px;color:var(--text3);">—</div>
+          <div id="market-sub-ht-handi" class="hint">—</div>
         </div>
         <div id="market-card-ht-ou"    style="background:var(--bg3);border-radius:10px;padding:16px;text-align:center;border:1px solid var(--border);">
           <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">📊 전반 언/옵</div>
           <div id="market-roi-ht-ou"   style="font-size:24px;font-weight:900;margin-bottom:4px;">—</div>
-          <div id="market-sub-ht-ou"   style="font-size:10px;color:var(--text3);">—</div>
+          <div id="market-sub-ht-ou"   class="hint">—</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
@@ -1389,13 +1389,13 @@ window.addEventListener('unhandledrejection', function(e) {
     </div>
 
     <!-- 요일별 통계 -->
-    <div class="grid-2" style="margin-bottom:16px;">
+    <div class="grid-2 mb16">
       <div class="card">
         <div class="card-title">📊 <span>요일별 적중률 / 손익</span></div>
         <div class="table-wrap">
           <table style="font-size:12px;">
             <thead><tr><th>요일</th><th>베팅수</th><th>적중</th><th>적중률</th><th>손익</th><th>ROI</th></tr></thead>
-            <tbody id="dow-stat-table"><tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px;">데이터 없음</td></tr></tbody>
+            <tbody id="dow-stat-table"><tr><td colspan="6" class="empty-note">데이터 없음</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1406,19 +1406,19 @@ window.addEventListener('unhandledrejection', function(e) {
     </div>
 
     <!-- 연속 적중/미적중 + 예측 정확도 -->
-    <div class="grid-2" style="margin-bottom:16px;">
+    <div class="grid-2 mb16">
       <div class="card">
         <div class="card-title">🔥 <span>연속 기록</span></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">최장 연속 적중</div>
+          <div class="stat-card-14">
+            <div class="hint-mb4">최장 연속 적중</div>
             <div class="stat-val green" id="sa-max-streak" style="font-size:28px;">0</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:4px;">현재: <span id="sa-cur-streak" style="color:var(--text2);">0</span></div>
+            <div class="hint-mt4">현재: <span id="sa-cur-streak" style="color:var(--text2);">0</span></div>
           </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">최장 연속 미적중</div>
+          <div class="stat-card-14">
+            <div class="hint-mb4">최장 연속 미적중</div>
             <div class="stat-val red" id="sa-max-lose-streak" style="font-size:28px;">0</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:4px;">현재: <span id="sa-cur-lose-streak" style="color:var(--text2);">0</span></div>
+            <div class="hint-mt4">현재: <span id="sa-cur-lose-streak" style="color:var(--text2);">0</span></div>
           </div>
         </div>
       </div>
@@ -1437,7 +1437,7 @@ window.addEventListener('unhandledrejection', function(e) {
   <div class="page" id="page-analysis3">
     <div class="section-title">🧠 통계 3 — 판단력 분석</div>
     <div class="section-title" style="margin-top:16px;margin-bottom:12px;font-size:14px;border-bottom:none;padding-bottom:0;">🎯 예측 승률 분석</div>
-    <div class="grid-4" style="margin-bottom:16px;">
+    <div class="grid-4 mb16">
       <div class="card">
         <div class="card-title">📌 <span>예측 입력 건수</span></div>
         <div class="stat-val accent" id="pred-total">0</div>
@@ -1463,13 +1463,13 @@ window.addEventListener('unhandledrejection', function(e) {
       <div class="card">
         <div class="card-title">📋 <span>예측 vs 실제 결과</span></div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <div style="font-size:11px;color:var(--text3);" id="pred-page-info">—</div>
+          <div class="hint11" id="pred-page-info">—</div>
           <div style="display:flex;gap:4px;align-items:center;">
-            <button class="btn btn-outline btn-sm" onclick="goPredPage('first')" style="padding:4px 10px;font-size:13px;">«</button>
-            <button class="btn btn-outline btn-sm" onclick="goPredPage('prev')"  style="padding:4px 10px;font-size:13px;">‹</button>
+            <button class="btn btn-outline btn-sm pill" onclick="goPredPage('first')">«</button>
+            <button class="btn btn-outline btn-sm pill" onclick="goPredPage('prev')" >‹</button>
             <span class="mono" id="pred-page-num" style="font-size:12px;min-width:50px;text-align:center;color:var(--text2);">1 / 1</span>
-            <button class="btn btn-outline btn-sm" onclick="goPredPage('next')"  style="padding:4px 10px;font-size:13px;">›</button>
-            <button class="btn btn-outline btn-sm" onclick="goPredPage('last')"  style="padding:4px 10px;font-size:13px;">»</button>
+            <button class="btn btn-outline btn-sm pill" onclick="goPredPage('next')" >›</button>
+            <button class="btn btn-outline btn-sm pill" onclick="goPredPage('last')" >»</button>
           </div>
         </div>
         <div class="table-wrap">
@@ -1484,28 +1484,28 @@ window.addEventListener('unhandledrejection', function(e) {
               <th style="width:60px;">우위</th>
               <th style="width:48px;">결과</th>
             </tr></thead>
-            <tbody id="pred-table"><tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px;">예상 승률을 입력한 베팅 기록이 없습니다</td></tr></tbody>
+            <tbody id="pred-table"><tr><td colspan="8" class="empty-note">예상 승률을 입력한 베팅 기록이 없습니다</td></tr></tbody>
           </table>
         </div>
       </div>
       <div class="card">
         <div class="card-title">📈 <span>예측 정확도 추이</span></div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">내 예상 승률 vs 북메이커 내재확률 비교</div>
+        <div class="hint11-mb12">내 예상 승률 vs 북메이커 내재확률 비교</div>
         <div class="chart-container"><canvas id="predAccuracyChart"></canvas></div>
       </div>
     </div>
 
     <!-- ===== 한 끗 분석 (다폴 낙첨 중 1폴더만 실패) ===== -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card mb16">
       <div class="card-title">🎯 <span>한 끗 분석</span></div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">다폴 낙첨 중 폴더 하나만 빗나간 조합 — 사망 레그의 반복 패턴이 뺄 후보입니다</div>
+      <div class="hint11-mb12">다폴 낙첨 중 폴더 하나만 빗나간 조합 — 사망 레그의 반복 패턴이 뺄 후보입니다</div>
       <div id="one-miss-content"></div>
     </div>
 
     <!-- ===== 레그 성적표 (배당대별) ===== -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card mb16">
       <div class="card-title">📊 <span>레그 성적표</span></div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">폴더 단위 실적 — 어느 배당대가 내 진짜 강점인지</div>
+      <div class="hint11-mb12">폴더 단위 실적 — 어느 배당대가 내 진짜 강점인지</div>
       <div id="leg-perf-content"></div>
     </div>
 
@@ -1515,7 +1515,7 @@ window.addEventListener('unhandledrejection', function(e) {
     <div style="font-size:11px;color:var(--text3);margin-bottom:12px;padding:10px 12px;background:var(--bg3);border-radius:6px;border-left:3px solid var(--accent);">
       EV+라고 판단했지만 실제로 손실이 쌓이는 조건을 찾습니다. 이것이 내 예측의 편향입니다.
     </div>
-    <div class="grid-4" style="margin-bottom:16px;">
+    <div class="grid-4 mb16">
       <div class="card">
         <div class="card-title">📊 <span>EV+ 실제 적중률</span></div>
         <div class="stat-val" id="ev-bias-wr">—</div>
@@ -1537,14 +1537,14 @@ window.addEventListener('unhandledrejection', function(e) {
         <div class="stat-label" id="ev-bias-best-sport-label">EV+ 판단 정확도 최고</div>
       </div>
     </div>
-    <div class="grid-2" style="margin-bottom:16px;">
+    <div class="grid-2 mb16">
       <div class="card">
         <div class="card-title">📉 <span>종목별 EV+ 적중률</span></div>
         <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">EV+라고 판단했을 때 실제 적중률 — 50% 아래면 판단 편향</div>
         <div class="table-wrap">
           <table style="font-size:11px;">
             <thead><tr><th>종목</th><th>EV+건수</th><th>적중</th><th>적중률</th><th>손익</th><th>판단</th></tr></thead>
-            <tbody id="ev-bias-sport-table"><tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px;">데이터 없음</td></tr></tbody>
+            <tbody id="ev-bias-sport-table"><tr><td colspan="6" class="empty-note">데이터 없음</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1554,7 +1554,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <div class="table-wrap">
           <table style="font-size:11px;">
             <thead><tr><th>배당 구간</th><th>EV+건수</th><th>적중</th><th>적중률</th><th>손익</th><th>판단</th></tr></thead>
-            <tbody id="ev-bias-odds-table"><tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px;">데이터 없음</td></tr></tbody>
+            <tbody id="ev-bias-odds-table"><tr><td colspan="6" class="empty-note">데이터 없음</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1566,20 +1566,20 @@ window.addEventListener('unhandledrejection', function(e) {
     <div style="font-size:11px;color:var(--text3);margin-bottom:12px;padding:10px 12px;background:var(--bg3);border-radius:6px;border-left:3px solid var(--green);">
       내 EV 판단이 시간이 지나면서 개선되고 있는지 — 소프가 말한 "기법이 여전히 유효한가"를 검증합니다.
     </div>
-    <div class="grid-2" style="margin-bottom:16px;">
+    <div class="grid-2 mb16">
       <div class="card">
         <div class="card-title">📋 <span>월별 EV+ 성과</span></div>
         <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">월별 EV+ 베팅 적중률 / 손익 추이</div>
         <div class="table-wrap">
           <table style="font-size:11px;">
             <thead><tr><th>월</th><th>EV+건수</th><th>적중</th><th>적중률</th><th>손익</th><th>판단력</th></tr></thead>
-            <tbody id="ev-monthly-table"><tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px;">데이터 없음</td></tr></tbody>
+            <tbody id="ev-monthly-table"><tr><td colspan="6" class="empty-note">데이터 없음</td></tr></tbody>
           </table>
         </div>
       </div>
       <div class="card">
         <div class="card-title">📈 <span>EV+ 적중률 추이 차트</span></div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">월별 EV+ 적중률 변화 — 우상향이면 판단력 개선 중</div>
+        <div class="hint11-mb12">월별 EV+ 적중률 변화 — 우상향이면 판단력 개선 중</div>
         <div class="chart-container"><canvas id="evMonthlyChart"></canvas></div>
       </div>
     </div>
@@ -1590,18 +1590,18 @@ window.addEventListener('unhandledrejection', function(e) {
     <div style="font-size:11px;color:var(--text3);margin-bottom:12px;padding:10px 12px;background:var(--bg3);border-radius:6px;border-left:3px solid var(--accent);">
       실선(🟡 기댓값)은 내 EV 판단이 맞을 때 쌓여야 할 이론적 수익. 점선(🟢 실제)이 기댓값 위에 있으면 운이 따르는 것, 아래에 있으면 운이 나쁜 것 — 장기적으로 두 선이 수렴하면 EV 계산이 정확하다는 증거입니다.
     </div>
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card mb16">
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
         <div style="text-align:center;padding:10px;background:var(--bg3);border-radius:6px;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">누적 기댓값</div>
+          <div class="hint-mb4">누적 기댓값</div>
           <div class="mono" id="ev-cum-expected" style="font-size:18px;font-weight:700;color:var(--gold);">—</div>
         </div>
         <div style="text-align:center;padding:10px;background:var(--bg3);border-radius:6px;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">누적 실제 수익</div>
+          <div class="hint-mb4">누적 실제 수익</div>
           <div class="mono" id="ev-cum-actual" style="font-size:18px;font-weight:700;color:var(--green);">—</div>
         </div>
         <div style="text-align:center;padding:10px;background:var(--bg3);border-radius:6px;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">운의 영향</div>
+          <div class="hint-mb4">운의 영향</div>
           <div class="mono" id="ev-cum-luck" style="font-size:18px;font-weight:700;">—</div>
         </div>
       </div>
@@ -1640,11 +1640,11 @@ window.addEventListener('unhandledrejection', function(e) {
         <div class="card-title">① 경기 정보</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">경기명</div>
+            <div class="hint-mb4">경기명</div>
             <input id="dec-match" type="text" placeholder="예) 현대캐피탈 vs 대한항공" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;outline:none;" oninput="decAutoFill()">
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">종목</div>
+            <div class="hint-mb4">종목</div>
             <select id="dec-sport" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;outline:none;">
               <option value="배구">🏐 배구 (KOVO)</option>
               <option value="야구">⚾ 야구 (KBO)</option>
@@ -1656,11 +1656,11 @@ window.addEventListener('unhandledrejection', function(e) {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">날짜</div>
+            <div class="hint-mb4">날짜</div>
             <input id="dec-date" type="date" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;outline:none;">
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">베팅 형식</div>
+            <div class="hint-mb4">베팅 형식</div>
             <select id="dec-type" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;outline:none;">
               <optgroup label="일반">
                 <option value="승/패">승/패</option>
@@ -1682,29 +1682,29 @@ window.addEventListener('unhandledrejection', function(e) {
         <div class="card-title">② 배당 입력 <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0;">(입력 즉시 계산)</span></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">베트맨 1팀</div>
+            <div class="hint-mb4">베트맨 1팀</div>
             <input id="dec-bt1" type="number" placeholder="1.89" step="0.01" min="1" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:15px;font-family:'JetBrains Mono',monospace;font-weight:700;outline:none;" oninput="decCalc()">
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">베트맨 2팀</div>
+            <div class="hint-mb4">베트맨 2팀</div>
             <input id="dec-bt2" type="number" placeholder="1.61" step="0.01" min="1" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:15px;font-family:'JetBrains Mono',monospace;font-weight:700;outline:none;" oninput="decCalc()">
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">오즈포탈 1팀 최저</div>
+            <div class="hint-mb4">오즈포탈 1팀 최저</div>
             <input id="dec-op1-min" type="number" placeholder="1.86" step="0.01" style="width:100%;padding:7px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:13px;font-family:'JetBrains Mono',monospace;outline:none;" oninput="decCalc()">
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">오즈포탈 1팀 최고</div>
+            <div class="hint-mb4">오즈포탈 1팀 최고</div>
             <input id="dec-op1-max" type="number" placeholder="2.06" step="0.01" style="width:100%;padding:7px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:13px;font-family:'JetBrains Mono',monospace;outline:none;" oninput="decCalc()">
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">오즈포탈 2팀 최저</div>
+            <div class="hint-mb4">오즈포탈 2팀 최저</div>
             <input id="dec-op2-min" type="number" placeholder="1.69" step="0.01" style="width:100%;padding:7px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:13px;font-family:'JetBrains Mono',monospace;outline:none;" oninput="decCalc()">
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">오즈포탈 2팀 최고</div>
+            <div class="hint-mb4">오즈포탈 2팀 최고</div>
             <input id="dec-op2-max" type="number" placeholder="1.86" step="0.01" style="width:100%;padding:7px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:13px;font-family:'JetBrains Mono',monospace;outline:none;" oninput="decCalc()">
           </div>
         </div>
@@ -1730,23 +1730,23 @@ window.addEventListener('unhandledrejection', function(e) {
       <div class="card-title">③ 배당 분석 결과 <span id="dec-calc-badge" style="padding:2px 10px;border-radius:3px;font-size:11px;font-weight:700;margin-left:8px;"></span></div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;">
         <div style="padding:10px;background:var(--bg3);border-radius:6px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">오버라운드</div>
+          <div class="hint-mb4">오버라운드</div>
           <div id="dec-overround" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--gold);">—</div>
         </div>
         <div style="padding:10px;background:var(--bg3);border-radius:6px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">1팀 괴리율</div>
+          <div class="hint-mb4">1팀 괴리율</div>
           <div id="dec-div1" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;">—</div>
-          <div id="dec-div1-label" style="font-size:10px;color:var(--text3);margin-top:2px;"></div>
+          <div id="dec-div1-label" class="hint-mt2"></div>
         </div>
         <div style="padding:10px;background:var(--bg3);border-radius:6px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">2팀 괴리율</div>
+          <div class="hint-mb4">2팀 괴리율</div>
           <div id="dec-div2" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;">—</div>
-          <div id="dec-div2-label" style="font-size:10px;color:var(--text3);margin-top:2px;"></div>
+          <div id="dec-div2-label" class="hint-mt2"></div>
         </div>
         <div style="padding:10px;background:var(--bg3);border-radius:6px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">CLV (Pinnacle)</div>
+          <div class="hint-mb4">CLV (Pinnacle)</div>
           <div id="dec-clv" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--text3);">미입력</div>
-          <div id="dec-clv-label" style="font-size:10px;color:var(--text3);margin-top:2px;"></div>
+          <div id="dec-clv-label" class="hint-mt2"></div>
         </div>
       </div>
       <!-- 시장 신호 해석 -->
@@ -1763,18 +1763,18 @@ window.addEventListener('unhandledrejection', function(e) {
             <button onclick="decSetTeam(1)" id="dec-team1-btn" style="flex:1;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:12px;cursor:pointer;transition:all 0.15s;">1팀 베팅</button>
             <button onclick="decSetTeam(2)" id="dec-team2-btn" style="flex:1;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:12px;cursor:pointer;transition:all 0.15s;">2팀 베팅</button>
           </div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">내 예상 승률 <span id="dec-prob-display" style="color:var(--gold);font-weight:700;font-family:'JetBrains Mono',monospace;">50%</span></div>
+          <div class="hint-mb6">내 예상 승률 <span id="dec-prob-display" style="color:var(--gold);font-weight:700;font-family:'JetBrains Mono',monospace;">50%</span></div>
           <input id="dec-myprob" type="range" min="1" max="99" value="50" style="width:100%;accent-color:var(--gold);" oninput="decUpdateProb()">
           <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:2px;"><span>1%</span><span>50%</span><span>99%</span></div>
           <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
             <input id="dec-myprob-direct" type="number" min="1" max="99" placeholder="직접 입력 %" style="width:90px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--gold);font-size:13px;font-family:'JetBrains Mono',monospace;outline:none;" oninput="decSyncProb()">
-            <span style="font-size:11px;color:var(--text3);">% 직접 입력</span>
+            <span class="hint11">% 직접 입력</span>
           </div>
         </div>
         <!-- EV 결과 -->
         <div id="dec-ev-panel" style="display:none;padding:12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <span style="font-size:11px;color:var(--text3);">기댓값 (EV)</span>
+            <span class="hint11">기댓값 (EV)</span>
             <span id="dec-ev-val" style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;">—</span>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
@@ -1801,11 +1801,11 @@ window.addEventListener('unhandledrejection', function(e) {
           <div style="font-size:10px;color:var(--text3);margin-bottom:8px;letter-spacing:1px;">HALF KELLY (뱅크롤 연동)</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <div style="text-align:center;">
-              <div style="font-size:10px;color:var(--text3);">켈리 비율</div>
+              <div class="hint">켈리 비율</div>
               <div id="dec-kelly-pct" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--accent2);">—</div>
             </div>
             <div style="text-align:center;">
-              <div style="font-size:10px;color:var(--text3);">권장 베팅액</div>
+              <div class="hint">권장 베팅액</div>
               <div id="dec-kelly-amt" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--gold);">—</div>
             </div>
           </div>
@@ -1835,26 +1835,26 @@ window.addEventListener('unhandledrejection', function(e) {
         </div>
         <!-- 맥락 신뢰도 -->
         <div style="margin-top:10px;padding:8px 10px;background:var(--bg3);border-radius:5px;display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:11px;color:var(--text3);">맥락 신뢰도 보정</span>
+          <span class="hint11">맥락 신뢰도 보정</span>
           <span id="dec-context-score" style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--text2);">—</span>
         </div>
       </div>
     </div>
 
     <!-- 메모 -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card mb16">
       <div class="card-title">⑥ 분석 메모</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">1팀 최근 폼 / 특이사항</div>
+          <div class="hint-mb4">1팀 최근 폼 / 특이사항</div>
           <input id="dec-form1" type="text" placeholder="예) 최근 3연패, 꼴지에게 패배" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:12px;outline:none;">
         </div>
         <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">2팀 최근 폼 / 특이사항</div>
+          <div class="hint-mb4">2팀 최근 폼 / 특이사항</div>
           <input id="dec-form2" type="text" placeholder="예) 벤치 뎁스 강함, 최근 4연승" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:12px;outline:none;">
         </div>
         <div style="grid-column:1/-1;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">추가 메모</div>
+          <div class="hint-mb4">추가 메모</div>
           <textarea id="dec-memo" rows="2" placeholder="시즌 마지막 경기, 양팀 주전 안 쓸 가능성 등..." style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:12px;outline:none;resize:none;"></textarea>
         </div>
       </div>
@@ -1886,7 +1886,7 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="section-title">📋 종합 상황판단</div>
 
     <!-- ① 오늘 베팅 브리핑 (맨 위) -->
-    <div id="judgeall-briefing" style="margin-bottom:16px;"></div>
+    <div id="judgeall-briefing" class="mb16"></div>
 
     <!-- 종합 신호등 -->
     <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px;" id="judgeall-signals">
@@ -1909,9 +1909,9 @@ window.addEventListener('unhandledrejection', function(e) {
     </div>
 
     <!-- 종합 코멘트 -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card mb16">
       <div class="card-title">🧠 <span>종합 상황 진단</span>
-        <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">통계 1·2·3 데이터 기반 자동 분석</span>
+        <span class="lbl-right">통계 1·2·3 데이터 기반 자동 분석</span>
       </div>
       <div id="judgeall-comment" style="font-size:13px;color:var(--text2);line-height:2;padding:4px 0;"></div>
     </div>
@@ -1940,7 +1940,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <div id="kelly-grade-badge" style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;flex-shrink:0;">—</div>
         <div>
           <div id="kelly-grade-banner-title" style="font-size:12px;font-weight:700;"></div>
-          <div id="kelly-grade-banner-sub" style="font-size:10px;color:var(--text3);margin-top:2px;"></div>
+          <div id="kelly-grade-banner-sub" class="hint-mt2"></div>
         </div>
       </div>
       <div id="kelly-grade-banner-mult" style="font-size:11px;padding:4px 10px;border-radius:6px;font-weight:700;"></div>
@@ -1959,12 +1959,12 @@ window.addEventListener('unhandledrejection', function(e) {
       </div>
       <div style="width:1px;height:24px;background:var(--border);"></div>
       <div>
-        <span style="font-size:10px;color:var(--text3);">고정일</span>
+        <span class="hint">고정일</span>
         <span id="sim-locked-date" style="font-size:12px;color:var(--text2);margin-left:6px;">—</span>
       </div>
       <div style="width:1px;height:24px;background:var(--border);"></div>
       <div>
-        <span style="font-size:10px;color:var(--text3);">회차 손익</span>
+        <span class="hint">회차 손익</span>
         <span id="sim-round-pnl" style="font-size:14px;font-weight:700;margin-left:6px;">—</span>
       </div>
       <div style="flex:1;min-width:120px;">
@@ -2018,7 +2018,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <div id="kelly-next-header" style="padding:10px 14px;background:rgba(255,215,0,0.08);border-bottom:1px solid rgba(255,215,0,0.2);">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
             <span style="font-size:12px;font-weight:700;color:var(--text2);">💡 1/12 기반 하이브리드 Kelly 베팅 시스템</span>
-            <span id="kelly-next-cycle-badge" style="font-size:10px;color:var(--text3);"></span>
+            <span id="kelly-next-cycle-badge" class="hint"></span>
           </div>
           <div style="font-size:10px;color:var(--text3);line-height:1.4;">시드 ÷ 12 = 기본 베팅 · Kelly 분수(k)로 ×1.0 ~ ×1.3 구간 자동 결정</div>
         </div>
@@ -2026,12 +2026,12 @@ window.addEventListener('unhandledrejection', function(e) {
         <div style="padding:12px 14px;background:rgba(255,215,0,0.04);">
           <!-- 기본 베팅 -->
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <span style="font-size:11px;color:var(--text3);">기본 베팅 <span style="font-size:10px;">(시드 ÷ 12)</span></span>
+            <span class="hint11">기본 베팅 <span style="font-size:10px;">(시드 ÷ 12)</span></span>
             <span class="mono" id="kelly-base-amount" style="font-size:14px;font-weight:700;color:var(--text2);">—</span>
           </div>
           <!-- 켈리 보정 (확률·배당 기반 자동 계산) -->
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <span style="font-size:11px;color:var(--text3);">켈리 보정 <span style="font-size:10px;">(확률·배당 기반 자동 계산)</span></span>
+            <span class="hint11">켈리 보정 <span style="font-size:10px;">(확률·배당 기반 자동 계산)</span></span>
             <span id="kelly-adj-badge" style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--bg3);color:var(--text3);">—</span>
           </div>
           <!-- 구분선 -->
@@ -2057,7 +2057,7 @@ window.addEventListener('unhandledrejection', function(e) {
       </div>
 
       <!-- 12칸 사이클 진행 바 -->
-      <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">이번 사이클 진행도 (베팅 기록 기반 자동 계산)</div>
+      <div class="sec-title">이번 사이클 진행도 (베팅 기록 기반 자동 계산)</div>
       <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:6px;margin-bottom:16px;" id="kelly-slots"></div>
 
       <!-- 안내 메시지 -->
@@ -2068,11 +2068,11 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="grid-2">
       <div class="card">
         <div class="card-title">📋 <span>사이클별 손익 기록</span></div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">베팅 기록 기반 자동 집계 (12회 = 1사이클)</div>
+        <div class="hint11-mb12">베팅 기록 기반 자동 집계 (12회 = 1사이클)</div>
         <div class="table-wrap">
           <table style="font-size:12px;">
             <thead><tr><th>사이클</th><th>베팅수</th><th>적중</th><th>손익</th><th>시드변화</th><th>판정</th></tr></thead>
-            <tbody id="kelly-cycle-table"><tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px;">베팅 기록 없음</td></tr></tbody>
+            <tbody id="kelly-cycle-table"><tr><td colspan="6" class="empty-note">베팅 기록 없음</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -2082,15 +2082,15 @@ window.addEventListener('unhandledrejection', function(e) {
         <div style="font-size:11px;color:var(--text3);margin-bottom:16px;">현재 베팅 기록의 적중률 기준 시뮬레이션</div>
         <div class="grid-3" style="text-align:center;gap:12px;">
           <div style="background:var(--bg3);border:1px solid rgba(255,59,92,0.3);border-radius:8px;padding:16px;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">비관<br>(승률 -5%)</div>
+            <div class="hint-mb8">비관<br>(승률 -5%)</div>
             <div class="mono" id="kelly-pessimistic" style="font-size:20px;font-weight:700;color:var(--red);">—</div>
           </div>
           <div style="background:var(--bg3);border:1px solid rgba(255,215,0,0.3);border-radius:8px;padding:16px;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">기대<br>(현재 승률)</div>
+            <div class="hint-mb8">기대<br>(현재 승률)</div>
             <div class="mono" id="kelly-expected" style="font-size:20px;font-weight:700;color:var(--gold);">—</div>
           </div>
           <div style="background:var(--bg3);border:1px solid rgba(0,230,118,0.3);border-radius:8px;padding:16px;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">낙관<br>(승률 +5%)</div>
+            <div class="hint-mb8">낙관<br>(승률 +5%)</div>
             <div class="mono" id="kelly-optimistic" style="font-size:20px;font-weight:700;color:var(--green);">—</div>
           </div>
         </div>
@@ -2113,7 +2113,7 @@ window.addEventListener('unhandledrejection', function(e) {
           <div style="font-size:13px;line-height:2;color:var(--text2);">
 
             <!-- 왜 순수 켈리를 쓰지 않는가 -->
-            <div class="alert alert-warning" style="margin-bottom:16px;">
+            <div class="alert alert-warning mb16">
               <strong>왜 순수 켈리 베팅을 쓰지 않는가?</strong><br>
               켈리 공식은 이론적으로 최적의 베팅 비율을 제시하지만, 핵심 전제인 <strong>"정확한 확률(p)"</strong>을 현실에서 완벽히 맞추는 것은 거의 불가능합니다. 확률이 조금만 틀려도 베팅 금액이 과도해지며, 이는 큰 변동성과 손실로 이어질 수 있습니다.
             </div>
@@ -2205,9 +2205,9 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="section-title" style="margin-top:0;margin-bottom:12px;font-size:14px;border-bottom:none;padding-bottom:0;">🌀 피보나치 손실 만회 시스템</div>
     <div class="card mb-16" style="border-color:rgba(167,139,250,0.4);">
       <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#a78bfa,transparent);"></div>
-      <div class="card-title" style="margin-bottom:16px;">
+      <div class="card-title mb16">
         <span style="color:#a78bfa;font-size:13px;">🌀 피보나치 배팅 추적기</span>
-        <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">배팅 기록 기반 자동 계산</span>
+        <span class="lbl-right">배팅 기록 기반 자동 계산</span>
       </div>
 
       <!-- 현재 상태 요약 -->
@@ -2215,22 +2215,22 @@ window.addEventListener('unhandledrejection', function(e) {
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;">
           <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:6px;">현재 연패</div>
           <div class="mono" id="fib-streak" style="font-size:28px;font-weight:700;color:#a78bfa;">0</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">연속 미적중</div>
+          <div class="hint-mt4">연속 미적중</div>
         </div>
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;">
           <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:6px;">누적 손실</div>
           <div class="mono" id="fib-loss" style="font-size:22px;font-weight:700;color:var(--red);">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">현재 시리즈</div>
+          <div class="hint-mt4">현재 시리즈</div>
         </div>
         <div style="background:var(--bg3);border:2px solid #a78bfa;border-radius:8px;padding:14px;text-align:center;">
           <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:6px;">다음 권장 배팅액</div>
           <div class="mono" id="fib-next-bet" style="font-size:22px;font-weight:700;color:#a78bfa;">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">피보나치 기준</div>
+          <div class="hint-mt4">피보나치 기준</div>
         </div>
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;">
           <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:6px;">최고 연패</div>
           <div class="mono" id="fib-max-streak" style="font-size:28px;font-weight:700;color:var(--gold);">0</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">전체 기록</div>
+          <div class="hint-mt4">전체 기록</div>
         </div>
       </div>
 
@@ -2242,7 +2242,7 @@ window.addEventListener('unhandledrejection', function(e) {
             <div style="font-size:10px;color:var(--gold);font-weight:700;margin-bottom:6px;">POINT 1 — 손익분기</div>
             <div style="display:flex;align-items:baseline;gap:8px;">
               <div class="mono" id="fib-break-even" style="font-size:24px;font-weight:700;color:var(--gold);">—</div>
-              <div style="font-size:11px;color:var(--text3);">배당 이상</div>
+              <div class="hint11">배당 이상</div>
             </div>
             <div style="font-size:11px;color:var(--text3);margin-top:6px;">이 배당 맞추면 원금 회복</div>
           </div>
@@ -2250,7 +2250,7 @@ window.addEventListener('unhandledrejection', function(e) {
             <div style="font-size:10px;color:var(--green);font-weight:700;margin-bottom:6px;">POINT 2 — 순수익 전환</div>
             <div style="display:flex;align-items:baseline;gap:8px;">
               <div class="mono" id="fib-profit" style="font-size:24px;font-weight:700;color:var(--green);">—</div>
-              <div style="font-size:11px;color:var(--text3);">배당 이상</div>
+              <div class="hint11">배당 이상</div>
             </div>
             <div style="font-size:11px;color:var(--text3);margin-top:6px;">이 배당부터 실수익 발생</div>
           </div>
@@ -2258,7 +2258,7 @@ window.addEventListener('unhandledrejection', function(e) {
       </div>
 
       <!-- 피보나치 수열 진행 시각화 -->
-      <div style="margin-bottom:16px;">
+      <div class="mb16">
         <div style="font-size:11px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">수열 진행도</div>
         <div id="fib-sequence-bar" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
       </div>
@@ -2280,30 +2280,30 @@ window.addEventListener('unhandledrejection', function(e) {
               </tr>
             </thead>
             <tbody id="fib-history-table">
-              <tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">베팅 기록 없음</td></tr>
+              <tr><td colspan="7" class="empty-note">베팅 기록 없음</td></tr>
             </tbody>
           </table>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
-          <div style="font-size:11px;color:var(--text3);" id="fib-page-info">—</div>
+          <div class="hint11" id="fib-page-info">—</div>
           <div style="display:flex;align-items:center;gap:6px;">
-            <button id="fib-prev-btn" class="btn btn-outline btn-sm" onclick="fibGoPage(-1)" style="padding:4px 10px;font-size:13px;">‹</button>
+            <button id="fib-prev-btn" class="btn btn-outline btn-sm pill" onclick="fibGoPage(-1)">‹</button>
             <span class="mono" id="fib-page-num" style="font-size:12px;min-width:50px;text-align:center;color:var(--text2);">1 / 1</span>
-            <button id="fib-next-btn" class="btn btn-outline btn-sm" onclick="fibGoPage(1)" style="padding:4px 10px;font-size:13px;">›</button>
+            <button id="fib-next-btn" class="btn btn-outline btn-sm pill" onclick="fibGoPage(1)">›</button>
           </div>
         </div>
       </div>
 
       <!-- 초기 배팅액 설정 -->
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <div style="font-size:11px;color:var(--text3);">피보나치 시작 단위금액</div>
+        <div class="hint11">피보나치 시작 단위금액</div>
         <div style="display:flex;align-items:center;gap:8px;">
           <input type="number" id="fib-base-input" placeholder="예: 1000" step="100"
             style="width:120px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace;"
             oninput="fibUpdateBase()">
           <span style="font-size:12px;color:var(--text3);">원</span>
         </div>
-        <div style="font-size:11px;color:var(--text3);">현재: <span id="fib-base-display" class="mono" style="color:#a78bfa;">—</span></div>
+        <div class="hint11">현재: <span id="fib-base-display" class="mono" style="color:#a78bfa;">—</span></div>
       </div>
     </div>
 
@@ -2311,7 +2311,7 @@ window.addEventListener('unhandledrejection', function(e) {
     <!-- ===== 켈리 베팅 사이즈 히스토리 ===== -->
     <div style="height:1px;background:var(--border);margin:20px 0;"></div>
     <div class="section-title" style="margin-top:0;margin-bottom:12px;font-size:14px;border-bottom:none;padding-bottom:0;">📐 켈리 베팅 사이즈 분석</div>
-    <div class="grid-4" style="margin-bottom:16px;">
+    <div class="grid-4 mb16">
       <div class="card">
         <div class="card-title">📊 <span>평균 켈리 배율</span></div>
         <div class="stat-val" id="kelly-hist-avg-ratio" style="font-size:28px;">—</div>
@@ -2333,28 +2333,28 @@ window.addEventListener('unhandledrejection', function(e) {
         <div class="stat-label">켈리 초과 베팅만의 손익</div>
       </div>
     </div>
-    <div class="grid-2" style="margin-bottom:16px;">
+    <div class="grid-2 mb16">
       <div class="card">
         <div class="card-title">📋 <span>베팅별 켈리 비교</span></div>
         <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">EV+ 베팅 한정 · 권장액 대비 실제 베팅 비율</div>
         <div class="table-wrap">
           <table style="font-size:11px;">
             <thead><tr><th>날짜</th><th>경기</th><th>실제 베팅</th><th>권장액</th><th>배율</th><th>결과</th><th>손익</th></tr></thead>
-            <tbody id="kelly-hist-table"><tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">EV+ 베팅 기록 없음</td></tr></tbody>
+            <tbody id="kelly-hist-table"><tr><td colspan="7" class="empty-note">EV+ 베팅 기록 없음</td></tr></tbody>
           </table>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
-          <div style="font-size:11px;color:var(--text3);" id="kelly-page-info">—</div>
+          <div class="hint11" id="kelly-page-info">—</div>
           <div style="display:flex;align-items:center;gap:6px;">
-            <button class="btn btn-outline btn-sm" onclick="goKellyPage('prev')" style="padding:4px 10px;font-size:13px;">‹</button>
+            <button class="btn btn-outline btn-sm pill" onclick="goKellyPage('prev')">‹</button>
             <span class="mono" id="kelly-page-num" style="font-size:12px;min-width:50px;text-align:center;color:var(--text2);">1 / 1</span>
-            <button class="btn btn-outline btn-sm" onclick="goKellyPage('next')" style="padding:4px 10px;font-size:13px;">›</button>
+            <button class="btn btn-outline btn-sm pill" onclick="goKellyPage('next')">›</button>
           </div>
         </div>
       </div>
       <div class="card">
         <div class="card-title">📊 <span>켈리 배율 분포</span></div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">실제 베팅 ÷ 켈리 권장액 분포</div>
+        <div class="hint11-mb12">실제 베팅 ÷ 켈리 권장액 분포</div>
         <div class="chart-container"><canvas id="kellyDistChart"></canvas></div>
       </div>
     </div>
@@ -2407,7 +2407,7 @@ window.addEventListener('unhandledrejection', function(e) {
             <div style="font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:600;">베팅 시드 (자동)</div>
             <div style="padding:12px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:6px;">
               <div class="mono" id="goal-bankroll-display" style="font-size:18px;font-weight:700;color:var(--accent);">—</div>
-              <div id="goal-bankroll-hint" style="font-size:10px;color:var(--text3);margin-top:3px;">설정 탭에서 비율 입력 시 자동 계산</div>
+              <div id="goal-bankroll-hint" class="hint-mt3">설정 탭에서 비율 입력 시 자동 계산</div>
             </div>
             <input type="hidden" id="goal-start">
           </div>
@@ -2415,7 +2415,7 @@ window.addEventListener('unhandledrejection', function(e) {
             <div style="font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:600;">목표 금액 (자동)</div>
             <div style="padding:12px;background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);border-radius:6px;">
               <div class="mono" id="goal-target-display" style="font-size:18px;font-weight:700;color:var(--gold);">—</div>
-              <div id="goal-target-hint" style="font-size:10px;color:var(--text3);margin-top:3px;">설정 탭에서 목표 자금 입력</div>
+              <div id="goal-target-hint" class="hint-mt3">설정 탭에서 목표 자금 입력</div>
             </div>
             <input type="hidden" id="goal-target">
           </div>
@@ -2423,7 +2423,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
         <!-- 성공/실패 시 잔액 미리보기 -->
         <div id="goal-preview-bar" style="display:none;margin-bottom:14px;">
-          <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">베팅 시나리오 미리보기</div>
+          <div class="sec-title">베팅 시나리오 미리보기</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <div style="padding:12px;background:rgba(0,230,118,0.08);border:1px solid rgba(0,230,118,0.3);border-radius:6px;text-align:center;">
               <div style="font-size:10px;color:var(--green);margin-bottom:4px;">✅ 목표 달성 시</div>
@@ -2483,7 +2483,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- 주간 순수익 추이 차트 -->
     <div class="card">
       <div class="card-title">📊 <span>주간 순수익 추이</span>
-        <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">최근 8주</span>
+        <span class="lbl-right">최근 8주</span>
       </div>
       <div class="chart-container"><canvas id="weeklyProfitChart"></canvas></div>
     </div>
@@ -2491,54 +2491,54 @@ window.addEventListener('unhandledrejection', function(e) {
         <!-- 회차별 성과 이력 -->
     <div class="card" style="margin-top:16px;">
       <div class="card-title">📋 <span>회차별 성과 이력</span>
-        <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">시드 고정 시 자동 저장</span>
+        <span class="lbl-right">시드 고정 시 자동 저장</span>
       </div>
 
       <div style="margin-bottom:14px;">
-        <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">📅 달력 기준</div>
+        <div class="sec-title">📅 달력 기준</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-          <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">지난 7일</div>
+          <div class="stat-card">
+            <div class="hint-mb4">지난 7일</div>
             <div class="mono" id="rh-cal-7d-roi" style="font-size:18px;font-weight:700;">—</div>
-            <div id="rh-cal-7d-detail" style="font-size:10px;color:var(--text3);margin-top:3px;">—</div>
+            <div id="rh-cal-7d-detail" class="hint-mt3">—</div>
           </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">지난 30일</div>
+          <div class="stat-card">
+            <div class="hint-mb4">지난 30일</div>
             <div class="mono" id="rh-cal-30d-roi" style="font-size:18px;font-weight:700;">—</div>
-            <div id="rh-cal-30d-detail" style="font-size:10px;color:var(--text3);margin-top:3px;">—</div>
+            <div id="rh-cal-30d-detail" class="hint-mt3">—</div>
           </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">지난 90일</div>
+          <div class="stat-card">
+            <div class="hint-mb4">지난 90일</div>
             <div class="mono" id="rh-cal-90d-roi" style="font-size:18px;font-weight:700;">—</div>
-            <div id="rh-cal-90d-detail" style="font-size:10px;color:var(--text3);margin-top:3px;">—</div>
+            <div id="rh-cal-90d-detail" class="hint-mt3">—</div>
           </div>
         </div>
       </div>
 
       <div style="margin-bottom:14px;">
-        <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">🔄 회차 기준</div>
+        <div class="sec-title">🔄 회차 기준</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-          <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">직전 3회차</div>
+          <div class="stat-card">
+            <div class="hint-mb4">직전 3회차</div>
             <div class="mono" id="rh-round-3-roi" style="font-size:18px;font-weight:700;">—</div>
-            <div id="rh-round-3-detail" style="font-size:10px;color:var(--text3);margin-top:3px;">—</div>
+            <div id="rh-round-3-detail" class="hint-mt3">—</div>
           </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">최근 12회차</div>
+          <div class="stat-card">
+            <div class="hint-mb4">최근 12회차</div>
             <div class="mono" id="rh-round-12-roi" style="font-size:18px;font-weight:700;">—</div>
-            <div id="rh-round-12-detail" style="font-size:10px;color:var(--text3);margin-top:3px;">—</div>
+            <div id="rh-round-12-detail" class="hint-mt3">—</div>
           </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">최근 36회차</div>
+          <div class="stat-card">
+            <div class="hint-mb4">최근 36회차</div>
             <div class="mono" id="rh-round-36-roi" style="font-size:18px;font-weight:700;">—</div>
-            <div id="rh-round-36-detail" style="font-size:10px;color:var(--text3);margin-top:3px;">—</div>
+            <div id="rh-round-36-detail" class="hint-mt3">—</div>
           </div>
         </div>
       </div>
 
       <div id="rh-habit-feedback" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:6px;font-size:12px;line-height:1.7;"></div>
 
-      <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">회차별 상세</div>
+      <div class="sec-title">회차별 상세</div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -2563,30 +2563,30 @@ window.addEventListener('unhandledrejection', function(e) {
     <div id="rr-kpi-section" style="display:none;"></div>
 
     <!-- ── 상단: 최근 종료 회차 요약 ── -->
-    <div id="rr-latest-wrap" class="card" style="margin-bottom:16px;">
+    <div id="rr-latest-wrap" class="card mb16">
       <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:10px;">최근 종료 회차</div>
       <div id="rr-no-history" style="display:none;color:var(--text3);font-size:13px;padding:12px 0;">종료된 회차가 없습니다.</div>
       <div id="rr-latest-body">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
           <div style="font-size:16px;font-weight:800;color:var(--accent);" id="rr-latest-label">—</div>
-          <div style="font-size:11px;color:var(--text3);" id="rr-latest-dates">—</div>
+          <div class="hint11" id="rr-latest-dates">—</div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">
           <div>
             <div style="font-size:18px;font-weight:800;" id="rr-latest-pnl">—</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:2px;">손익</div>
+            <div class="hint-mt2">손익</div>
           </div>
           <div>
             <div style="font-size:18px;font-weight:800;" id="rr-latest-roi">—</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:2px;">ROI</div>
+            <div class="hint-mt2">ROI</div>
           </div>
           <div>
             <div style="font-size:18px;font-weight:800;color:var(--text);" id="rr-latest-bets">—</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:2px;">베팅</div>
+            <div class="hint-mt2">베팅</div>
           </div>
           <div>
             <div style="font-size:18px;font-weight:800;color:var(--text);" id="rr-latest-wr">—</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:2px;">승률</div>
+            <div class="hint-mt2">승률</div>
           </div>
         </div>
         <!-- 소진률 바 -->
@@ -2603,7 +2603,7 @@ window.addEventListener('unhandledrejection', function(e) {
     </div>
 
     <!-- ── 중간: 회차 리스트 (페이징) ── -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card mb16">
       <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:12px;">회차 목록 <span id="rr-total-count" style="color:var(--text2);">—</span></div>
       <div id="rr-list-empty" style="display:none;color:var(--text3);font-size:13px;padding:20px 0;text-align:center;">
         <div style="margin-bottom:12px;">종료된 회차가 없습니다.</div>
@@ -2632,24 +2632,24 @@ window.addEventListener('unhandledrejection', function(e) {
       <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:10px;">선택 회차 상세</div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div style="font-size:15px;font-weight:800;color:var(--accent);" id="rr-detail-label">—</div>
-        <div style="font-size:11px;color:var(--text3);" id="rr-detail-dates">—</div>
+        <div class="hint11" id="rr-detail-dates">—</div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;margin-bottom:14px;">
         <div>
           <div style="font-size:16px;font-weight:800;" id="rr-detail-pnl">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;">손익</div>
+          <div class="hint-mt2">손익</div>
         </div>
         <div>
           <div style="font-size:16px;font-weight:800;" id="rr-detail-roi">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;">ROI</div>
+          <div class="hint-mt2">ROI</div>
         </div>
         <div>
           <div style="font-size:16px;font-weight:800;color:var(--text);" id="rr-detail-bets">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;">베팅</div>
+          <div class="hint-mt2">베팅</div>
         </div>
         <div>
           <div style="font-size:16px;font-weight:800;color:var(--text);" id="rr-detail-wr">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;">승률</div>
+          <div class="hint-mt2">승률</div>
         </div>
       </div>
       <!-- 시드 상세 -->
@@ -2678,7 +2678,7 @@ window.addEventListener('unhandledrejection', function(e) {
           <canvas id="rr-chart-roi"></canvas>
         </div>
       </div>
-      <div class="card" style="margin-bottom:16px;">
+      <div class="card mb16">
         <div style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:10px;">누적 수익 곡선</div>
         <div style="height:160px;position:relative;">
           <canvas id="rr-chart-cum"></canvas>
@@ -2710,9 +2710,9 @@ window.addEventListener('unhandledrejection', function(e) {
       <div id="ai-verdict-banner" style="margin-bottom:16px;padding:16px 20px;border-radius:10px;display:flex;align-items:center;gap:16px;"></div>
 
       <!-- AI 코멘트 -->
-      <div class="card" style="margin-bottom:16px;">
+      <div class="card mb16">
         <div class="card-title">💬 <span>AI 분석</span>
-          <span id="ai-advice-time" style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;"></span>
+          <span id="ai-advice-time" class="lbl-right"></span>
         </div>
         <div id="ai-advice-text" style="font-size:13px;color:var(--text2);line-height:2;white-space:pre-wrap;padding:4px 0;"></div>
       </div>
@@ -2788,7 +2788,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
       <div id="sim-save-row" style="display:none;background:var(--bg2);border:1px solid rgba(255,215,0,0.2);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:none;justify-content:space-between;align-items:center;">
         <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">세이브 포인트</div>
+          <div class="hint-mb4">세이브 포인트</div>
           <div id="sim-save-amt" style="font-size:15px;font-weight:700;color:var(--gold);font-family:'JetBrains Mono',monospace;">0원</div>
         </div>
         <div style="font-size:11px;color:var(--text3);text-align:right;">실패해도<br>이 금액 보장</div>
@@ -2858,19 +2858,43 @@ window.addEventListener('unhandledrejection', function(e) {
         </div>
 
         <div style="margin-bottom:10px;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">합산 배당 (판단 데이터의 경기 배당에서 자동 계산 · 베트맨 반올림)</div>
+          <div class="hint-mb8">합산 배당 (자동 고정 · 베트맨 실지급이 다를 때만 ✏️로 수정)</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-            <div style="background:var(--bg3);border:1px solid rgba(0,229,255,0.3);border-radius:6px;padding:8px;text-align:center;">
-              <div style="font-size:10px;color:var(--accent);margin-bottom:3px;">A 배당</div>
-              <span id="sim-odds-disp-a" style="font-size:15px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--accent);">—</span>
+            <div class="sim-odds-card sim-odds-card-a">
+              <div class="sim-odds-head">
+                <span style="font-size:10px;color:var(--accent);">A 배당</span>
+                <button type="button" onclick="simEditOdds('a')" title="배당 수정" class="sim-mini-btn">✏️</button>
+                <button type="button" onclick="simResetOddsOverride('a')" title="자동으로 복귀" class="sim-mini-btn">↺</button>
+              </div>
+              <span id="sim-odds-disp-a" class="sim-odds-val" style="color:var(--accent);">—</span>
+              <div id="sim-odds-edit-a" style="display:none;gap:4px;margin-top:5px;">
+                <input type="number" id="sim-odds-input-a" step="0.01" min="1.01" placeholder="실지급 배당" onkeydown="if(event.key==='Enter')simApplyOddsEdit('a')" class="sim-edit-input">
+                <button type="button" onclick="simApplyOddsEdit('a')" class="sim-edit-ok">확인</button>
+              </div>
             </div>
-            <div style="background:var(--bg3);border:1px solid rgba(0,230,118,0.3);border-radius:6px;padding:8px;text-align:center;">
-              <div style="font-size:10px;color:var(--green);margin-bottom:3px;">B 배당</div>
-              <span id="sim-odds-disp-b" style="font-size:15px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--green);">—</span>
+            <div class="sim-odds-card sim-odds-card-b">
+              <div class="sim-odds-head">
+                <span style="font-size:10px;color:var(--green);">B 배당</span>
+                <button type="button" onclick="simEditOdds('b')" title="배당 수정" class="sim-mini-btn">✏️</button>
+                <button type="button" onclick="simResetOddsOverride('b')" title="자동으로 복귀" class="sim-mini-btn">↺</button>
+              </div>
+              <span id="sim-odds-disp-b" class="sim-odds-val" style="color:var(--green);">—</span>
+              <div id="sim-odds-edit-b" style="display:none;gap:4px;margin-top:5px;">
+                <input type="number" id="sim-odds-input-b" step="0.01" min="1.01" placeholder="실지급 배당" onkeydown="if(event.key==='Enter')simApplyOddsEdit('b')" class="sim-edit-input">
+                <button type="button" onclick="simApplyOddsEdit('b')" class="sim-edit-ok">확인</button>
+              </div>
             </div>
-            <div id="sim-c-odds-wrap" style="display:none;background:var(--bg3);border:1px solid rgba(255,107,53,0.3);border-radius:6px;padding:8px;text-align:center;">
-              <div style="font-size:10px;color:var(--accent2);margin-bottom:3px;">C 배당</div>
-              <span id="sim-odds-disp-c" style="font-size:15px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--accent2);">—</span>
+            <div id="sim-c-odds-wrap" class="sim-odds-card sim-odds-card-c" style="display:none;">
+              <div class="sim-odds-head">
+                <span style="font-size:10px;color:var(--accent2);">C 배당</span>
+                <button type="button" onclick="simEditOdds('c')" title="배당 수정" class="sim-mini-btn">✏️</button>
+                <button type="button" onclick="simResetOddsOverride('c')" title="자동으로 복귀" class="sim-mini-btn">↺</button>
+              </div>
+              <span id="sim-odds-disp-c" class="sim-odds-val" style="color:var(--accent2);">—</span>
+              <div id="sim-odds-edit-c" style="display:none;gap:4px;margin-top:5px;">
+                <input type="number" id="sim-odds-input-c" step="0.01" min="1.01" placeholder="실지급 배당" onkeydown="if(event.key==='Enter')simApplyOddsEdit('c')" class="sim-edit-input">
+                <button type="button" onclick="simApplyOddsEdit('c')" class="sim-edit-ok">확인</button>
+              </div>
             </div>
           </div>
         </div>
@@ -2882,35 +2906,35 @@ window.addEventListener('unhandledrejection', function(e) {
             <div>
               <div style="font-size:10px;color:var(--accent);font-family:'JetBrains Mono',monospace;margin-bottom:5px;">A 베팅</div>
               <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;">
-                <label id="sim-lbl-af1" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-a" id="sim-f-a1" value="1" onchange="simOnInput()" style="accent-color:var(--gold);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">1폴</span></label>
-                <label id="sim-lbl-af2" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-a" id="sim-f-a2" value="2" onchange="simOnInput()" style="accent-color:var(--green);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">2폴</span></label>
-                <label id="sim-lbl-af3" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-a" id="sim-f-a3" value="3" onchange="simOnInput()" style="accent-color:var(--green);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">3폴</span></label>
-                <label id="sim-lbl-af4" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-a" id="sim-f-a4" value="4" onchange="simOnInput()" style="accent-color:var(--green);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">4폴</span></label>
-                <label id="sim-lbl-af5" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-a" id="sim-f-a5" value="5" onchange="simOnInput()" style="accent-color:var(--green);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">5폴</span></label>
-                <label id="sim-lbl-af6" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-a" id="sim-f-a6" value="6" onchange="simOnInput()" style="accent-color:var(--green);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">6폴</span></label>
+                <label id="sim-lbl-af1" class="sim-radio-lbl"><input type="radio" name="sim-folder-a" id="sim-f-a1" value="1" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--gold);"><span class="sim-radio-txt">1폴</span></label>
+                <label id="sim-lbl-af2" class="sim-radio-lbl"><input type="radio" name="sim-folder-a" id="sim-f-a2" value="2" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--green);"><span class="sim-radio-txt">2폴</span></label>
+                <label id="sim-lbl-af3" class="sim-radio-lbl"><input type="radio" name="sim-folder-a" id="sim-f-a3" value="3" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--green);"><span class="sim-radio-txt">3폴</span></label>
+                <label id="sim-lbl-af4" class="sim-radio-lbl"><input type="radio" name="sim-folder-a" id="sim-f-a4" value="4" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--green);"><span class="sim-radio-txt">4폴</span></label>
+                <label id="sim-lbl-af5" class="sim-radio-lbl"><input type="radio" name="sim-folder-a" id="sim-f-a5" value="5" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--green);"><span class="sim-radio-txt">5폴</span></label>
+                <label id="sim-lbl-af6" class="sim-radio-lbl"><input type="radio" name="sim-folder-a" id="sim-f-a6" value="6" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--green);"><span class="sim-radio-txt">6폴</span></label>
               </div>
             </div>
             <div>
               <div style="font-size:10px;color:var(--green);font-family:'JetBrains Mono',monospace;margin-bottom:5px;">B 베팅</div>
               <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;">
-                <label id="sim-lbl-bf1" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-b" id="sim-f-b1" value="1" onchange="simOnInput()" style="accent-color:var(--gold);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">1폴</span></label>
-                <label id="sim-lbl-bf2" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-b" id="sim-f-b2" value="2" onchange="simOnInput()" style="accent-color:var(--green);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">2폴</span></label>
-                <label id="sim-lbl-bf3" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-b" id="sim-f-b3" value="3" onchange="simOnInput()" style="accent-color:var(--green);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">3폴</span></label>
-                <label id="sim-lbl-bf4" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-b" id="sim-f-b4" value="4" onchange="simOnInput()" style="accent-color:var(--green);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">4폴</span></label>
-                <label id="sim-lbl-bf5" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-b" id="sim-f-b5" value="5" onchange="simOnInput()" style="accent-color:var(--green);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">5폴</span></label>
-                <label id="sim-lbl-bf6" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-b" id="sim-f-b6" value="6" onchange="simOnInput()" style="accent-color:var(--green);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">6폴</span></label>
+                <label id="sim-lbl-bf1" class="sim-radio-lbl"><input type="radio" name="sim-folder-b" id="sim-f-b1" value="1" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--gold);"><span class="sim-radio-txt">1폴</span></label>
+                <label id="sim-lbl-bf2" class="sim-radio-lbl"><input type="radio" name="sim-folder-b" id="sim-f-b2" value="2" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--green);"><span class="sim-radio-txt">2폴</span></label>
+                <label id="sim-lbl-bf3" class="sim-radio-lbl"><input type="radio" name="sim-folder-b" id="sim-f-b3" value="3" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--green);"><span class="sim-radio-txt">3폴</span></label>
+                <label id="sim-lbl-bf4" class="sim-radio-lbl"><input type="radio" name="sim-folder-b" id="sim-f-b4" value="4" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--green);"><span class="sim-radio-txt">4폴</span></label>
+                <label id="sim-lbl-bf5" class="sim-radio-lbl"><input type="radio" name="sim-folder-b" id="sim-f-b5" value="5" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--green);"><span class="sim-radio-txt">5폴</span></label>
+                <label id="sim-lbl-bf6" class="sim-radio-lbl"><input type="radio" name="sim-folder-b" id="sim-f-b6" value="6" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--green);"><span class="sim-radio-txt">6폴</span></label>
               </div>
             </div>
           </div>
           <div id="sim-c-folder-wrap" style="display:none;">
             <div style="font-size:10px;color:var(--accent2);font-family:'JetBrains Mono',monospace;margin-bottom:5px;margin-top:8px;">C 베팅 폴더 수 (모험)</div>
             <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;">
-              <label id="sim-lbl-cf1" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-c" id="sim-f-c1" value="1" onchange="simOnInput()" style="accent-color:var(--accent2);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">1폴</span></label>
-              <label id="sim-lbl-cf2" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-c" id="sim-f-c2" value="2" onchange="simOnInput()" style="accent-color:var(--accent2);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">2폴</span></label>
-              <label id="sim-lbl-cf3" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-c" id="sim-f-c3" value="3" onchange="simOnInput()" style="accent-color:var(--accent2);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">3폴</span></label>
-              <label id="sim-lbl-cf4" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-c" id="sim-f-c4" value="4" onchange="simOnInput()" style="accent-color:var(--accent2);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">4폴</span></label>
-              <label id="sim-lbl-cf5" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-c" id="sim-f-c5" value="5" onchange="simOnInput()" style="accent-color:var(--accent2);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">5폴</span></label>
-              <label id="sim-lbl-cf6" style="display:flex;align-items:center;justify-content:center;gap:3px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 2px;cursor:pointer;"><input type="radio" name="sim-folder-c" id="sim-f-c6" value="6" onchange="simOnInput()" style="accent-color:var(--accent2);width:12px;height:12px;"><span style="font-size:11px;font-weight:600;color:var(--text);">6폴</span></label>
+              <label id="sim-lbl-cf1" class="sim-radio-lbl"><input type="radio" name="sim-folder-c" id="sim-f-c1" value="1" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--accent2);"><span class="sim-radio-txt">1폴</span></label>
+              <label id="sim-lbl-cf2" class="sim-radio-lbl"><input type="radio" name="sim-folder-c" id="sim-f-c2" value="2" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--accent2);"><span class="sim-radio-txt">2폴</span></label>
+              <label id="sim-lbl-cf3" class="sim-radio-lbl"><input type="radio" name="sim-folder-c" id="sim-f-c3" value="3" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--accent2);"><span class="sim-radio-txt">3폴</span></label>
+              <label id="sim-lbl-cf4" class="sim-radio-lbl"><input type="radio" name="sim-folder-c" id="sim-f-c4" value="4" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--accent2);"><span class="sim-radio-txt">4폴</span></label>
+              <label id="sim-lbl-cf5" class="sim-radio-lbl"><input type="radio" name="sim-folder-c" id="sim-f-c5" value="5" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--accent2);"><span class="sim-radio-txt">5폴</span></label>
+              <label id="sim-lbl-cf6" class="sim-radio-lbl"><input type="radio" name="sim-folder-c" id="sim-f-c6" value="6" onchange="simOnInput()" class="sim-radio-dot" style="accent-color:var(--accent2);"><span class="sim-radio-txt">6폴</span></label>
             </div>
           </div>
           <div id="sim-folder-warn" style="display:none;margin-top:6px;font-size:11px;color:var(--red);">A/B 베팅 폴더 수를 모두 선택해야 진행할 수 있어요</div>
@@ -2918,7 +2942,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
         <!-- ── 판단 데이터 입력 (홀딩 시 베팅기록 미결로 전송 → 과신방어/레그성적표 커버) ── -->
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">판단 데이터 (홀딩 → 베팅기록 미결 등록)</div>
+          <div class="hint-mb4">판단 데이터 (홀딩 → 베팅기록 미결 등록)</div>
           <div style="font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.5;">예측 승률·종목을 넣으면 홀딩 시 각 갈래가 베팅기록 미결로 등록돼 과신방어·레그성적표가 커버합니다. 다폴은 폴더별 배당·승률을 입력하세요.</div>
           <div id="sim-judge-a" style="margin-bottom:8px;"></div>
           <div id="sim-judge-b" style="margin-bottom:8px;"></div>
@@ -2937,10 +2961,10 @@ window.addEventListener('unhandledrejection', function(e) {
         <div class="card" style="border:1px solid rgba(255,215,0,0.25);background:rgba(255,215,0,0.04);">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
             <div style="font-size:11px;color:var(--gold);letter-spacing:1px;font-weight:700;">⏸ 진행중</div>
-            <div id="sim-pending-round" style="font-size:11px;color:var(--text3);"></div>
+            <div id="sim-pending-round" class="hint11"></div>
           </div>
           <div id="sim-pending-info" style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.8;"></div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">결과 선택</div>
+          <div class="hint-mb8">결과 선택</div>
           <div id="sim-pending-btns" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
           <button onclick="simCancelPending()" style="width:100%;margin-top:8px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);font-size:12px;cursor:pointer;">홀딩 취소</button>
         </div>
@@ -2976,7 +3000,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <div style="display:flex;align-items:center;gap:8px;">
             <div style="font-size:11px;color:var(--text3);letter-spacing:1px;">히스토리</div>
-            <div id="sim-hstats" style="font-size:11px;color:var(--text3);"></div>
+            <div id="sim-hstats" class="hint11"></div>
           </div>
           <button onclick="simToggleHistory()" id="sim-hist-toggle"
             style="font-size:11px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:3px 10px;cursor:pointer;">펼치기</button>
@@ -3011,13 +3035,13 @@ window.addEventListener('unhandledrejection', function(e) {
     <!-- 통계 탭 -->
     <div id="sim-tc-stats" style="display:none;">
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
-        <div class="card" style="padding:10px;text-align:center;"><div style="font-size:10px;color:var(--text3);margin-bottom:4px;">총 시도</div><div id="sim-st-rnd" style="font-size:16px;font-weight:700;">0회</div></div>
-        <div class="card" style="padding:10px;text-align:center;"><div style="font-size:10px;color:var(--text3);margin-bottom:4px;">성공률</div><div id="sim-st-wr" style="font-size:16px;font-weight:700;">-</div></div>
-        <div class="card" style="padding:10px;text-align:center;"><div style="font-size:10px;color:var(--text3);margin-bottom:4px;">수익률</div><div id="sim-st-roi" style="font-size:16px;font-weight:700;">0%</div></div>
-        <div class="card" style="padding:10px;text-align:center;"><div style="font-size:10px;color:var(--text3);margin-bottom:4px;">최고 도달</div><div id="sim-st-peak" style="font-size:16px;font-weight:700;color:var(--gold);">-</div></div>
+        <div class="card" style="padding:10px;text-align:center;"><div class="hint-mb4">총 시도</div><div id="sim-st-rnd" style="font-size:16px;font-weight:700;">0회</div></div>
+        <div class="card" style="padding:10px;text-align:center;"><div class="hint-mb4">성공률</div><div id="sim-st-wr" style="font-size:16px;font-weight:700;">-</div></div>
+        <div class="card" style="padding:10px;text-align:center;"><div class="hint-mb4">수익률</div><div id="sim-st-roi" style="font-size:16px;font-weight:700;">0%</div></div>
+        <div class="card" style="padding:10px;text-align:center;"><div class="hint-mb4">최고 도달</div><div id="sim-st-peak" style="font-size:16px;font-weight:700;color:var(--gold);">-</div></div>
       </div>
       <div class="card">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">보유 vs 누적 투자 추이</div>
+        <div class="hint11-mb12">보유 vs 누적 투자 추이</div>
         <div style="position:relative;height:180px;"><canvas id="sim-chart-cv"></canvas></div>
       </div>
       <div class="card">
@@ -3029,7 +3053,7 @@ window.addEventListener('unhandledrejection', function(e) {
     <!-- 목표기록 탭 -->
     <div id="sim-tc-goals" style="display:none;">
       <div class="card">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">목표 달성 기록</div>
+        <div class="hint11-mb12">목표 달성 기록</div>
         <div id="sim-goal-hist-list"><div style="font-size:12px;color:var(--text3);text-align:center;padding:20px;">아직 달성한 목표가 없어요</div></div>
       </div>
     </div>
@@ -3037,7 +3061,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
     <div id="sim-tc-config" style="display:none;">
       <div class="card">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">시작 금액 설정</div>
+        <div class="hint11-mb12">시작 금액 설정</div>
         <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:12px;">현재 보유한 금액을 입력하면<br>로드맵에서 적합한 회차로 자동 배정돼요.</div>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <input type="number" id="sim-start-input" placeholder="보유 금액 입력 (원)" min="1000" step="100"
@@ -3048,10 +3072,10 @@ window.addEventListener('unhandledrejection', function(e) {
       </div>
 
       <div class="card">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">목표 금액</div>
+        <div class="hint11-mb12">목표 금액</div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <div id="sim-goal-display" style="font-size:24px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gold);">1,000,000원</div>
-          <div style="font-size:11px;color:var(--text3);">현재 목표</div>
+          <div class="hint11">현재 목표</div>
         </div>
         <div style="display:flex;gap:8px;">
           <input type="number" id="sim-goal-input" placeholder="새 목표 금액" min="1000" step="10000"
@@ -3060,7 +3084,7 @@ window.addEventListener('unhandledrejection', function(e) {
         </div>
       </div>
       <div class="card">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">데이터</div>
+        <div class="hint11-mb12">데이터</div>
         <div style="display:flex;flex-direction:column;gap:8px;">
           <button onclick="simManualSave()" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.08);color:var(--accent);font-size:13px;cursor:pointer;font-weight:600;">💾 저장하기</button>
           <button onclick="simManualLoad()" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:13px;cursor:pointer;">📂 불러오기</button>
@@ -3080,19 +3104,19 @@ window.addEventListener('unhandledrejection', function(e) {
       <div style="font-size:11px;color:var(--gold);letter-spacing:1px;font-weight:700;margin-bottom:12px;">⚙️ 베팅 설정</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
         <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">총 투입금액</div>
+          <div class="hint-mb5">총 투입금액</div>
           <input type="number" id="combo-total-amt" value="1000000" min="1000" step="10000"
             style="width:100%;padding:8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);outline:none;"
             oninput="comboUpdatePerBet()">
         </div>
         <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">총 조합 수</div>
+          <div class="hint-mb5">총 조합 수</div>
           <input type="number" id="combo-total-count" value="10" min="2" max="20"
             style="width:100%;padding:8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);outline:none;"
             oninput="comboUpdatePerBet()">
         </div>
         <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">원금회수용 수</div>
+          <div class="hint-mb5">원금회수용 수</div>
           <input type="number" id="combo-recovery-count" value="4" min="1" max="10"
             style="width:100%;padding:8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);outline:none;"
             oninput="comboUpdatePerBet()">
@@ -3117,7 +3141,7 @@ window.addEventListener('unhandledrejection', function(e) {
       <!-- 헤더 -->
       <div style="display:grid;grid-template-columns:28px 1fr 72px 60px 60px 54px 28px;gap:4px;margin-bottom:6px;padding:0 2px;">
         <div></div>
-        <div style="font-size:10px;color:var(--text3);">경기명</div>
+        <div class="hint">경기명</div>
         <div style="font-size:10px;color:var(--text3);text-align:center;">배당</div>
         <div style="font-size:10px;color:var(--text3);text-align:center;">내재확률</div>
         <div style="font-size:10px;color:var(--accent);text-align:center;">내 예측%</div>
@@ -3145,19 +3169,19 @@ window.addEventListener('unhandledrejection', function(e) {
       <!-- 원금회수용 -->
       <div style="margin-bottom:8px;">
         <div style="font-size:11px;letter-spacing:1px;font-weight:700;color:#4fc3f7;">🛡️ 원금회수용</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:3px;">2~3폴더 · 적중확률 우선 · 하나만 터져도 총 투입금 80% 이상 회수</div>
+        <div class="hint-mt3">2~3폴더 · 적중확률 우선 · 하나만 터져도 총 투입금 80% 이상 회수</div>
       </div>
-      <div id="combo-recovery-list" style="margin-bottom:16px;"></div>
+      <div id="combo-recovery-list" class="mb16"></div>
 
       <!-- 수익용 탭 UI -->
       <div style="margin-bottom:8px;">
         <div style="font-size:11px;letter-spacing:1px;font-weight:700;color:var(--gold);">💰 수익용</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:3px;">폴더 수 탭을 골라 마음에 드는 조합을 담으세요</div>
+        <div class="hint-mt3">폴더 수 탭을 골라 마음에 드는 조합을 담으세요</div>
       </div>
       <!-- 폴더 탭 버튼 -->
       <div id="combo-profit-tabs" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;"></div>
       <!-- 탭별 콘텐츠 -->
-      <div id="combo-profit-list" style="margin-bottom:16px;"></div>
+      <div id="combo-profit-list" class="mb16"></div>
 
       <!-- 요약 -->
       <div class="card" style="background:var(--bg2);">
@@ -3241,7 +3265,7 @@ window.addEventListener('unhandledrejection', function(e) {
             <!-- 다폴더 전용 -->
             <div id="plan-multi-wrap" style="display:none;">
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                <span style="font-size:11px;color:var(--text3);">폴더 수</span>
+                <span class="hint11">폴더 수</span>
                 <select id="plan-folder-count" onchange="renderPlanFolderRows()" style="padding:5px 8px;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);">
                   <option value="2">2폴</option>
                   <option value="3">3폴</option>
@@ -3311,7 +3335,7 @@ window.addEventListener('unhandledrejection', function(e) {
         </div>
         <div class="card" style="margin-top:12px;">
           <div class="card-title">🔄 <span>회차 자동 회고</span>
-            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">회차 마감 시 자동 생성</span>
+            <span class="lbl-right">회차 마감 시 자동 생성</span>
           </div>
           <div id="round-review-list" style="display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto;">
             <div style="font-size:12px;color:var(--text3);text-align:center;padding:16px;">회차를 마감하면 자동으로 회고가 생성됩니다.</div>
@@ -3322,7 +3346,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
     <!-- ③ 감정 통계 탭 -->
     <div id="jp-emotion" style="display:none;">
-      <div class="card" style="margin-bottom:16px;">
+      <div class="card mb16">
         <div class="card-title">🧠 <span>감정별 베팅 성과</span>
           <span style="margin-left:auto;font-size:10px;color:var(--text3);">베팅 기록의 감정 태그 기반</span>
         </div>
@@ -3342,7 +3366,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
     <!-- ④ 원칙 준수 탭 -->
     <div id="jp-rule" style="display:none;">
-      <div class="card" style="margin-bottom:16px;">
+      <div class="card mb16">
         <div class="card-title">📋 <span>원칙 준수 현황</span>
           <span style="margin-left:auto;font-size:10px;color:var(--text3);">설정 탭에서 원칙 추가 가능</span>
         </div>
@@ -3398,7 +3422,7 @@ window.addEventListener('unhandledrejection', function(e) {
       인출한 금액은 전체 누적 자산에서 빠지며, 베팅 자금으로 다시 쓰지 않는 돈으로 취급됩니다.
     </div>
 
-    <div class="grid-3" style="margin-bottom:16px;">
+    <div class="grid-3 mb16">
       <div class="card">
         <div class="card-title">💰 <span>인출 가능 자산</span></div>
         <div class="stat-val gold" id="wallet-available">—</div>
@@ -3416,7 +3440,7 @@ window.addEventListener('unhandledrejection', function(e) {
       </div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:16px;">
+    <div class="grid-2 mb16">
       <!-- 인출 카드 -->
       <div class="card">
         <div class="card-title">📤 <span>생활비로 인출</span></div>
@@ -3480,7 +3504,7 @@ window.addEventListener('unhandledrejection', function(e) {
     </div>
 
     <!-- 카테고리별 합계 -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card mb16">
       <div class="card-title">📋 <span>카테고리별 누적 인출</span></div>
       <div id="wallet-category-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px;"></div>
     </div>
@@ -3530,7 +3554,7 @@ window.addEventListener('unhandledrejection', function(e) {
             </div>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg3);border-radius:6px;">
-            <span style="font-size:10px;color:var(--text3);">현재 회차 뱅크롤</span>
+            <span class="hint">현재 회차 뱅크롤</span>
             <span class="mono" id="settings-display-bankroll" style="font-size:14px;font-weight:700;color:var(--accent);">미설정</span>
           </div>
         </div>
@@ -3548,7 +3572,7 @@ window.addEventListener('unhandledrejection', function(e) {
             </div>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg3);border-radius:6px;margin-bottom:6px;">
-            <span style="font-size:10px;color:var(--text3);">이전 누적</span>
+            <span class="hint">이전 누적</span>
             <span class="mono" id="settings-display-lifetime-offset" style="font-size:13px;font-weight:700;color:var(--gold);">—</span>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.15);border-radius:6px;">
@@ -3556,7 +3580,7 @@ window.addEventListener('unhandledrejection', function(e) {
             <span class="mono" id="settings-display-lifetime" style="font-size:15px;font-weight:700;color:var(--gold);">미설정</span>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg3);border-radius:6px;margin-top:6px;">
-            <span style="font-size:10px;color:var(--text3);">생활비로 인출한 총액 <span style="opacity:0.6;">(생활비 지갑 탭)</span></span>
+            <span class="hint">생활비로 인출한 총액 <span style="opacity:0.6;">(생활비 지갑 탭)</span></span>
             <span class="mono" id="settings-display-withdrawn" style="font-size:13px;font-weight:700;color:var(--red);">₩0</span>
           </div>
         </div>
@@ -3573,7 +3597,7 @@ window.addEventListener('unhandledrejection', function(e) {
             <span style="font-size:16px;color:var(--text2);font-weight:700;">%</span>
           </div>
           <div id="bet-seed-preview" style="margin-top:8px;padding:10px 12px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:6px;display:none;">
-            <span style="font-size:11px;color:var(--text3);">현재 회차 뱅크롤 기준 베팅 시드 → </span>
+            <span class="hint11">현재 회차 뱅크롤 기준 베팅 시드 → </span>
             <span id="bet-seed-preview-val" class="mono" style="font-size:14px;font-weight:700;color:var(--accent);">—</span>
           </div>
         </div>
@@ -3591,18 +3615,18 @@ window.addEventListener('unhandledrejection', function(e) {
 
         <div id="round-seed-status" style="margin-bottom:12px;padding:12px;background:var(--bg3);border-radius:8px;display:none;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <span style="font-size:11px;color:var(--text3);">고정일</span>
+            <span class="hint11">고정일</span>
             <span class="mono" id="round-seed-locked-date" style="font-size:12px;color:var(--text2);">—</span>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <span style="font-size:11px;color:var(--text3);">고정 시드</span>
+            <span class="hint11">고정 시드</span>
             <div style="text-align:right;">
               <span class="mono" id="round-seed-locked-val" style="font-size:16px;font-weight:700;color:var(--gold);">—</span>
               <div id="round-seed-rounded-note" style="display:none;font-size:10px;color:var(--text3);margin-top:1px;"></div>
             </div>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:11px;color:var(--text3);">이번 주 손익</span>
+            <span class="hint11">이번 주 손익</span>
             <span class="mono" id="round-seed-used" style="font-size:14px;font-weight:700;">—</span>
           </div>
           <div style="margin-top:10px;">
@@ -3618,7 +3642,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:8px;">
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">고정 날짜 (한국 시간)</div>
+            <div class="hint-mb4">고정 날짜 (한국 시간)</div>
             <input type="date" id="round-seed-date"
               style="width:100%;padding:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;">
           </div>
@@ -3658,15 +3682,15 @@ window.addEventListener('unhandledrejection', function(e) {
           <div style="display:flex;flex-wrap:wrap;gap:8px;">
             <button id="round-type-manual" onclick="setRoundType('manual')"
               style="flex:1;padding:8px;font-size:11px;border-radius:6px;border:2px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;">
-              ✋ 수동 고정<br><span style="font-size:10px;color:var(--text3);">직접 설정에서 고정</span>
+              ✋ 수동 고정<br><span class="hint">직접 설정에서 고정</span>
             </button>
             <button id="round-type-monthly" onclick="setRoundType('monthly')"
               style="flex:1;padding:8px;font-size:11px;border-radius:6px;border:2px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;">
-              📅 월 단위<br><span style="font-size:10px;color:var(--text3);">매월 1일 자동 갱신</span>
+              📅 월 단위<br><span class="hint">매월 1일 자동 갱신</span>
             </button>
             <button id="round-type-nbet" onclick="setRoundType('nbet')"
               style="flex:1;padding:8px;font-size:11px;border-radius:6px;border:2px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;">
-              🔢 N건 단위<br><span style="font-size:10px;color:var(--text3);">N건마다 자동 갱신</span>
+              🔢 N건 단위<br><span class="hint">N건마다 자동 갱신</span>
             </button>
           </div>
           <div id="round-nbet-wrap" style="display:none;margin-top:8px;align-items:center;gap:8px;">
@@ -3723,7 +3747,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <!-- ▶ 시즌 히스토리 (지난 시즌 삭제 가능, 현재 시즌은 보호) -->
         <div class="card mt-16" id="season-history-card">
           <div class="card-title">📋 <span>시즌 기록</span>
-            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">지난 시즌은 삭제 가능</span>
+            <span class="lbl-right">지난 시즌은 삭제 가능</span>
           </div>
           <div id="season-history-container" style="padding-top:4px;">
             <div style="font-size:11px;color:var(--text3);text-align:center;padding:16px 0;">불러오는 중…</div>
@@ -3734,7 +3758,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <!-- ▶ 회차(시드) 사이클 관리 -->
         <div class="card mt-16" id="round-mgmt-card">
           <div class="card-title">🔒 <span>회차 시드 관리</span>
-            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">LOCKED = 진행 중 · UNLOCKED = 종료</span>
+            <span class="lbl-right">LOCKED = 진행 중 · UNLOCKED = 종료</span>
           </div>
 
           <!-- 현재 상태 배너 -->
@@ -3811,7 +3835,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <!-- 나만의 베팅 원칙 -->
         <div class="card mt-16">
           <div class="card-title">🔧 <span>고급 기능 표시</span>
-            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">탭에서 숨겨진 기능을 표시합니다</span>
+            <span class="lbl-right">탭에서 숨겨진 기능을 표시합니다</span>
           </div>
           <div style="display:flex;flex-direction:column;gap:10px;">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--bg3);border-radius:8px;">
@@ -3840,7 +3864,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <!-- 나만의 베팅 원칙 -->
         <div class="card mt-16">
           <div class="card-title">📋 <span>나만의 베팅 원칙</span>
-            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">최대 10개 · 베팅 시 체크리스트로 사용</span>
+            <span class="lbl-right">최대 10개 · 베팅 시 체크리스트로 사용</span>
           </div>
           <div style="display:flex;gap:6px;margin-bottom:12px;">
             <input type="text" id="principle-input" placeholder="예: 배당 2.0 이상만 베팅한다" maxlength="60"
@@ -3889,7 +3913,7 @@ window.addEventListener('unhandledrejection', function(e) {
           <div class="mono" style="font-size:16px;font-weight:700;color:var(--accent);" id="settings-display-start">미설정</div>
         </div>
         <div style="padding:12px;background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.15);border-radius:6px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">현재 회차 뱅크롤</div>
+          <div class="hint-mb5">현재 회차 뱅크롤</div>
           <div class="mono" style="font-size:16px;font-weight:700;color:var(--green);" id="settings-display-bankroll-confirm">미설정</div>
         </div>
         <div style="padding:12px;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.3);border-radius:6px;text-align:center;">
@@ -3901,23 +3925,23 @@ window.addEventListener('unhandledrejection', function(e) {
           <div class="mono" style="font-size:16px;font-weight:700;color:var(--accent);" id="settings-display-bet-seed">미설정</div>
         </div>
         <div style="padding:12px;background:var(--bg3);border-radius:6px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">고정 시드값</div>
+          <div class="hint-mb5">고정 시드값</div>
           <div class="mono" style="font-size:16px;font-weight:700;color:var(--text2);" id="settings-display-seed">미설정</div>
         </div>
         <div style="padding:12px;background:var(--bg3);border-radius:6px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">목표 자금</div>
+          <div class="hint-mb5">목표 자금</div>
           <div class="mono" style="font-size:16px;font-weight:700;color:var(--accent);" id="settings-display-target">미설정</div>
         </div>
         <div style="padding:12px;background:var(--bg3);border-radius:6px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">목표 수익</div>
+          <div class="hint-mb5">목표 수익</div>
           <div class="mono" style="font-size:16px;font-weight:700;color:var(--green);" id="settings-display-diff">미설정</div>
         </div>
         <div style="padding:12px;background:var(--bg3);border-radius:6px;text-align:center;border:1px solid rgba(255,59,92,0.2);">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">일간 손실 한도</div>
+          <div class="hint-mb5">일간 손실 한도</div>
           <div class="mono" style="font-size:16px;font-weight:700;color:var(--red);" id="settings-display-daily">미설정</div>
         </div>
         <div style="padding:12px;background:var(--bg3);border-radius:6px;text-align:center;border:1px solid rgba(255,59,92,0.2);">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">주간 손실 한도</div>
+          <div class="hint-mb5">주간 손실 한도</div>
           <div class="mono" style="font-size:16px;font-weight:700;color:var(--red);" id="settings-display-weekly">미설정</div>
         </div>
       </div>
@@ -3934,11 +3958,11 @@ window.addEventListener('unhandledrejection', function(e) {
       <div id="analyze-grade-badge" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;flex-shrink:0;"></div>
       <div style="flex:1;">
         <div id="analyze-grade-banner-title" style="font-size:12px;font-weight:700;"></div>
-        <div id="analyze-grade-banner-sub" style="font-size:10px;color:var(--text3);margin-top:2px;"></div>
+        <div id="analyze-grade-banner-sub" class="hint-mt2"></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <span id="analyze-sim-mode-badge" style="font-size:11px;padding:4px 10px;border-radius:6px;font-weight:700;"></span>
-        <span id="analyze-sim-compare" style="font-size:10px;color:var(--text3);"></span>
+        <span id="analyze-sim-compare" class="hint"></span>
       </div>
     </div>
 
@@ -3972,7 +3996,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
     <div class="card">
       <div class="card-title">📉 <span>뱅크롤 시나리오 시뮬레이션</span>
-        <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">몬테카를로 1,000회 · 시드 고정</span>
+        <span class="lbl-right">몬테카를로 1,000회 · 시드 고정</span>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:12px;font-size:11px;align-items:center;">
         <span style="color:#fff;">━━ 실제 기록</span>
@@ -3985,25 +4009,25 @@ window.addEventListener('unhandledrejection', function(e) {
       <div class="chart-container-lg"><canvas id="analyzeChart"></canvas></div>
       <!-- 시뮬 결과 카드 4개 -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px;" id="analyze-sim-cards">
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">💀 파산 확률</div>
+        <div class="stat-card">
+          <div class="hint-mb6">💀 파산 확률</div>
           <div class="mono" id="sim-ruin-prob" style="font-size:22px;font-weight:700;color:var(--red);">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">뱅크롤 0 도달</div>
+          <div class="hint-mt4">뱅크롤 0 도달</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">🎯 목표 도달</div>
+        <div class="stat-card">
+          <div class="hint-mb6">🎯 목표 도달</div>
           <div class="mono" id="sim-goal-bets" style="font-size:22px;font-weight:700;color:var(--gold);">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">예상 베팅 수 (중앙값)</div>
+          <div class="hint-mt4">예상 베팅 수 (중앙값)</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">❄️ 최대 예상 연패</div>
+        <div class="stat-card">
+          <div class="hint-mb6">❄️ 최대 예상 연패</div>
           <div class="mono" id="sim-max-streak" style="font-size:22px;font-weight:700;color:var(--accent);">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">90% 구간 내 최장</div>
+          <div class="hint-mt4">90% 구간 내 최장</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">📉 최악 낙폭</div>
+        <div class="stat-card">
+          <div class="hint-mb6">📉 최악 낙폭</div>
           <div class="mono" id="sim-max-dd" style="font-size:22px;font-weight:700;color:var(--red);">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">하위 10% 기준</div>
+          <div class="hint-mt4">하위 10% 기준</div>
         </div>
       </div>
     </div>
@@ -4031,35 +4055,35 @@ window.addEventListener('unhandledrejection', function(e) {
 
       <!-- 상단 KPI 6개 -->
       <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px;">
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">내 예측 정확도</div>
-          <div class="mono" id="judge-pred-edge" style="font-size:20px;font-weight:700;">—</div>
-          <div id="judge-pred-edge-label" style="font-size:10px;color:var(--text3);margin-top:4px;">내 예상 vs 북메이커</div>
+        <div class="stat-card">
+          <div class="hint-mb5">내 예측 정확도</div>
+          <div class="mono big-num" id="judge-pred-edge">—</div>
+          <div id="judge-pred-edge-label" class="hint-mt4">내 예상 vs 북메이커</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">EV 판단 신뢰도</div>
-          <div class="mono" id="judge-ev-trust" style="font-size:20px;font-weight:700;">—</div>
-          <div id="judge-ev-trust-label" style="font-size:10px;color:var(--text3);margin-top:4px;">기댓값 실현율</div>
+        <div class="stat-card">
+          <div class="hint-mb5">EV 판단 신뢰도</div>
+          <div class="mono big-num" id="judge-ev-trust">—</div>
+          <div id="judge-ev-trust-label" class="hint-mt4">기댓값 실현율</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">최고 수익 폴더</div>
+        <div class="stat-card">
+          <div class="hint-mb5">최고 수익 폴더</div>
           <div class="mono" id="judge-best-folder" style="font-size:20px;font-weight:700;color:var(--green);">—</div>
-          <div id="judge-best-folder-label" style="font-size:10px;color:var(--text3);margin-top:4px;">ROI 기준</div>
+          <div id="judge-best-folder-label" class="hint-mt4">ROI 기준</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">최고 수익 종목</div>
+        <div class="stat-card">
+          <div class="hint-mb5">최고 수익 종목</div>
           <div class="mono" id="judge-best-sport" style="font-size:20px;font-weight:700;color:var(--accent);">—</div>
-          <div id="judge-best-sport-label" style="font-size:10px;color:var(--text3);margin-top:4px;">ROI 기준</div>
+          <div id="judge-best-sport-label" class="hint-mt4">ROI 기준</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">판단력 트렌드</div>
-          <div class="mono" id="judge-trend-val" style="font-size:20px;font-weight:700;">—</div>
-          <div id="judge-trend-label" style="font-size:10px;color:var(--text3);margin-top:4px;">최근 10건 vs 전체</div>
+        <div class="stat-card">
+          <div class="hint-mb5">판단력 트렌드</div>
+          <div class="mono big-num" id="judge-trend-val">—</div>
+          <div id="judge-trend-label" class="hint-mt4">최근 10건 vs 전체</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">낙관 편향</div>
-          <div class="mono" id="judge-bias-val" style="font-size:20px;font-weight:700;">—</div>
-          <div id="judge-bias-label" style="font-size:10px;color:var(--text3);margin-top:4px;">내 예측 − 실제</div>
+        <div class="stat-card">
+          <div class="hint-mb5">낙관 편향</div>
+          <div class="mono big-num" id="judge-bias-val">—</div>
+          <div id="judge-bias-label" class="hint-mt4">내 예측 − 실제</div>
         </div>
       </div>
 
@@ -4067,12 +4091,12 @@ window.addEventListener('unhandledrejection', function(e) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;">
         <div>
           <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">📦 폴더 수 별 수익 vs 기댓값</div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">막대(실제) vs 선(기댓값) — 막대가 선 위면 운, 아래면 기댓값 미달</div>
+          <div class="hint-mb8">막대(실제) vs 선(기댓값) — 막대가 선 위면 운, 아래면 기댓값 미달</div>
           <div style="height:190px;"><canvas id="judge-folder-chart"></canvas></div>
         </div>
         <div>
           <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">📈 예측 승률 vs 실제 (MA5)</div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">노란선이 초록선보다 높을수록 낙관 편향 — 수렴하면 예측이 정확해지는 중</div>
+          <div class="hint-mb8">노란선이 초록선보다 높을수록 낙관 편향 — 수렴하면 예측이 정확해지는 중</div>
           <div style="height:190px;"><canvas id="judge-pred-chart"></canvas></div>
         </div>
       </div>
@@ -4081,17 +4105,17 @@ window.addEventListener('unhandledrejection', function(e) {
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:18px;">
         <div>
           <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">📊 판단력 트렌드 (구간별 엣지)</div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">10건 단위로 끊어서 내 예측 엣지 변화 — 오를수록 실력이 늘고 있는 것</div>
+          <div class="hint-mb8">10건 단위로 끊어서 내 예측 엣지 변화 — 오를수록 실력이 늘고 있는 것</div>
           <div style="height:160px;"><canvas id="judge-trend-chart"></canvas></div>
         </div>
         <div>
           <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">💰 배당 구간별 예측 정확도</div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">어느 배당대에서 내 예측이 맞나 — 초과 적중(초록) vs 미달(빨강)</div>
+          <div class="hint-mb8">어느 배당대에서 내 예측이 맞나 — 초과 적중(초록) vs 미달(빨강)</div>
           <div style="height:160px;"><canvas id="judge-odds-chart"></canvas></div>
         </div>
         <div>
           <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">🔮 낙관 편향 추이</div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">내 예측 − 실제 적중률 MA5 — 0에 가까울수록 편향이 없는 것</div>
+          <div class="hint-mb8">내 예측 − 실제 적중률 MA5 — 0에 가까울수록 편향이 없는 것</div>
           <div style="height:160px;"><canvas id="judge-bias-chart"></canvas></div>
         </div>
       </div>
@@ -4099,7 +4123,7 @@ window.addEventListener('unhandledrejection', function(e) {
       <!-- 종목×폴더 교차표 -->
       <div style="margin-bottom:18px;">
         <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;">🗂 종목 × 폴더 수 교차 ROI표</div>
-        <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">어떤 종목을 몇 폴로 하는 게 나한테 맞는지 — 초록: 수익, 빨강: 손실, 숫자는 ROI%</div>
+        <div class="hint-mb8">어떤 종목을 몇 폴로 하는 게 나한테 맞는지 — 초록: 수익, 빨강: 손실, 숫자는 ROI%</div>
         <div id="judge-cross-table" style="overflow-x:auto;"></div>
       </div>
 
@@ -4118,85 +4142,85 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="section-title">🔮 예측</div>
 
     <!-- 주간 현황 압축 카드 -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card mb16">
       <div class="card-title">📅 <span>주간 현황</span></div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--bg3);border-radius:8px;overflow:hidden;">
         <div style="background:var(--bg2);padding:14px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">지난 주</div>
+          <div class="hint-mb6">지난 주</div>
           <div class="mono" id="goal-prev-week-count" style="font-size:20px;font-weight:700;color:var(--accent2);">—</div>
           <div id="goal-prev-week-profit" style="font-size:11px;color:var(--text3);margin-top:4px;">손익 —</div>
         </div>
         <div style="background:var(--bg2);padding:14px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">최근 2주 평균</div>
-          <div class="mono" id="goal-stat-2w" style="font-size:20px;font-weight:700;">—</div>
+          <div class="hint-mb6">최근 2주 평균</div>
+          <div class="mono big-num" id="goal-stat-2w">—</div>
           <div id="goal-stat-2w-profit" style="font-size:11px;color:var(--text3);margin-top:4px;">주당 평균</div>
         </div>
         <div style="background:var(--bg2);padding:14px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">최근 4주 평균</div>
-          <div class="mono" id="goal-stat-4w" style="font-size:20px;font-weight:700;">—</div>
+          <div class="hint-mb6">최근 4주 평균</div>
+          <div class="mono big-num" id="goal-stat-4w">—</div>
           <div id="goal-stat-4w-profit" style="font-size:11px;color:var(--text3);margin-top:4px;">주당 평균</div>
         </div>
         <div style="background:var(--bg2);padding:14px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">최근 4주 승률</div>
-          <div class="mono green" id="pred-4w-wr" style="font-size:20px;font-weight:700;">—</div>
+          <div class="hint-mb6">최근 4주 승률</div>
+          <div class="mono green big-num" id="pred-4w-wr">—</div>
           <div id="pred-4w-wr-label" style="font-size:11px;color:var(--text3);margin-top:4px;">4주 기준</div>
         </div>
       </div>
     </div>
 
     <!-- 손익비 분석 -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card mb16">
       <div class="card-title">📊 <span>손익비 분석</span>
-        <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">승률보다 중요한 지표</span>
+        <span class="lbl-right">승률보다 중요한 지표</span>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;">
-        <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">손익비</div>
+        <div class="stat-card-14">
+          <div class="hint-mb6">손익비</div>
           <div class="mono" id="rr-ratio" style="font-size:26px;font-weight:700;">—</div>
           <div id="rr-ratio-label" style="font-size:10px;margin-top:4px;color:var(--text3);">평균수익 ÷ 평균손실</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">평균 적중 수익</div>
+        <div class="stat-card-14">
+          <div class="hint-mb6">평균 적중 수익</div>
           <div class="mono" id="rr-avg-win" style="font-size:20px;font-weight:700;color:var(--green);">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">WIN 평균</div>
+          <div class="hint-mt4">WIN 평균</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">평균 미적중 손실</div>
+        <div class="stat-card-14">
+          <div class="hint-mb6">평균 미적중 손실</div>
           <div class="mono" id="rr-avg-loss" style="font-size:20px;font-weight:700;color:var(--red);">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">LOSE 평균</div>
+          <div class="hint-mt4">LOSE 평균</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">손익분기 승률</div>
+        <div class="stat-card-14">
+          <div class="hint-mb6">손익분기 승률</div>
           <div class="mono" id="rr-bep-wr" style="font-size:20px;font-weight:700;color:var(--gold);">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px;">이 손익비 기준</div>
+          <div class="hint-mt4">이 손익비 기준</div>
         </div>
       </div>
       <div id="rr-advice" style="padding:12px;background:var(--bg3);border-radius:6px;font-size:12px;color:var(--text2);line-height:1.9;"></div>
     </div>
 
     <!-- 승률 추세 -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card mb16">
       <div class="card-title">📈 <span>승률 추세</span>
-        <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">최근 5 · 10 · 20 · 전체</span>
+        <span class="lbl-right">최근 5 · 10 · 20 · 전체</span>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">최근 5경기</div>
-          <div class="mono" id="trend-wr-5" style="font-size:20px;font-weight:700;">—</div>
+        <div class="stat-card">
+          <div class="hint-mb4">최근 5경기</div>
+          <div class="mono big-num" id="trend-wr-5">—</div>
           <div id="trend-badge-5" style="font-size:10px;margin-top:3px;">—</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">최근 10경기</div>
-          <div class="mono" id="trend-wr-10" style="font-size:20px;font-weight:700;">—</div>
+        <div class="stat-card">
+          <div class="hint-mb4">최근 10경기</div>
+          <div class="mono big-num" id="trend-wr-10">—</div>
           <div id="trend-badge-10" style="font-size:10px;margin-top:3px;">—</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">최근 20경기</div>
-          <div class="mono" id="trend-wr-20" style="font-size:20px;font-weight:700;">—</div>
+        <div class="stat-card">
+          <div class="hint-mb4">최근 20경기</div>
+          <div class="mono big-num" id="trend-wr-20">—</div>
           <div id="trend-badge-20" style="font-size:10px;margin-top:3px;">—</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">전체</div>
+        <div class="stat-card">
+          <div class="hint-mb4">전체</div>
           <div class="mono" id="trend-wr-all" style="font-size:20px;font-weight:700;color:var(--gold);">—</div>
           <div id="trend-badge-all" style="font-size:10px;margin-top:3px;">—</div>
         </div>
@@ -4206,30 +4230,30 @@ window.addEventListener('unhandledrejection', function(e) {
     </div>
 
     <!-- 손익분기 배당 vs 실제 -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card mb16">
       <div class="card-title">⚖️ <span>손익분기 배당 vs 실제 베팅 배당</span>
-        <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">밸류베팅 준수율</span>
+        <span class="lbl-right">밸류베팅 준수율</span>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;">
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">손익분기 배당</div>
+        <div class="stat-card">
+          <div class="hint-mb4">손익분기 배당</div>
           <div class="mono" id="bep-odds" style="font-size:20px;font-weight:700;color:var(--gold);">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:3px;">= 1 ÷ 승률</div>
+          <div class="hint-mt3">= 1 ÷ 승률</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">평균 베팅 배당</div>
-          <div class="mono" id="bep-avg" style="font-size:20px;font-weight:700;">—</div>
+        <div class="stat-card">
+          <div class="hint-mb4">평균 베팅 배당</div>
+          <div class="mono big-num" id="bep-avg">—</div>
           <div id="bep-avg-label" style="font-size:10px;margin-top:3px;">—</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">EV+ 베팅 비율</div>
-          <div class="mono" id="bep-ev-ratio" style="font-size:20px;font-weight:700;">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:3px;">손익분기 이상</div>
+        <div class="stat-card">
+          <div class="hint-mb4">EV+ 베팅 비율</div>
+          <div class="mono big-num" id="bep-ev-ratio">—</div>
+          <div class="hint-mt3">손익분기 이상</div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">배당 우위</div>
-          <div class="mono" id="bep-edge" style="font-size:20px;font-weight:700;">—</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:3px;">평균 - 손익분기</div>
+        <div class="stat-card">
+          <div class="hint-mb4">배당 우위</div>
+          <div class="mono big-num" id="bep-edge">—</div>
+          <div class="hint-mt3">평균 - 손익분기</div>
         </div>
       </div>
       <div class="chart-container"><canvas id="oddsDistChart"></canvas></div>
@@ -4242,15 +4266,15 @@ window.addEventListener('unhandledrejection', function(e) {
         <div id="condition-alert" style="display:none;padding:10px 12px;border-radius:6px;font-size:12px;font-weight:700;margin-bottom:12px;"></div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
           <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">사이클</div>
+            <div class="hint-mb4">사이클</div>
             <div id="condition-cycle" style="font-size:14px;font-weight:700;margin-top:2px;">—</div>
           </div>
           <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">최근 5경기</div>
+            <div class="hint-mb4">최근 5경기</div>
             <div class="mono" id="condition-recent-profit" style="font-size:15px;font-weight:700;">—</div>
           </div>
           <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">연속 미적중</div>
+            <div class="hint-mb4">연속 미적중</div>
             <div class="mono" id="condition-streak" style="font-size:15px;font-weight:700;">—</div>
           </div>
         </div>
@@ -4259,23 +4283,23 @@ window.addEventListener('unhandledrejection', function(e) {
 
       <div class="card">
         <div class="card-title">💰 <span>베팅금 최적화</span>
-          <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">켈리 기준</span>
+          <span class="lbl-right">켈리 기준</span>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-          <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">현재 평균</div>
+          <div class="stat-card">
+            <div class="hint-mb4">현재 평균</div>
             <div class="mono" id="kelly-actual" style="font-size:16px;font-weight:700;color:var(--text2);">—</div>
           </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">켈리 최적</div>
+          <div class="stat-card">
+            <div class="hint-mb4">켈리 최적</div>
             <div class="mono" id="kelly-optimal" style="font-size:16px;font-weight:700;color:var(--gold);">—</div>
           </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">시드 대비</div>
+          <div class="stat-card">
+            <div class="hint-mb4">시드 대비</div>
             <div class="mono" id="kelly-pct" style="font-size:16px;font-weight:700;">—</div>
           </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">상태</div>
+          <div class="stat-card">
+            <div class="hint-mb4">상태</div>
             <div id="kelly-status-pred" style="font-size:14px;font-weight:700;margin-top:2px;">—</div>
           </div>
         </div>
@@ -4291,7 +4315,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- ===== 종합 예측력 패널 ===== -->
     <div class="card mt-16" style="margin-bottom:0;">
       <div class="card-title">🧠 <span>종합 예측력 분석</span>
-        <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">등급 · 캘리브레이션 · 실력 vs 운 · 권장 규모</span>
+        <span class="lbl-right">등급 · 캘리브레이션 · 실력 vs 운 · 권장 규모</span>
       </div>
 
       <!-- 등급 + 세부 점수 -->
@@ -4301,36 +4325,36 @@ window.addEventListener('unhandledrejection', function(e) {
           <div id="pred-grade-ring" style="width:90px;height:90px;border-radius:50%;background:conic-gradient(var(--accent) 0%,var(--bg2) 0%);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;position:relative;">
             <div style="width:68px;height:68px;background:var(--bg3);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;">
               <div id="pred-grade-letter" style="font-size:28px;font-weight:900;line-height:1;">—</div>
-              <div id="pred-grade-score" style="font-size:10px;color:var(--text3);">0점</div>
+              <div id="pred-grade-score" class="hint">0점</div>
             </div>
           </div>
-          <div id="pred-grade-label" style="font-size:11px;color:var(--text3);">데이터 부족</div>
+          <div id="pred-grade-label" class="hint11">데이터 부족</div>
         </div>
         <!-- 세부 점수 4개 -->
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
           <div style="text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">📐 예측 엣지</div>
+            <div class="hint-mb5">📐 예측 엣지</div>
             <div id="pg-edge-bar" style="height:5px;background:var(--bg2);border-radius:3px;margin-bottom:5px;overflow:hidden;"><div id="pg-edge-fill" style="height:100%;width:0%;background:var(--green);border-radius:3px;transition:width .6s;"></div></div>
             <div id="pg-edge-val" style="font-size:14px;font-weight:700;">—</div>
-            <div id="pg-edge-lbl" style="font-size:10px;color:var(--text3);">—</div>
+            <div id="pg-edge-lbl" class="hint">—</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">🎯 캘리브레이션</div>
+            <div class="hint-mb5">🎯 캘리브레이션</div>
             <div id="pg-cal-bar" style="height:5px;background:var(--bg2);border-radius:3px;margin-bottom:5px;overflow:hidden;"><div id="pg-cal-fill" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width .6s;"></div></div>
             <div id="pg-cal-val" style="font-size:14px;font-weight:700;">—</div>
-            <div id="pg-cal-lbl" style="font-size:10px;color:var(--text3);">예측 정확도</div>
+            <div id="pg-cal-lbl" class="hint">예측 정확도</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">📈 일관성</div>
+            <div class="hint-mb5">📈 일관성</div>
             <div id="pg-con-bar" style="height:5px;background:var(--bg2);border-radius:3px;margin-bottom:5px;overflow:hidden;"><div id="pg-con-fill" style="height:100%;width:0%;background:var(--gold);border-radius:3px;transition:width .6s;"></div></div>
             <div id="pg-con-val" style="font-size:14px;font-weight:700;">—</div>
-            <div id="pg-con-lbl" style="font-size:10px;color:var(--text3);">엣지 표준편차</div>
+            <div id="pg-con-lbl" class="hint">엣지 표준편차</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">🔥 최근 폼</div>
+            <div class="hint-mb5">🔥 최근 폼</div>
             <div id="pg-form-bar" style="height:5px;background:var(--bg2);border-radius:3px;margin-bottom:5px;overflow:hidden;"><div id="pg-form-fill" style="height:100%;width:0%;background:var(--accent2);border-radius:3px;transition:width .6s;"></div></div>
             <div id="pg-form-val" style="font-size:14px;font-weight:700;">—</div>
-            <div id="pg-form-lbl" style="font-size:10px;color:var(--text3);">최근 10건</div>
+            <div id="pg-form-lbl" class="hint">최근 10건</div>
           </div>
         </div>
       </div>
@@ -4340,7 +4364,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <!-- 캘리브레이션 차트 -->
         <div>
           <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">🎯 캘리브레이션 — 예측 vs 실제 적중률</div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">
+          <div class="hint-mb8">
             <span style="color:var(--green);">●</span> 초록 점 = 예측과 실제가 잘 맞음 &nbsp;
             <span style="color:var(--red);">●</span> 빨간 점 = 예측보다 실제가 낮음(과신) &nbsp;
             <span style="color:var(--accent);">●</span> 파란 점 = 예측보다 실제가 높음(과소)<br>
@@ -4352,7 +4376,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <!-- 수익 분해 -->
         <div>
           <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">🎲 수익 분해 — 실력 vs 운</div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">기댓값 범위(파란 구간) 안 = 실력, 초과 = 운 좋음, 미달 = 운 나쁨</div>
+          <div class="hint-mb8">기댓값 범위(파란 구간) 안 = 실력, 초과 = 운 좋음, 미달 = 운 나쁨</div>
           <div style="height:210px;"><canvas id="pred-luck-chart"></canvas></div>
           <div id="pred-luck-summary" style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.7;"></div>
         </div>
@@ -4362,21 +4386,21 @@ window.addEventListener('unhandledrejection', function(e) {
       <div style="background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:10px;padding:18px;">
         <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:14px;">💡 다음 베팅 권장 규모</div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;">
-          <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">현재 뱅크롤</div>
+          <div class="stat-card-14">
+            <div class="hint-mb5">현재 뱅크롤</div>
             <div class="mono" id="rec-bankroll" style="font-size:18px;font-weight:700;">—</div>
           </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">권장 단건 금액</div>
+          <div class="stat-card-14">
+            <div class="hint-mb5">권장 단건 금액</div>
             <div class="mono" id="rec-amount" style="font-size:18px;font-weight:700;color:var(--gold);">—</div>
-            <div id="rec-amount-pct" style="font-size:10px;color:var(--text3);margin-top:3px;">—</div>
+            <div id="rec-amount-pct" class="hint-mt3">—</div>
           </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">조정 사유</div>
+          <div class="stat-card-14">
+            <div class="hint-mb5">조정 사유</div>
             <div id="rec-reason" style="font-size:12px;font-weight:700;line-height:1.5;margin-top:4px;">—</div>
           </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">주의 신호</div>
+          <div class="stat-card-14">
+            <div class="hint-mb5">주의 신호</div>
             <div id="rec-signal" style="font-size:13px;font-weight:700;line-height:1.5;margin-top:4px;">—</div>
           </div>
         </div>
@@ -4387,7 +4411,7 @@ window.addEventListener('unhandledrejection', function(e) {
   <!-- ===== 보정도 상세 분석 카드 ===== -->
   <div class="card mt-16" id="calib-detail-card" style="margin-bottom:0;">
     <div class="card-title">📐 <span>보정도 상세 분석</span>
-      <span style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400;">논문 근거: Walsh &amp; Joshi 2024 — 보정도가 수익에 직결</span>
+      <span class="lbl-right">논문 근거: Walsh &amp; Joshi 2024 — 보정도가 수익에 직결</span>
     </div>
 
     <!-- 개념 설명 박스 -->
@@ -4400,7 +4424,7 @@ window.addEventListener('unhandledrejection', function(e) {
     <!-- ECE 점수 + 상태 배너 -->
     <div id="calib-ece-banner" style="border-radius:8px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:16px;background:var(--bg3);">
       <div style="text-align:center;min-width:72px;">
-        <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">평균 오차(ECE)</div>
+        <div class="hint-mb4">평균 오차(ECE)</div>
         <div id="calib-ece-val" style="font-size:28px;font-weight:900;line-height:1;">—</div>
         <div id="calib-ece-grade" style="font-size:10px;margin-top:2px;">—</div>
       </div>
@@ -4409,7 +4433,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <div id="calib-ece-sub" style="font-size:11px;color:var(--text3);line-height:1.7;">—</div>
       </div>
       <div style="text-align:center;min-width:80px;">
-        <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">켈리 적용</div>
+        <div class="hint-mb4">켈리 적용</div>
         <div id="calib-kelly-rec" style="font-size:13px;font-weight:700;">—</div>
       </div>
     </div>
@@ -4419,7 +4443,7 @@ window.addEventListener('unhandledrejection', function(e) {
       <!-- 막대+선 혼합 차트 -->
       <div>
         <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:4px;">📊 내 예측 구간별 실제 적중률</div>
-        <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">
+        <div class="hint-mb6">
           구간 = 내 예상 승률 범위 (예: 60~70% = "내가 60~70%로 예측한 베팅들")<br>
           <span style="display:inline-flex;align-items:center;gap:3px;">
             <span style="display:inline-block;width:10px;height:10px;background:rgba(255,180,0,0.5);border-radius:2px;"></span> 주황 막대 = 그 구간 베팅 건수
@@ -4448,7 +4472,7 @@ window.addEventListener('unhandledrejection', function(e) {
             </tr>
           </thead>
           <tbody id="calib-bucket-table">
-            <tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px;">데이터 부족 (구간당 최소 3건 필요)</td></tr>
+            <tr><td colspan="6" class="empty-note">데이터 부족 (구간당 최소 3건 필요)</td></tr>
           </tbody>
         </table>
         <!-- 과신 패턴 요약 -->
@@ -4507,43 +4531,43 @@ window.addEventListener('unhandledrejection', function(e) {
 
       <!-- 선발투수 -->
       <div style="margin-bottom:14px;">
-        <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">선발투수</div>
+        <div class="sec-title">선발투수</div>
         <input id="kbo-home-pitcher" placeholder="투수명" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:12px;margin-bottom:8px;">
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">시즌 ERA</div>
+            <div class="hint-mb4">시즌 ERA</div>
             <input id="kbo-home-era" type="number" step="0.01" placeholder="3.80" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text2);font-size:12px;">
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">시즌 FIP</div>
+            <div class="hint-mb4">시즌 FIP</div>
             <input id="kbo-home-fip" type="number" step="0.01" placeholder="3.60" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text2);font-size:12px;">
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">이닝(IP)</div>
+            <div class="hint-mb4">이닝(IP)</div>
             <input id="kbo-home-ip" type="number" step="0.1" placeholder="45.0" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text2);font-size:12px;">
           </div>
         </div>
         <div style="margin-top:8px;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">최근 3경기 FIP <span style="color:var(--text3);font-style:italic;">(없으면 시즌 FIP 동일)</span></div>
+          <div class="hint-mb4">최근 3경기 FIP <span style="color:var(--text3);font-style:italic;">(없으면 시즌 FIP 동일)</span></div>
           <input id="kbo-home-fip-recent" type="number" step="0.01" placeholder="시즌 FIP와 같으면 비워두세요" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text2);font-size:12px;">
         </div>
       </div>
 
       <!-- 타선 -->
       <div>
-        <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">타선</div>
+        <div class="sec-title">타선</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">팀 wOBA</div>
+            <div class="hint-mb4">팀 wOBA</div>
             <input id="kbo-home-woba" type="number" step="0.001" placeholder="0.340" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text2);font-size:12px;">
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">파크팩터</div>
+            <div class="hint-mb4">파크팩터</div>
             <input id="kbo-home-park" type="number" step="0.01" placeholder="1.00" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text2);font-size:12px;">
           </div>
         </div>
         <div style="margin-top:8px;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">당일 라인업 wOBA <span style="color:var(--accent2);font-style:italic;">(있으면 팀 wOBA 대체)</span></div>
+          <div class="hint-mb4">당일 라인업 wOBA <span style="color:var(--accent2);font-style:italic;">(있으면 팀 wOBA 대체)</span></div>
           <input id="kbo-home-lineup-woba" type="number" step="0.001" placeholder="라인업 확인 후 입력 (선택)" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--accent2);font-size:12px;">
         </div>
       </div>
@@ -4558,42 +4582,42 @@ window.addEventListener('unhandledrejection', function(e) {
       </div>
 
       <div style="margin-bottom:14px;">
-        <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">선발투수</div>
+        <div class="sec-title">선발투수</div>
         <input id="kbo-away-pitcher" placeholder="투수명" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:12px;margin-bottom:8px;">
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">시즌 ERA</div>
+            <div class="hint-mb4">시즌 ERA</div>
             <input id="kbo-away-era" type="number" step="0.01" placeholder="3.80" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text2);font-size:12px;">
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">시즌 FIP</div>
+            <div class="hint-mb4">시즌 FIP</div>
             <input id="kbo-away-fip" type="number" step="0.01" placeholder="3.60" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text2);font-size:12px;">
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">이닝(IP)</div>
+            <div class="hint-mb4">이닝(IP)</div>
             <input id="kbo-away-ip" type="number" step="0.1" placeholder="45.0" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text2);font-size:12px;">
           </div>
         </div>
         <div style="margin-top:8px;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">최근 3경기 FIP</div>
+          <div class="hint-mb4">최근 3경기 FIP</div>
           <input id="kbo-away-fip-recent" type="number" step="0.01" placeholder="시즌 FIP와 같으면 비워두세요" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text2);font-size:12px;">
         </div>
       </div>
 
       <div>
-        <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">타선</div>
+        <div class="sec-title">타선</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">팀 wOBA</div>
+            <div class="hint-mb4">팀 wOBA</div>
             <input id="kbo-away-woba" type="number" step="0.001" placeholder="0.340" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text2);font-size:12px;">
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">파크팩터</div>
+            <div class="hint-mb4">파크팩터</div>
             <input id="kbo-away-park" type="number" step="0.01" placeholder="1.00" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text2);font-size:12px;">
           </div>
         </div>
         <div style="margin-top:8px;">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">당일 라인업 wOBA <span style="color:var(--accent2);font-style:italic;">(있으면 팀 wOBA 대체)</span></div>
+          <div class="hint-mb4">당일 라인업 wOBA <span style="color:var(--accent2);font-style:italic;">(있으면 팀 wOBA 대체)</span></div>
           <input id="kbo-away-lineup-woba" type="number" step="0.001" placeholder="라인업 확인 후 입력 (선택)" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--accent2);font-size:12px;">
         </div>
       </div>
@@ -4604,23 +4628,23 @@ window.addEventListener('unhandledrejection', function(e) {
       <div style="font-size:11px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">모델 파라미터 (고급)</div>
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px;">
         <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">α (투수 가중)</div>
+          <div class="hint-mb4">α (투수 가중)</div>
           <input id="kbo-alpha" type="number" step="0.01" value="0.52" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--gold);font-size:12px;font-weight:700;">
         </div>
         <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">wOBA Scale</div>
+          <div class="hint-mb4">wOBA Scale</div>
           <input id="kbo-scale" type="number" step="0.01" value="1.20" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--gold);font-size:12px;font-weight:700;">
         </div>
         <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">δ TTO 보정</div>
+          <div class="hint-mb4">δ TTO 보정</div>
           <input id="kbo-delta-tto" type="number" step="0.01" value="0.08" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--gold);font-size:12px;font-weight:700;">
         </div>
         <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">σ(a) IP계수</div>
+          <div class="hint-mb4">σ(a) IP계수</div>
           <input id="kbo-sig-a" type="number" step="0.1" value="1.5" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--gold);font-size:12px;font-weight:700;">
         </div>
         <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">σ(b) 폼계수</div>
+          <div class="hint-mb4">σ(b) 폼계수</div>
           <input id="kbo-sig-b" type="number" step="0.1" value="0.8" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--gold);font-size:12px;font-weight:700;">
         </div>
       </div>
@@ -4631,7 +4655,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <button onclick="kboReset()" style="padding:13px 20px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text3);font-size:12px;cursor:pointer;">
           초기화
         </button>
-        <div id="kbo-calc-status" style="font-size:11px;color:var(--text3);"></div>
+        <div id="kbo-calc-status" class="hint11"></div>
       </div>
     </div>
 
@@ -4646,10 +4670,10 @@ window.addEventListener('unhandledrejection', function(e) {
           <div style="text-align:center;">
             <div id="kbo-res-home-name" style="font-size:12px;color:var(--text3);margin-bottom:6px;">홈팀</div>
             <div id="kbo-res-home-lambda" style="font-family:'JetBrains Mono',monospace;font-size:42px;font-weight:900;color:var(--accent);line-height:1;">—</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:4px;">기대실점</div>
+            <div class="hint-mt4">기대실점</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-size:11px;color:var(--text3);">VS</div>
+            <div class="hint11">VS</div>
             <div style="height:40px;width:1px;background:var(--border);margin:6px auto;"></div>
             <div id="kbo-res-total" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--gold);">—</div>
             <div style="font-size:9px;color:var(--text3);">합계</div>
@@ -4658,7 +4682,7 @@ window.addEventListener('unhandledrejection', function(e) {
           <div style="text-align:center;">
             <div id="kbo-res-away-name" style="font-size:12px;color:var(--text3);margin-bottom:6px;">원정팀</div>
             <div id="kbo-res-away-lambda" style="font-family:'JetBrains Mono',monospace;font-size:42px;font-weight:900;color:var(--red);line-height:1;">—</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:4px;">기대실점</div>
+            <div class="hint-mt4">기대실점</div>
           </div>
         </div>
 
@@ -4674,11 +4698,11 @@ window.addEventListener('unhandledrejection', function(e) {
           <div style="display:flex;justify-content:space-between;margin-top:6px;">
             <div style="text-align:center;">
               <div id="kbo-under-pct" style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:900;color:var(--accent);">—</div>
-              <div style="font-size:10px;color:var(--text3);">언더 확률</div>
+              <div class="hint">언더 확률</div>
             </div>
             <div style="text-align:center;">
               <div id="kbo-over-pct" style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:900;color:var(--red);">—</div>
-              <div style="font-size:10px;color:var(--text3);">오버 확률</div>
+              <div class="hint">오버 확률</div>
             </div>
           </div>
         </div>
@@ -4686,19 +4710,19 @@ window.addEventListener('unhandledrejection', function(e) {
         <!-- 라인별 확률 -->
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px;">
           <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">P(≤3.5)</div>
+            <div class="hint-mb4">P(≤3.5)</div>
             <div id="kbo-p35" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--text2);">—</div>
           </div>
           <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">P(≤4.5)</div>
+            <div class="hint-mb4">P(≤4.5)</div>
             <div id="kbo-p45" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--accent);">—</div>
           </div>
           <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">P(≤5.5)</div>
+            <div class="hint-mb4">P(≤5.5)</div>
             <div id="kbo-p55" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--text2);">—</div>
           </div>
           <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">P(≤6.5)</div>
+            <div class="hint-mb4">P(≤6.5)</div>
             <div id="kbo-p65" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--text2);">—</div>
           </div>
         </div>
@@ -4722,13 +4746,13 @@ window.addEventListener('unhandledrejection', function(e) {
         </button>
         <div id="kbo-ev-result" style="margin-top:14px;display:none;">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-              <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">언더 EV</div>
+            <div class="stat-card">
+              <div class="hint-mb4">언더 EV</div>
               <div id="kbo-ev-under" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:900;">—</div>
               <div id="kbo-ev-under-verdict" style="font-size:10px;margin-top:4px;">—</div>
             </div>
-            <div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center;">
-              <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">오버 EV</div>
+            <div class="stat-card">
+              <div class="hint-mb4">오버 EV</div>
               <div id="kbo-ev-over" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:900;">—</div>
               <div id="kbo-ev-over-verdict" style="font-size:10px;margin-top:4px;">—</div>
             </div>
@@ -4768,7 +4792,7 @@ window.addEventListener('unhandledrejection', function(e) {
   [5] state.js             — 핵심 엔진, getBets/saveBets 정의 (round.js, scope.js 의존)
   [6] settings.js          — state.js 의존
   [7] core.js              — state.js(calcSystemState), getBets 의존
-  [8] simulator.js         — state.js, saveBets 의존
+  [8] sim_state/engine/render/actions.js — state.js, saveBets 의존 (v71 분할)
   [9] verify.js            — getBets, runDecisionAnalysisUI 의존
   [10] decision_analysis.js — 의존성 없음 (pure)
   [11] decision_ui.js      — decision_analysis.js, getBets 의존
@@ -4791,7 +4815,10 @@ window.addEventListener('unhandledrejection', function(e) {
 <script src="./settings.js"></script>
 <script src="./wallet.js"></script>
 <script src="./core.js"></script>
-<script src="./simulator.js"></script>
+<script src="./sim_state.js"></script>
+<script src="./sim_engine.js"></script>
+<script src="./sim_render.js"></script>
+<script src="./sim_actions.js"></script>
 <script src="./combo_recommender.js"></script>
 <script src="./verify.js"></script>
 <script src="./decision_analysis.js"></script>
@@ -4938,7 +4965,7 @@ function _kboF5ShowBanner(prob, odds, type, matchup, line) {
     <!-- 차트 1: EV vs ROI -->
     <div class="card" style="padding:16px;margin-bottom:12px;">
       <div class="card-title" style="margin-bottom:4px;">📊 EV 구간별 실제 ROI</div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">EV+ 베팅이 실제로 수익을 내는지 확인</div>
+      <div class="hint11-mb12">EV+ 베팅이 실제로 수익을 내는지 확인</div>
       <div style="position:relative;height:220px;">
         <canvas id="verify-chart1"></canvas>
       </div>
@@ -4947,7 +4974,7 @@ function _kboF5ShowBanner(prob, odds, type, matchup, line) {
     <!-- 차트 2: 폴더 수 vs ROI -->
     <div class="card" style="padding:16px;margin-bottom:12px;">
       <div class="card-title" style="margin-bottom:4px;">🗂 폴더 수별 ROI</div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">다폴더가 성능에 영향을 주는지 확인</div>
+      <div class="hint11-mb12">다폴더가 성능에 영향을 주는지 확인</div>
       <div style="position:relative;height:220px;">
         <canvas id="verify-chart2"></canvas>
       </div>
@@ -4956,7 +4983,7 @@ function _kboF5ShowBanner(prob, odds, type, matchup, line) {
     <!-- 차트 3: 보정 효과 -->
     <div class="card" style="padding:16px;margin-bottom:12px;">
       <div class="card-title" style="margin-bottom:4px;">🎯 보정 효과 — 예측 vs 실제 적중률</div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">보정(calibration)이 의미 있는지 확인</div>
+      <div class="hint11-mb12">보정(calibration)이 의미 있는지 확인</div>
       <div style="position:relative;height:260px;">
         <canvas id="verify-chart3"></canvas>
       </div>
