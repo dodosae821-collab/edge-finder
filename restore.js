@@ -204,6 +204,10 @@ function _executeRestore(data, mode) {
       if (data.wallet && typeof Storage !== 'undefined' && typeof KEYS !== 'undefined') {
         Storage.setJSON(KEYS.WALLET, data.wallet);
       }
+      // KBO 약화 카운터(L-39 규율 기억) 복원 — 있을 때만
+      if (data.kboRevalLog && typeof Storage !== 'undefined' && typeof KEYS !== 'undefined') {
+        Storage.setJSON(KEYS.KBO_REVAL_LOG, data.kboRevalLog);
+      }
       if (typeof loadSettingsDisplay === 'function') loadSettingsDisplay();
     }
 
@@ -461,7 +465,9 @@ function backupData() {
   // wallet(인출 내역) 포함 — 미포함 시 복원 후 누적자산이 어긋남
   const _wallet = (typeof Storage !== 'undefined' && typeof KEYS !== 'undefined')
     ? Storage.getJSON(KEYS.WALLET, null) : null;
-  const data = { bets, settings: getSettings(), wallet: _wallet, exportedAt: new Date().toISOString(), version: '6.2' };
+  const _kboReval = (typeof Storage !== 'undefined' && typeof KEYS !== 'undefined')
+    ? Storage.getJSON(KEYS.KBO_REVAL_LOG, null) : null;   // L-39 약화 카운터 — 규율 기억 보존
+  const data = { bets, settings: getSettings(), wallet: _wallet, kboRevalLog: _kboReval, exportedAt: new Date().toISOString(), version: '6.2' };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

@@ -5,7 +5,7 @@ const vm = require('vm');
 const fs = require('fs');
 const path = require('path');
 
-const code = fs.readFileSync('/home/claude/project/compute.js', 'utf8');
+const code = fs.readFileSync(path.join(__dirname, 'compute.js'), 'utf8');
 const ctx = { console };
 vm.createContext(ctx);
 vm.runInContext(code, ctx);

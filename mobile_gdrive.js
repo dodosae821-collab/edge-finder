@@ -472,6 +472,9 @@ const _GDRIVE_SYNC_KEYS = new Set([
   KEYS.SIM_STATE,
   KEYS.SIM_GOAL,
   KEYS.SIM_PENDING,
+  KEYS.KBO_SNAPSHOT,    // KBO F5 판정 스냅샷 — 기기 간 판정 일치
+  KEYS.KBO_REVAL_LOG,   // ★ 약화 카운터(L-39 규율 기억) — 누락 시 기기 이동에서 증발
+  // KEYS.SIM_FORM_DRAFT — 의도적 제외: 작성 중 폼(기기 로컬 성격, 동기화 시 충돌 소지)
 ]);
 
 if (window.Storage?.addWriteHook) {

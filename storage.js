@@ -38,6 +38,7 @@ window.KEYS = Object.freeze({
   SIM_PENDING:           'edge_sim_pending',
   SIM_FORM_DRAFT:        'edge_sim_form_draft',
   KBO_SNAPSHOT:          'edge_kbo_snapshot',
+  KBO_REVAL_LOG:         'edge_kbo_reval_log',
 
   // 라운드
   ROUNDS:                'edge_rounds',

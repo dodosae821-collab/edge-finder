@@ -244,9 +244,8 @@ function loadBaseline() {
 }
 
 function violationKey(v) {
-  // 파일명:라인:함수명 으로 고유 키 생성
-  // 라인 번호는 코드 이동에 취약하므로 파일+함수명 기준으로도 추적
-  return `[audit:globals] ${v.file}:${v.line} legacy global call: ${v.fn}(  →  use ${v.preferred}`;
+  // 파일명::함수명 — 라인 번호는 코드 이동만으로 어긋나 오탐을 만들므로 키에서 제외 (v78)
+  return `${v.file}::${v.fn}`;
 }
 
 // ── MAIN ─────────────────────────────────────────────────────

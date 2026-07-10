@@ -160,19 +160,18 @@ function renderKboF5() {
     host.dataset.dropBound = '1';
     host.addEventListener('dragover', e => { e.preventDefault(); host.style.outline = '2px dashed var(--accent)'; });
     host.addEventListener('dragleave', () => { host.style.outline = ''; });
-    host.addEventListener('drop', e => {
+    host.addEventListener('drop', async e => {
       e.preventDefault(); host.style.outline = '';
-      const f = e.dataTransfer?.files?.[0];
-      if (!f) return;
-      const r = new FileReader();
-      r.onload = () => { if (kboSaveSnapshotText(String(r.result))) { renderKboF5(); if (typeof simToast === 'function') simToast('✅ 스냅샷 적용됨', 'ok'); } };
-      r.readAsText(f);
+      const files = Array.from(e.dataTransfer?.files || []);
+      if (!files.length) return;
+      for (const f of files) await kboRouteDroppedFile(f);   // .json→스냅샷 / .db·.txt·.csv→DB모드 적재
+      renderKboF5();
     });
   }
   const snap = kboGetSnapshot();
 
   if (!snap) {
-    host.innerHTML = `
+    host.innerHTML = kboDbModeSectionHtml() + `
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px;">
         <div class="hint-mb8">스냅샷이 없습니다. 파이썬에서 <b style="color:var(--text2)">python3 kbo_refresh.py</b> 실행 후 생성되는 <b style="color:var(--text2)">kbo_snapshot.json</b>을 업로드하세요. (이 영역에 파일을 끌어다 놓아도 됩니다)</div>
         <input type="file" accept=".json" onchange="kboSnapshotFile(this)" style="font-size:12px;margin-bottom:8px;">
@@ -188,7 +187,7 @@ function renderKboF5() {
   const st = kboProtocolStats();
   const be = snap.breakeven_pct || 56.8;
 
-  host.innerHTML = `
+  host.innerHTML = kboDbModeSectionHtml() + `
     <!-- 모델 상태 헤더 -->
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -245,4 +244,153 @@ function kboClearSnapshot() {
 
 if (typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', () => { try { renderKboF5(); } catch (e) {} });
+}
+
+// ============================================================
+// DB 모드 (v76) — kbo.db를 앱이 직접 읽어 판정 계산
+//   사용자가 이미 크롤링한 db 파일이 있으므로 파이썬 중간 단계 불필요.
+//   계산은 kbo_engine.js(골든 테스트로 파이썬 동치 보증)가 수행.
+//   sql.js(WASM SQLite)는 cdnjs에서 지연 로드 — 오프라인이면 JSON 모드 사용.
+// ============================================================
+const KBO_REVAL_SEED = [
+  // 파이썬 revalidation_log와 동일한 이력 시드 — 약화 카운터 연속성 보장
+  { ts:'2026-06-21', data_through:'2026-06-21', n_games:373,
+    metrics:{ cohens_d:0.623, non_worsen_under:68.8 }, weaken_streak:0 },
+  { ts:'2026-07-09', data_through:'2026-07-05', n_games:430,
+    metrics:{ cohens_d:0.501, non_worsen_under:67.6 }, weaken_streak:1 },
+];
+
+let _kboDbFiles = { db: null, chrono: null, unops: {}, profile: null };
+let _kboSqlJs = null;
+
+function kboLoadSqlJs() {
+  if (_kboSqlJs) return Promise.resolve(_kboSqlJs);
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql-wasm.js';
+    s.onload = () => {
+      initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/${f}` })
+        .then(SQL => { _kboSqlJs = SQL; resolve(SQL); })
+        .catch(reject);
+    };
+    s.onerror = () => reject(new Error('sql.js 로드 실패 — 인터넷 연결 필요 (오프라인이면 JSON 스냅샷 모드 사용)'));
+    document.head.appendChild(s);
+  });
+}
+
+function kboRouteDroppedFile(file) {
+  return new Promise((resolve) => {
+    const name = file.name;
+    const isDb = name.endsWith('.db');
+    const r = new FileReader();
+    r.onload = () => {
+      if (isDb) {
+        const buf = new Uint8Array(r.result);
+        if (name.includes('chronology')) _kboDbFiles.chrono = buf;
+        else _kboDbFiles.db = buf;
+      } else if (name.endsWith('.txt')) {
+        _kboDbFiles.unops[name] = String(r.result);
+      } else if (name.endsWith('.csv')) {
+        _kboDbFiles.profile = String(r.result);
+      } else if (name.endsWith('.json')) {
+        if (kboSaveSnapshotText(String(r.result))) { renderKboF5(); if (typeof simToast === 'function') simToast('✅ 스냅샷 적용됨', 'ok'); }
+      }
+      resolve();
+    };
+    if (isDb) r.readAsArrayBuffer(file); else r.readAsText(file);
+  });
+}
+
+
+function kboDbModeSectionHtml() {
+  const staged = _kboDbFiles.db || Object.keys(_kboDbFiles.unops).length || _kboDbFiles.chrono || _kboDbFiles.profile;
+  return `
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px;">
+      <div class="sec-title">DB 모드 — kbo.db로 직접 계산 (파이썬 불필요)</div>
+      <div class="hint-mb6" style="line-height:1.6;">크롤링해 둔 <b style="color:var(--text2)">kbo.db + 언옵 txt 전부</b>를 이 화면에 끌어다 놓거나 아래에서 선택 → 계산 실행. chronology_v2.db·프로파일 csv는 선택사항. 계산은 파이썬과 숫자까지 동일함이 검증돼 있음(골든 테스트).</div>
+      <input type="file" multiple accept=".db,.txt,.csv,.json" onchange="(async()=>{for(const f of Array.from(this.files))await kboRouteDroppedFile(f);renderKboF5();}).call(this)" style="font-size:11px;">
+      ${kboDbStatusHtml()}
+      ${staged ? `<button id="kbo-db-run" onclick="kboRunDbMode()" style="margin-top:10px;padding:9px 18px;font-size:12px;font-weight:700;background:rgba(0,229,255,0.08);border:1px solid var(--accent);border-radius:6px;color:var(--accent);cursor:pointer;">계산 실행</button>` : ''}
+    </div>`;
+}
+
+function kboDbStatusHtml() {
+  const f = _kboDbFiles;
+  const chip = (ok, label) => `<span style="padding:3px 8px;font-size:10px;border-radius:10px;border:1px solid ${ok ? 'var(--green)' : 'var(--border)'};color:${ok ? 'var(--green)' : 'var(--text3)'};">${ok ? '✓' : '·'} ${label}</span>`;
+  const nUnop = Object.keys(f.unops).length;
+  return `<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;">
+    ${chip(!!f.db, 'kbo.db')}
+    ${chip(nUnop > 0, `언옵 txt ×${nUnop}`)}
+    ${chip(!!f.chrono, 'chronology_v2.db (선택)')}
+    ${chip(!!f.profile, '프로파일 csv (선택 — 없으면 내장 동결판)')}
+  </div>`;
+}
+
+async function kboRunDbMode() {
+  const f = _kboDbFiles;
+  if (!f.db) { alert('kbo.db를 먼저 드롭/선택하세요'); return; }
+  if (!Object.keys(f.unops).length) { alert('언옵 txt 파일(들)을 드롭/선택하세요 (25년·26시즌 전부)'); return; }
+  const btn = document.getElementById('kbo-db-run');
+  if (btn) { btn.disabled = true; btn.textContent = '계산 중…'; }
+  try {
+    const SQL = await kboLoadSqlJs();
+    const db = new SQL.Database(f.db);
+    const q = (sql) => {
+      const res = db.exec(sql);
+      if (!res.length) return [];
+      const cols = res[0].columns;
+      return res[0].values.map(v => Object.fromEntries(cols.map((c, i) => [c, v[i]])));
+    };
+    const pitcher_log = q("SELECT game_key, date, team, name as pitcher, outs_recorded as outs, hits, bb FROM pitcher_log WHERE is_starter=1 ORDER BY name, date");
+    const inning_score = q(`SELECT game_key, date, away_team as away, home_team as home,
+      COALESCE(away_i1,0)+COALESCE(away_i2,0)+COALESCE(away_i3,0)+COALESCE(away_i4,0)+COALESCE(away_i5,0) as a5,
+      COALESCE(home_i1,0)+COALESCE(home_i2,0)+COALESCE(home_i3,0)+COALESCE(home_i4,0)+COALESCE(home_i5,0) as h5
+      FROM inning_score WHERE date >= '2025-07-29'`);
+    db.close();
+    let traj = [];
+    if (f.chrono) {
+      const cdb = new SQL.Database(f.chrono);
+      const res = cdb.exec("SELECT pitcher_name, date, boundary_side FROM pitcher_trajectory_ledger_v2");
+      if (res.length) traj = res[0].values.map(v => ({ pitcher: v[0], date: v[1], side: v[2] }));
+      cdb.close();
+    }
+    const snap = kboBuildSnapshotFromDb({
+      pitcher_log, inning_score, traj,
+      profile_csv: f.profile || (typeof KBO_PROFILE_FROZEN !== 'undefined' ? KBO_PROFILE_FROZEN : ''),
+      unop_files: f.unops,
+    });
+    // 약화 회귀로그 (앱 내 영속 — 파이썬 로그와 동일 규칙)
+    const streak = kboRevalUpdate(snap);
+    snap.model_health.weaken_streak = streak;
+    Storage.setJSON(KEYS.KBO_SNAPSHOT, snap);
+    if (typeof simToast === 'function') simToast(`✅ 계산 완료 — 경기 ${snap.n_games}건, 후보 ${snap.pitchers.filter(p => p.candidate).length}명`, 'ok');
+    _kboDbFiles = { db: null, chrono: null, unops: {}, profile: null };
+    renderKboF5();
+  } catch (e) {
+    alert('DB 모드 실패: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '계산 실행'; }
+  }
+}
+
+// 약화 회귀로그: d↓ AND non_worsen_under↓ = 약화. 동일 데이터 재실행은 기록 생략 (파이썬과 동일 규칙)
+function kboRevalUpdate(snap) {
+  let log;
+  try { log = Storage.getJSON(KEYS.KBO_REVAL_LOG, null); } catch (e) { log = null; }
+  if (!Array.isArray(log) || !log.length) log = KBO_REVAL_SEED.slice();
+  const prev = log[log.length - 1];
+  const cur = { ts: new Date().toISOString().slice(0, 10), data_through: snap.data_through, n_games: snap.n_games,
+                metrics: { cohens_d: snap.model_health.cohens_d, non_worsen_under: snap.model_health.non_worsen_under } };
+  if (prev.data_through === cur.data_through && prev.n_games === cur.n_games) return prev.weaken_streak || 0;
+  const weakened = cur.metrics.cohens_d < prev.metrics.cohens_d && cur.metrics.non_worsen_under < prev.metrics.non_worsen_under;
+  cur.weaken_streak = weakened ? (prev.weaken_streak || 0) + 1 : 0;
+  log.push(cur);
+  try { Storage.setJSON(KEYS.KBO_REVAL_LOG, log); } catch (e) {}
+  if (cur.weaken_streak >= 2) alert('🚨 [L-39 발동] 약화 2회 연속 — Layer2 재검토 전까지 실전 신중!');
+  return cur.weaken_streak;
+}
+
+if (typeof window !== 'undefined') {
+  window.kboRunDbMode = kboRunDbMode;
+  window.kboRouteDroppedFile = kboRouteDroppedFile;
+  window.kboRevalUpdate = kboRevalUpdate;
 }

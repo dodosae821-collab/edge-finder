@@ -4523,30 +4523,52 @@ window.addEventListener('unhandledrejection', function(e) {
 </main>
 
 
-<!-- ── 스크립트 로드 순서 (의존성 순) ───────────────────────────
+<!-- ── 스크립트 로드 순서 (의존성 순 · 실제 태그 순서와 1:1 — v77 정합화) ──
   [Core Rules]
-  - state.js는 반드시 모든 스크립트보다 먼저 로드되어야 한다.
+  - storage.js(KEYS/Storage)와 state.js(getBets/saveBets)보다 이를 쓰는 모듈이 먼저 오면 안 된다.
   - edge_bets 접근은 getBets()/saveBets()로만 허용 (localStorage 직접 접근 금지)
-  - decision_analysis.js는 pure 유지 (DOM / storage 접근 금지)
+  - decision_analysis.js · kbo_engine.js · compute 계열은 pure 유지 (DOM/storage 접근 금지)
 
-  [Load Order]
-  [1] app.js               — 용어집 (의존성 없음)
-  [2] kelly.js             — 순수 계산 (외부 의존성 없음)
-  [3] round.js             — rounds 데이터/로직 (kelly.js 이후, state.js 이전)
-  [4] scope.js             — scope 상태/필터 (round.js 이후, state.js 이전)
-  [5] state.js             — 핵심 엔진, getBets/saveBets 정의 (round.js, scope.js 의존)
-  [6] settings.js          — state.js 의존
-  [7] core.js              — state.js(calcSystemState), getBets 의존
-  [8] sim_state/engine/render/actions.js — state.js, saveBets 의존 (v71 분할)
-  [9] verify.js            — getBets, runDecisionAnalysisUI 의존
-  [10] decision_analysis.js — 의존성 없음 (pure)
-  [11] decision_ui.js      — decision_analysis.js, getBets 의존
-  [12~] 기타 모듈          — state.js 의존
+  [Load Order — 아래 목록이 곧 실제 순서. 태그를 바꾸면 이 목록도 같이 바꿀 것]
+   1 storage.js            — 저장 경계 (최우선, 의존성 없음)
+   2 app.js                — 용어집 (의존성 없음)
+   3 kelly.js              — 순수 계산
+   4 compute.js            — 순수 계산 (kelly 의존)
+   5 decision_gate.js      — 게이트 판정
+   6 round.js              — 회차 데이터/로직 (state.js 이전 필수)
+   7 scope.js              — 스코프 필터 (state.js 이전 필수)
+   8 state.js              — 핵심 엔진 getBets/saveBets (round·scope 의존)
+   9 ui_tabs.js            — 탭 전환
+  10 settings.js           — state 의존
+  11 wallet.js
+  12 core.js               — calcSystemState·getBets 의존
+  13-16 sim_state → sim_engine → sim_render → sim_actions (v71 분할, 이 순서 고정)
+  17 combo_recommender.js
+  18 verify.js
+  19 decision_analysis.js  — pure
+  20 decision_ui.js        — decision_analysis 의존
+  21 ev.js                 — betmanRound·computeComboProb
+  22 ev_panel.js
+  23 bet_form.js
+  24 bet_list.js
+  25 restore.js
+  26 csv.js
+  27 bet_record.js         — addBet·resolvebet·buildStrategyBet
+  28 tags_ui.js            — 종목/유형 피커 (SPORT_CATS 단일 소스)
+  29 journal.js
+  30 charts.js
+  31 stats.js              — computeLegStats (실측 단일 소스)
+  32 goal_predict.js
+  33 mobile_gdrive.js
+  34 ocr_import.js
+  35 ocr_form_bridge.js
+  36 kbo_profile_frozen.js — 동결 프로파일 상수
+  37 kbo_engine.js         — KBO F5 판정 엔진 (pure, 골든테스트 보증)
+  38 kbo_f5.js             — KBO 탭 (engine·profile 의존)
 
   [Constraints]
-  - <script async> 사용 금지 (로드 순서 보장 안 됨)
-  - <script defer>는 전부 동일하게 사용할 경우에만 허용
-  - 모든 getBets() 호출은 함수 내부에서만 실행 (top-level 호출 금지)
+  - <script async> 금지 · defer는 전부 동일 적용 시에만 허용
+  - 모든 getBets() 호출은 함수 내부에서만 (top-level 호출 금지)
   ──────────────────────────────────────────────────────────── -->
 <script src="./storage.js"></script>
 <script src="./app.js"></script>
@@ -4583,6 +4605,8 @@ window.addEventListener('unhandledrejection', function(e) {
 <script src="./mobile_gdrive.js"></script>
 <script src="./ocr_import.js"></script>
 <script src="./ocr_form_bridge.js"></script>
+<script src="./kbo_profile_frozen.js"></script>
+<script src="./kbo_engine.js"></script>
 <script src="./kbo_f5.js"></script>
 <script>
 // ── 앱 초기화 ── 모든 스크립트 로드 완료 후 실행

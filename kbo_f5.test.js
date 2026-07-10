@@ -15,7 +15,7 @@ const sandbox = {
     setJSON:(k,v)=>{_store[k]=JSON.stringify(v);}, getJSON:(k,d)=>(k in _store?JSON.parse(_store[k]):d),
     remove:(k)=>{delete _store[k];},
   },
-  KEYS: { KBO_SNAPSHOT: 'kbo' },
+  KEYS: { KBO_SNAPSHOT: 'kbo', KBO_REVAL_LOG: 'krl' },
   _round: null,
   attachRoundToBet: (b) => { if (sandbox._round) b.roundId = sandbox._round.id; return b; },
   applyRoundBet: (amt) => { if (sandbox._round) sandbox._round.remaining -= amt; },
@@ -119,6 +119,23 @@ describe('KBO F5 앱 계층', () => {
     expect(_bets[0].roundId).toBe('R9');
     expect(S._round.remaining).toBe(40000);
     S._round = null;
+  });
+
+  test('약화 회귀로그: 시드(7/5, streak1)에서 이어짐 + 2연속 경고 + 동일데이터 스킵', () => {
+    let alerted = null; S.alert = (m) => { alerted = m; };
+    // 새 데이터(7/12)에서 또 약화 (d·언더율 둘 다 감소) → streak 2 + 경고
+    const snap2 = { data_through:'2026-07-12', n_games:455,
+                    model_health:{ cohens_d:0.45, non_worsen_under:66.9 } };
+    expect(S.kboRevalUpdate(snap2)).toBe(2);
+    expect(String(alerted)).toContain('L-39');
+    // 동일 데이터 재실행 → 기록 없이 직전 streak 유지
+    expect(S.kboRevalUpdate(snap2)).toBe(2);
+    const log = JSON.parse(_store['krl']);
+    expect(log.length).toBe(3);              // 시드2 + 신규1 (재실행 미기록)
+    // 회복 (d 상승) → streak 0 리셋
+    const snap3 = { data_through:'2026-07-19', n_games:480,
+                    model_health:{ cohens_d:0.55, non_worsen_under:68.0 } };
+    expect(S.kboRevalUpdate(snap3)).toBe(0);
   });
 
   test('성적표: 확정 결과 집계 (적중률·손익·미결)', () => {

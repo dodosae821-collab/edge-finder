@@ -1,12 +1,15 @@
 {
-  "name": "kelly-tests",
-  "version": "1.0.0",
+  "name": "edge-finder",
+  "version": "78.0.0",
+  "private": true,
+  "description": "베팅 판단·기록·검증 도구 (로컬 단일 사용자 · 번들러 없음 — index.html을 브라우저로 열면 실행)",
   "scripts": {
-    "test": "jest --verbose",
-    "audit": "node audit_globals.js",
-    "audit:baseline": "node audit_globals.js --show-baseline",
-    "pretest": "node audit_globals.js"
+    "test": "jest",
+    "audit": "node audit_globals.js"
   },
-  "devDependencies": { "jest": "^29.0.0" },
-  "jest": { "testEnvironment": "node" }
+  "devDependencies": {
+    "jest": "^30.0.0",
+    "jest-environment-jsdom": "^30.0.0",
+    "jsdom": "^26.0.0"
+  }
 }

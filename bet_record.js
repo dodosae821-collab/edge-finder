@@ -724,7 +724,7 @@ function deleteBet(id) {
   //   PENDING(①만 발생): 본금만 돌려주면 됨
   //   WIN(①+②까지 발생): 순효과 = -본금+(본금+이익) = +이익만큼 늘어난 상태
   //                       → 원상복구하려면 이익만큼만 다시 빼면 됨 (본금은 ①②가 상쇄됨)
-  //   LOSE(①만 발생, 그대로 끝): 본금만큼 다시 빼야 함 (베팅 자체가 없었던 것처럼)
+  //   LOSE(①만 발생, 그대로 끝): ①에서 뺀 본금을 되돌려야 함 (베팅 자체가 없었던 것처럼)
   const _activeRound = (typeof getActiveRound === 'function') ? getActiveRound() : null;
   if (_delTarget && _activeRound && _delTarget.roundId === _activeRound.id) {
     if (_delTarget.result === 'PENDING' && typeof refundRoundBet === 'function') {
