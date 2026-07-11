@@ -97,6 +97,11 @@ function saveSettings() {
   Storage.setJSON(KEYS.SETTINGS, appSettings);
   // 설정 변경 후 _SS 재계산 → 뱅크롤/seed 값이 즉시 반영되도록
   if (typeof calcSystemState === 'function') calcSystemState();
+  // 전략베팅 목표 연동 — 설정의 '목표 자금'을 SIM_GOAL이 추종 (수동 오버라이드 아니면)
+  if (typeof simSyncGoalFromSettings === 'function' && simSyncGoalFromSettings()) {
+    if (typeof simRender === 'function') try { simRender(); } catch (e) {}
+    if (typeof simOnInput === 'function') try { simOnInput(); } catch (e) {}
+  }
   loadSettingsDisplay();
   checkLossWarning();
   updateFundCards();

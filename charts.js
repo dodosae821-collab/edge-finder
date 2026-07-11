@@ -51,12 +51,32 @@ function initCharts() {
   });
 }
 
+// 수익 곡선 시즌 모드 — 'season': 이번 금액 시즌만(기본) / 'career': 전 시즌 커리어 누적
+//   설정의 "새 금액 시즌 시작" 후에도 커리어 누적이 깔려 그래프가 안 움직이던 문제 해결(v82).
+let _profitSeasonMode = 'season';
+function setProfitSeasonMode(m) {
+  _profitSeasonMode = (m === 'career') ? 'career' : 'season';
+  ['pcs-season','pcs-career'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const on = (id === 'pcs-season') === (_profitSeasonMode === 'season');
+    el.style.border = on ? '1px solid var(--gold)' : '1px solid var(--border)';
+    el.style.background = on ? 'rgba(255,215,0,0.15)' : 'var(--bg3)';
+    el.style.color = on ? 'var(--gold)' : 'var(--text3)';
+  });
+  updateCharts();
+}
+
 function updateCharts() {
   if (!charts.profit) return;
 
   // scope 필터 적용 — 'all': 전체 / 'project': 현재 프로젝트만
   const _scopedBets = (typeof getBetsByScope === 'function') ? getBetsByScope() : bets;
-  const allResolved = _scopedBets.filter(b => b.result !== 'PENDING' && !b.isSim);
+  let allResolved = _scopedBets.filter(b => b.result !== 'PENDING' && !b.isSim);
+  // 시즌 모드: 이번 시즌만 (compute.js 손익 규칙과 동일 — filterMoneySeason)
+  if (_profitSeasonMode === 'season' && typeof filterMoneySeason === 'function') {
+    allResolved = filterMoneySeason(allResolved);
+  }
 
   // 날짜별 누적 손익 계산
   function buildProfitByDate(days) {

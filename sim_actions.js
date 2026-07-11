@@ -534,7 +534,7 @@ function simSetStartBalance() {
 function simConfirmGoal() {
   const val=parseInt(document.getElementById('sim-goal-input')?.value);
   if(!val||val<=simState.balance){const inp=document.getElementById('sim-goal-input');if(inp){inp.style.borderColor='var(--red)';setTimeout(()=>inp.style.borderColor='',1000);}return;}
-  SIM_GOAL=val; simState.goalReached=false;
+  simSetGoalManual(val);   // 수동 오버라이드 (설정 연동 해제 — ↺로 재연동)
   const inp=document.getElementById('sim-goal-input');if(inp)inp.value='';
   simRender();simOnInput();
 }
@@ -584,6 +584,7 @@ function initSimulator() {
     const savedPending=Storage.get(KEYS.SIM_PENDING);
     if(savedPending){simPending=JSON.parse(savedPending);}
   } catch(e) {}
+  simSyncGoalFromSettings();   // 설정 탭 '목표 자금' 연동 (수동 오버라이드 아니면)
   simFormRestoreDraft();   // 폼 임시저장 복원 (라디오→판단행→값 순서 보장)
   simRender(); simRenderPending(); simOnInput();
   // 로드맵 명시적 갱신 (monkey-patch 여부와 무관하게)

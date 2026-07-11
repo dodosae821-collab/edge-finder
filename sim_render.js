@@ -112,33 +112,44 @@ function simRenderProbMirror() {
     if (best) optLine = `<br>💡 세이브 <b style="color:var(--text2)">${(best.ratio * 100).toFixed(0)}%</b>면 도달확률이 가장 높아 (${(best.reachProb * 100).toFixed(0)}%) — 참고만, 결정은 너.`;
   } catch (e) {}
 
-  host.innerHTML = `
-    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
-      <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:2px;">이 길이 목표에 닿을 확률 — 네 실측 레그 적중률 기준</div>
-      <div style="font-size:9px;color:var(--text3);margin-bottom:12px;">제안일 뿐이야. 금액을 바꾸면 확률도 바로 따라 움직여.</div>
-      ${user ? `
-      <div style="margin-bottom:10px;">
-        <div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:6px;">지금 네 입력이면</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
-          <div><div style="font-size:9px;color:var(--text3)">도달</div><div style="font-size:20px;font-weight:900;color:var(--green);font-family:'JetBrains Mono',monospace">${pct(user.reachProb)}%</div></div>
-          <div><div style="font-size:9px;color:var(--text3)">파산</div><div style="font-size:20px;font-weight:900;color:var(--red);font-family:'JetBrains Mono',monospace">${pct(user.bustProb)}%</div></div>
-          <div><div style="font-size:9px;color:var(--text3)">예상 회차</div><div style="font-size:14px;font-weight:700;color:var(--text2);font-family:'JetBrains Mono',monospace;padding-top:4px">${roundsStr(user)}</div></div>
-        </div>
-      </div>` : `<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">금액을 입력하면 '네 입력' 기준 확률이 여기 떠. 아래는 제안 배분 기준.</div>`}
-      <div style="border-top:1px solid var(--border);padding-top:10px;opacity:0.72;">
-        <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:6px;">제안(로드맵)대로면</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
-          <div><div style="font-size:9px;color:var(--text3)">도달</div><div style="font-size:16px;font-weight:800;color:var(--text3);font-family:'JetBrains Mono',monospace">${pct(roadmap.reachProb)}%</div></div>
-          <div><div style="font-size:9px;color:var(--text3)">파산</div><div style="font-size:16px;font-weight:800;color:var(--text3);font-family:'JetBrains Mono',monospace">${pct(roadmap.bustProb)}%</div></div>
-          <div><div style="font-size:9px;color:var(--text3)">예상 회차</div><div style="font-size:13px;font-weight:700;color:var(--text3);font-family:'JetBrains Mono',monospace;padding-top:3px">${roundsStr(roadmap)}</div></div>
-        </div>
+  host.innerHTML = (() => {
+    // 헤드라인 = 하나의 결과(입력 있으면 네 배분, 없으면 제안 배분). 나머지는 전부 '자세히'로.
+    const main = user || roadmap;
+    const mainLabel = user ? '지금 네 배분 기준' : '제안 배분 기준 (금액 입력 시 네 배분으로 바뀜)';
+    const reach = Math.round(main.reachProb * 100);
+    const bust = Math.round(main.bustProb * 100);
+    const miss = Math.max(0, 100 - reach - bust);
+    const per100 = `100번 가면 <b style="color:var(--green)">${reach}번 목표 도달</b>, <b style="color:var(--red)">${bust}번 파산</b>${miss ? `, ${miss}번 미달` : ''}`;
+    const rounds = main.medianRounds == null ? '' : ` · 도달까지 보통 <b style="color:var(--text2)">${main.medianRounds}회차</b> (${main.p10Rounds}~${main.p90Rounds})`;
+    const cmp = user
+      ? `제안 배분이면 도달 ${pct(roadmap.reachProb)}% · 파산 ${pct(roadmap.bustProb)}% (${(user.reachProb - roadmap.reachProb) >= 0 ? '네 배분이 +' : '제안이 +'}${Math.abs(Math.round((user.reachProb - roadmap.reachProb) * 100))}%p)`
+      : '';
+    return `
+    <div class="mirror-card">
+      <div class="sec-title" style="margin-bottom:8px;">이 배분으로 목표 ${simFmt(goal)}원까지 <span class="lbl-right">${mainLabel}</span></div>
+      <div style="display:flex;align-items:baseline;gap:10px;">
+        <span class="mirror-big" style="color:${reach >= bust ? 'var(--green)' : 'var(--red)'};">${reach}%</span>
+        <span style="font-size:12px;color:var(--text2);">도달 확률</span>
       </div>
-      <div style="font-size:9px;color:var(--text3);margin-top:12px;line-height:1.6;border-top:1px solid var(--border);padding-top:8px;">
-        실측 커버리지: ${cov || '레그 표본 부족 — 전부 폴백(암시확률/예측 승률)'}
-        ${fallbackUsed.length ? `<br><span style="color:var(--warn)">⚠ ${fallbackUsed.join(', ')} 배당대는 실측 부족 → 예측/암시 승률 사용 (장밋빛 아님, 정직하게)</span>` : ''}
-        ${optLine}
+      <div class="mirror-bar" title="도달 ${reach}% · 미달 ${miss}% · 파산 ${bust}%">
+        <div class="mirror-seg-reach" style="width:${reach}%"></div>
+        <div class="mirror-seg-miss" style="width:${miss}%"></div>
+        <div class="mirror-seg-bust" style="width:${bust}%"></div>
       </div>
+      <div class="mirror-legend"><span>🟢 도달 ${reach}%</span><span>⬜ 미달 ${miss}%</span><span>🔴 파산 ${bust}%</span></div>
+      <div class="mirror-say">${per100}${rounds} — 네 실측 적중률 기준, 금액 바꾸면 즉시 갱신.</div>
+      ${cmp ? `<div class="mirror-cmp">${cmp}</div>` : ''}
+      <details class="mirror-det">
+        <summary>자세히 (실측 근거 · 제안 비교 · 세이브 최적)</summary>
+        <div class="body">
+          ${user ? `제안(로드맵) 배분: 도달 ${pct(roadmap.reachProb)}% / 파산 ${pct(roadmap.bustProb)}% / 예상 ${roundsStr(roadmap)}<br>` : ''}
+          실측 커버리지: ${cov || '레그 표본 부족 — 전부 폴백(암시확률/예측 승률)'}
+          ${fallbackUsed.length ? `<br><span style="color:var(--warn)">⚠ ${fallbackUsed.join(', ')} 배당대는 실측 부족 → 예측/암시 승률 사용</span>` : ''}
+          ${optLine}
+        </div>
+      </details>
     </div>`;
+  })();
 }
 
 
@@ -228,6 +239,10 @@ function simRender() {
   const gmEl=document.getElementById('sim-goal-meta'); if(gmEl) gmEl.textContent='목표 '+simFmt(SIM_GOAL)+'원';
   const fill=document.getElementById('sim-prog-fill'); if(fill){fill.style.width=pct+'%';fill.style.background=bal>=SIM_GOAL?'linear-gradient(90deg,var(--green),#00e676)':'linear-gradient(90deg,rgba(0,229,255,0.6),var(--accent))';}
   const gdEl=document.getElementById('sim-goal-display'); if(gdEl) gdEl.textContent=simFmt(SIM_GOAL)+'원';
+  const gmode=document.getElementById('sim-goal-mode');
+  if(gmode){ const man = (typeof simGoalIsManual==='function') && simGoalIsManual();
+    gmode.textContent = man ? '수동 설정' : '설정 탭 연동';
+    gmode.style.color = man ? 'var(--gold)' : 'var(--text3)'; }
   let lastSave=0; for(let i=simState.history.length-1;i>=0;i--){if(simState.history[i].save>0){lastSave=simState.history[i].save;break;}}
   const sr=document.getElementById('sim-save-row'); if(sr) sr.style.display=lastSave>0?'flex':'none';
   const sa=document.getElementById('sim-save-amt'); if(sa) sa.textContent=simFmt(lastSave)+'원';

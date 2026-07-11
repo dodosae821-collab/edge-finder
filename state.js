@@ -792,3 +792,18 @@ if (typeof window !== 'undefined') {
     console.debug('[bootstrap] App.state attached', Object.keys(window.App.state));
   }
 }
+
+// ── 재무 시즌 공용 헬퍼 (v82) ─────────────────────────────────
+//   돈 단위 집계(누적손익 차트 등)가 compute.js와 동일 규칙을 쓰도록 단일화.
+//   규칙: 현재 시즌만 포함 · legacy(finSeason=0)는 시즌1에서만 포함.
+function getCurrentFinSeason() {
+  try {
+    const s = (typeof getSettings === 'function' ? getSettings() : {}).currentFinSeason;
+    return (Number.isInteger(s) && s >= 1) ? s : 1;
+  } catch (e) { return 1; }
+}
+
+function filterMoneySeason(list) {
+  const s = getCurrentFinSeason();
+  return (list || []).filter(b => b.finSeason === s || (b.finSeason === 0 && s === 1));
+}

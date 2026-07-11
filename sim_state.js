@@ -131,3 +131,34 @@ function simFormRestoreDraft() {
 function simFormClearDraft() {
   try { Storage.remove(KEYS.SIM_FORM_DRAFT); } catch (e) {}
 }
+
+// ── 목표 금액 설정 연동 (v80) ────────────────────────────────
+//   기본: 설정 탭의 '목표 자금'(appSettings.targetFund)을 SIM_GOAL이 자동 추종.
+//   전략탭에서 수동 확정(simConfirmGoal)하면 수동 오버라이드 — ↺로 재연동.
+//   (합산 배당의 자동/수동 패턴과 동일한 규칙)
+function simGoalIsManual() {
+  try { return Storage.get(KEYS.SIM_GOAL_MANUAL) === '1'; } catch (e) { return false; }
+}
+
+function simSyncGoalFromSettings() {
+  if (simGoalIsManual()) return false;
+  if (typeof getSettings !== 'function') return false;
+  const tf = Number((getSettings() || {}).targetFund) || 0;
+  if (tf > 0 && tf !== SIM_GOAL) {
+    SIM_GOAL = tf;
+    simState.goalReached = false;   // 목표 변경 시 재도전 (simConfirmGoal과 동일 규칙)
+    try { Storage.set(KEYS.SIM_GOAL, SIM_GOAL); } catch (e) {}
+    return true;
+  }
+  return false;
+}
+
+function simSetGoalManual(val) {
+  SIM_GOAL = val; simState.goalReached = false;
+  try { Storage.set(KEYS.SIM_GOAL, SIM_GOAL); Storage.set(KEYS.SIM_GOAL_MANUAL, '1'); } catch (e) {}
+}
+
+function simClearGoalManual() {
+  try { Storage.remove(KEYS.SIM_GOAL_MANUAL); } catch (e) {}
+  simSyncGoalFromSettings();
+}

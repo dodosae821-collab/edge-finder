@@ -66,17 +66,19 @@ describe('Step2 거울 반응성', () => {
     // 입력 전
     simRenderProbMirror();
     const noInput = document.getElementById('sim-prob-mirror').innerHTML;
-    expect(noInput).toContain('제안(로드맵)');
-    expect(noInput).not.toContain('지금 네 입력이면');
-    expect(noInput).toMatch(/도달|파산/);
+    expect(noInput).toContain('제안 배분 기준');       // 헤드라인이 제안 기준임을 표시
+    expect(noInput).not.toContain('지금 네 배분');
+    expect(noInput).toMatch(/도달 확률/);
+    expect(noInput).toContain('mirror-bar');            // 시각 막대 존재
 
     // 금액 입력 후 재렌더 → 거울이 반응
     document.getElementById('sim-i-b2').value = '7000';
     document.getElementById('sim-i-sv').value = '3000';
     simRenderProbMirror();
     const withInput = document.getElementById('sim-prob-mirror').innerHTML;
-    expect(withInput).toContain('지금 네 입력이면');
-    expect(withInput).toContain('제안(로드맵)');
+    expect(withInput).toContain('지금 네 배분 기준');
+    expect(withInput).toContain('제안 배분이면');        // 비교는 한 줄로 강등
+    expect(withInput).toContain('100번 가면');           // 해석 문장
   });
 
   test('목표 이상 잔액이면 거울 숨김 (빈 출력)', () => {

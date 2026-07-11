@@ -37,6 +37,7 @@ window.KEYS = Object.freeze({
   SIM_GOAL:              'edge_sim_goal',
   SIM_PENDING:           'edge_sim_pending',
   SIM_FORM_DRAFT:        'edge_sim_form_draft',
+  SIM_GOAL_MANUAL:       'edge_sim_goal_manual',
   KBO_SNAPSHOT:          'edge_kbo_snapshot',
   KBO_REVAL_LOG:         'edge_kbo_reval_log',
 

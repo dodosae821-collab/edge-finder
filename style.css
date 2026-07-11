@@ -1318,3 +1318,19 @@
 .big-num         { font-size:20px; font-weight:700; }
 .stat-card-14    { background:var(--bg3); border-radius:8px; padding:14px; text-align:center; }
 .pill            { padding:4px 10px; font-size:13px; }
+
+/* 도달/파산 거울 리디자인 (v81) — 헤드라인 1개 + 접이식 상세 */
+.mirror-card   { background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:14px; }
+.mirror-big    { font-size:34px; font-weight:900; font-family:'JetBrains Mono',monospace; line-height:1; }
+.mirror-bar    { display:flex; height:14px; border-radius:7px; overflow:hidden; margin:10px 0 6px; background:var(--bg2); }
+.mirror-seg-reach { background:linear-gradient(90deg,#00c853,var(--green)); }
+.mirror-seg-miss  { background:rgba(255,255,255,0.10); }
+.mirror-seg-bust  { background:linear-gradient(90deg,var(--red),#ff1744); }
+.mirror-legend { display:flex; gap:12px; font-size:10px; color:var(--text3); }
+.mirror-say    { font-size:12px; color:var(--text2); margin-top:10px; line-height:1.6; }
+.mirror-cmp    { font-size:11px; color:var(--text3); margin-top:6px; }
+.mirror-det    { margin-top:10px; }
+.mirror-det summary { font-size:11px; color:var(--text3); cursor:pointer; list-style:none; }
+.mirror-det summary::before { content:'▸ '; }
+.mirror-det[open] summary::before { content:'▾ '; }
+.mirror-det .body { margin-top:8px; font-size:11px; color:var(--text3); line-height:1.7; }
