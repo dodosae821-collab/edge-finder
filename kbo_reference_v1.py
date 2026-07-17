@@ -170,21 +170,30 @@ for p in sorted(set(pvx['pitcher']) | set(pl2[pl2['season']==2026]['pitcher'])):
     sig=None
     if t_now=='C' and stable and sc=='non_worsen' and l1=='below': sig='UNDER'
     elif t_now=='A' and stable and l1=='above': sig='OVER'
+    # 유형 연속 판정 횟수: 각 경기 시점 판정 시퀀스 + 현재 판정, 뒤에서부터 동일 유형 카운트
+    hist = [type_at(p, d) for d in mine['date'].tolist()] + [t_now]
+    streak = 0
+    for t in reversed(hist):
+        if t is not None and t == t_now: streak += 1
+        else: break
+    if t_now is None: streak = 0
     pitchers.append(dict(pitcher=p, type=t_now or '?', type_prev=t_prev or '?',
-                         stable=bool(stable), sc=sc, l1=l1, signal=sig, n_prior=int(len(mine))))
+                         stable=bool(stable), sc=sc, l1=l1, signal=sig, n_prior=int(len(mine)),
+                         type_streak=int(streak)))
 pdx = pd.DataFrame(pitchers)
 sig_p = pdx[pdx['signal'].notna()]
 print(f'현재 신호 투수: {len(sig_p)}명 → {sorted(sig_p.pitcher.tolist())}')
 
 spot = {}
-for name in ['올러','로드리게스','화이트(한)','알칸타라','안우진','이의리','후라도','곽빈']:
+for name in ['올러','로드리게스','화이트(한)','알칸타라','안우진','이의리','후라도','곽빈','고영표','최민석','류현진']:
     r = pdx[pdx['pitcher']==name]
     if len(r):
         r=r.iloc[0]
         spot[name] = dict(type=r['type'], stable=bool(r['stable']),
                           sc=(r['sc'] if pd.notna(r['sc']) else None),
                           l1=(r['l1'] if pd.notna(r['l1']) else None),
-                          signal=(r['signal'] if pd.notna(r['signal']) else None))
+                          signal=(r['signal'] if pd.notna(r['signal']) else None),
+                          type_streak=int(r['type_streak']))
 
 fixture = dict(
     pitcher_log = pl[['game_key','date','team','pitcher','outs','hits','bb']].to_dict('records'),

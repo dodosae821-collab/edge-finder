@@ -279,10 +279,20 @@ function kboLivePitchers(pitcherGames, deltaRows) {
       if (l1 !== 'above') reason = `A형 안정이나 L1 ${l1 || '판정불가'} — above 요건 미충족`;
       else { signal = 'OVER'; reason = 'A형 안정 + above — 오버 신호'; }
     }
+    // 유형 연속 판정 횟수: 각 경기 시점 판정 + 현재 판정, 뒤에서부터 동일 유형 카운트
+    let typeStreak = 0;
+    if (tNow != null) {
+      const hist = rows.map(r => kboTypeAt(pitcherGames, p, r.date));
+      hist.push(tNow);
+      for (let i = hist.length - 1; i >= 0; i--) {
+        if (hist[i] != null && hist[i] === tNow) typeStreak++;
+        else break;
+      }
+    }
     out.push({ pitcher: p, team: lrow.team || (latest26[p] && latest26[p].team) || '?',
                type: tNow || '?', type_prev: tPrev || '?', stable: !!stable,
                state_change: sc, l1_side: l1, signal, reason,
-               n_prior: rows.length,
+               n_prior: rows.length, type_streak: typeStreak,
                delta_whip: Number.isFinite(dw) ? Math.round(dw * 1000) / 1000 : null,
                delta_h_ip: Number.isFinite(dh) ? Math.round(dh * 1000) / 1000 : null,
                last_start: lrow.date || null });

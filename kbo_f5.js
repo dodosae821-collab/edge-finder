@@ -96,7 +96,7 @@ function kboPitcherCardHtml(p) {
     <div style="background:var(--bg3);border:1px solid ${col};border-radius:10px;padding:12px 14px;margin-top:8px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
         <span style="font-size:15px;font-weight:800;color:var(--text);">${p.pitcher}</span>
-        <span class="hint">${p.team} · 최근 등판 ${p.last_start || '—'} · 언옵 N=${p.n_prior}</span>
+        <span class="hint">${p.team} · 최근 등판 ${p.last_start || '—'} · 언옵 N=${p.n_prior}${p.type_streak > 0 && (p.type === 'A' || p.type === 'C') ? ` · <b style="color:${p.type_streak >= 6 ? 'var(--green)' : 'var(--gold, #ffd60a)'}">${p.type}형 연속 ${p.type_streak}회 판정</b>` : ''}</span>
         <span style="margin-left:auto;font-size:12px;font-weight:700;color:${col};">${badge}</span>
       </div>
       <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;">
@@ -311,7 +311,7 @@ function renderKboF5() {
       <div style="margin-top:12px;">
         <div class="hint-mb5">현재 신호 투수 (${sigs.length}명 — 오늘 등판 여부는 직접 확인)</div>
         <div style="display:flex;flex-wrap:wrap;gap:5px;">
-          ${sigs.map(p => `<span onclick="document.getElementById('kbo-pitcher-input').value='${p.pitcher.replace(/'/g, "\\'")}';kboLookup()" style="padding:4px 10px;font-size:11px;background:${p.signal === 'UNDER' ? 'rgba(0,230,118,0.07)' : 'rgba(255,159,10,0.09)'};border:1px solid ${p.signal === 'UNDER' ? 'rgba(0,230,118,0.3)' : 'rgba(255,159,10,0.35)'};border-radius:12px;color:${p.signal === 'UNDER' ? 'var(--green)' : 'var(--accent2, #ff9f0a)'};cursor:pointer;">${p.pitcher} ${p.signal === 'UNDER' ? 'U' : 'O'} <span class="hint">${p.team}</span></span>`).join('')}
+          ${sigs.map(p => `<span onclick="document.getElementById('kbo-pitcher-input').value='${p.pitcher.replace(/'/g, "\\'")}';kboLookup()" style="padding:4px 10px;font-size:11px;background:${p.signal === 'UNDER' ? 'rgba(0,230,118,0.07)' : 'rgba(255,159,10,0.09)'};border:1px solid ${p.signal === 'UNDER' ? 'rgba(0,230,118,0.3)' : 'rgba(255,159,10,0.35)'};border-radius:12px;color:${p.signal === 'UNDER' ? 'var(--green)' : 'var(--accent2, #ff9f0a)'};cursor:pointer;">${p.pitcher} ${p.signal === 'UNDER' ? 'U' : 'O'}·${p.type_streak} <span class="hint">${p.team}</span></span>`).join('')}
         </div>
       </div>
     </div>
@@ -340,8 +340,22 @@ if (typeof document !== 'undefined') {
 //   sql.js(WASM SQLite)는 cdnjs에서 지연 로드.
 //   v83: chronology_v2.db·프로파일 csv 불필요 (v1.0은 kbo.db+언옵만 사용).
 // ============================================================
-let _kboDbFiles = { db: null, unops: {} };
-let _kboSqlJs = null;
+let _kboDbFiles = { db: null, dbName: null };
+let _kboSqlJs = null, _kboJsZip = null;
+
+// ── 언옵 txt 영구 저장 (v84): 과거 시즌·월 파일은 한 번만 넣으면 됨 ──
+function kboGetUnops() {
+  try { return Storage.getJSON(KEYS.KBO_UNOPS, {}) || {}; } catch (e) { return {}; }
+}
+function kboSaveUnop(name, text) {
+  const u = kboGetUnops(); u[name] = text;
+  try { Storage.setJSON(KEYS.KBO_UNOPS, u); } catch (e) { alert('언옵 저장 실패: ' + e.message); }
+}
+function kboRemoveUnop(name) {
+  const u = kboGetUnops(); delete u[name];
+  try { Storage.setJSON(KEYS.KBO_UNOPS, u); } catch (e) {}
+  renderKboF5();
+}
 
 function kboLoadSqlJs() {
   if (_kboSqlJs) return Promise.resolve(_kboSqlJs);
@@ -353,60 +367,112 @@ function kboLoadSqlJs() {
         .then(SQL => { _kboSqlJs = SQL; resolve(SQL); })
         .catch(reject);
     };
-    s.onerror = () => reject(new Error('sql.js 로드 실패 — 인터넷 연결 필요 (오프라인이면 JSON 스냅샷 모드 사용)'));
+    s.onerror = () => reject(new Error('sql.js 로드 실패 — 인터넷 연결 필요'));
     document.head.appendChild(s);
   });
+}
+
+function kboLoadJsZip() {
+  if (_kboJsZip) return Promise.resolve(_kboJsZip);
+  if (typeof JSZip !== 'undefined') { _kboJsZip = JSZip; return Promise.resolve(JSZip); }
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload = () => { _kboJsZip = window.JSZip; resolve(window.JSZip); };
+    s.onerror = () => reject(new Error('jszip 로드 실패 — 인터넷 연결 필요 (zip 대신 파일을 직접 드롭하세요)'));
+    document.head.appendChild(s);
+  });
+}
+
+// ── 파일 라우팅 (드롭·선택·zip 내부 공용) ──
+//   수용: kbo.db(정확히 이 이름) / *.txt(언옵→영구저장) / *.json(스냅샷)
+//   무시: kbo_2023/2024.db·chronology·features db·csv·py·jsonl — v1.0에 불필요
+function kboIngestNamedFile(name, kind, content) {
+  const base = name.split('/').pop();
+  if (kind === 'db') {
+    if (base === 'kbo.db') { _kboDbFiles.db = content; _kboDbFiles.dbName = base; return 'db'; }
+    return 'ignored';   // kbo_2023.db·chronology_v2.db·kbo_features.db 등 — 미사용
+  }
+  if (base.endsWith('.txt')) { kboSaveUnop(base, content); return 'unop'; }
+  if (base.endsWith('.json')) {
+    if (kboSaveSnapshotText(content)) { if (typeof simToast === 'function') simToast('✅ 스냅샷 적용됨', 'ok'); return 'snapshot'; }
+    return 'ignored';
+  }
+  return 'ignored';
+}
+
+async function kboIngestZip(arrayBuffer) {
+  const JZ = await kboLoadJsZip();
+  const zip = await JZ.loadAsync(arrayBuffer);
+  let nDb = 0, nTxt = 0, nSkip = 0;
+  for (const entry of Object.values(zip.files)) {
+    if (entry.dir) continue;
+    const base = entry.name.split('/').pop();
+    if (base === 'kbo.db') {
+      const buf = new Uint8Array(await entry.async('arraybuffer'));
+      kboIngestNamedFile(base, 'db', buf); nDb++;
+    } else if (base.endsWith('.txt')) {
+      const text = await entry.async('string');
+      kboIngestNamedFile(base, 'text', text); nTxt++;
+    } else nSkip++;
+  }
+  if (typeof simToast === 'function') simToast(`📦 zip 처리: kbo.db ${nDb ? '✓' : '없음'} · 언옵 txt ${nTxt}개 저장 · ${nSkip}개 무시(v1.0 불필요 파일)`, 'ok');
 }
 
 function kboRouteDroppedFile(file) {
   return new Promise((resolve) => {
     const name = file.name;
-    const isDb = name.endsWith('.db');
     const r = new FileReader();
-    r.onload = () => {
-      if (isDb) {
-        if (name.includes('chronology')) { /* v2에서 미사용 — 무시 */ }
-        else _kboDbFiles.db = new Uint8Array(r.result);
-      } else if (name.endsWith('.txt')) {
-        _kboDbFiles.unops[name] = String(r.result);
-      } else if (name.endsWith('.csv')) {
-        /* 프로파일 csv — v2에서 미사용 (L-40 look-ahead 폐기). 무시 */
-        if (typeof simToast === 'function') simToast('프로파일 csv는 v1.0에서 사용하지 않습니다 (PIT 자동 계산)', 'info');
-      } else if (name.endsWith('.json')) {
-        if (kboSaveSnapshotText(String(r.result))) { renderKboF5(); if (typeof simToast === 'function') simToast('✅ 스냅샷 적용됨', 'ok'); }
-      }
+    r.onload = async () => {
+      try {
+        if (name.endsWith('.zip')) await kboIngestZip(r.result);
+        else if (name.endsWith('.db')) {
+          const res = kboIngestNamedFile(name, 'db', new Uint8Array(r.result));
+          if (res === 'ignored' && typeof simToast === 'function') simToast(`'${name}' — v1.0에 불필요한 파일 (kbo.db만 사용)`, 'info');
+        } else kboIngestNamedFile(name, 'text', String(r.result));
+      } catch (e) { alert('파일 처리 실패: ' + e.message); }
       resolve();
     };
-    if (isDb) r.readAsArrayBuffer(file); else r.readAsText(file);
+    if (name.endsWith('.db') || name.endsWith('.zip')) r.readAsArrayBuffer(file);
+    else r.readAsText(file);
   });
 }
 
 function kboDbModeSectionHtml() {
-  const f = _kboDbFiles;
-  const staged = f.db || Object.keys(f.unops).length;
+  const unops = kboGetUnops();
+  const unopNames = Object.keys(unops).sort();
+  const staged = _kboDbFiles.db || unopNames.length;
   const chip = (ok, label) => `<span style="padding:3px 8px;font-size:10px;border-radius:10px;border:1px solid ${ok ? 'var(--green)' : 'var(--border)'};color:${ok ? 'var(--green)' : 'var(--text3)'};">${ok ? '✓' : '·'} ${label}</span>`;
   return `
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px;">
-      <div class="sec-title">DB 모드 — kbo.db로 직접 계산 (v1.0 · 파이썬 불필요)</div>
-      <div class="hint-mb6" style="line-height:1.6;">크롤링해 둔 <b style="color:var(--text2)">kbo.db + 언옵 txt 전부</b>를 끌어다 놓거나 선택 → 계산 실행. 유형은 PIT로 자동 산출 — 프로파일 csv·chronology.db 불필요. 계산은 파이썬 참조와 숫자까지 동일(골든 테스트).</div>
-      <input type="file" multiple accept=".db,.txt,.json" onchange="(async()=>{for(const f of Array.from(this.files))await kboRouteDroppedFile(f);renderKboF5();}).call(this)" style="font-size:11px;">
-      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;">
-        ${chip(!!f.db, 'kbo.db')}
-        ${chip(Object.keys(f.unops).length > 0, `언옵 txt ×${Object.keys(f.unops).length}`)}
+      <div class="sec-title">DB 모드 — v1.0 계산 (파이썬 불필요)</div>
+      <div class="hint-mb6" style="line-height:1.7;">
+        필요한 것은 <b style="color:var(--text2)">딱 두 가지</b>:
+        ① <b style="color:var(--text2)">최신 kbo.db</b> — 매번 새로 드롭 (25+26시즌이 이 한 파일에 들어있음. <b>kbo_2023/2024.db·chronology·features·csv 전부 불필요 — 드롭해도 자동 무시</b>)
+        ② <b style="color:var(--text2)">언옵 txt</b> — <b>한 번 넣으면 브라우저에 영구 저장</b>. 끝난 시즌·월 파일은 다시 넣을 필요 없고, 새 달 파일만 추가하면 됨.
+        <b style="color:var(--accent)">kbo파일.zip을 통째로 드롭해도 됨</b> — kbo.db와 txt만 자동 추출.
       </div>
+      <input type="file" multiple accept=".db,.txt,.json,.zip" onchange="(async()=>{for(const f of Array.from(this.files))await kboRouteDroppedFile(f);renderKboF5();}).call(this)" style="font-size:11px;">
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;align-items:center;">
+        ${chip(!!_kboDbFiles.db, `kbo.db ${_kboDbFiles.db ? '(이번 세션 적재됨)' : '(드롭 필요)'}`)}
+        ${chip(unopNames.length > 0, `언옵 저장됨 ×${unopNames.length}`)}
+      </div>
+      ${unopNames.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">
+        ${unopNames.map(n => `<span style="padding:3px 8px;font-size:10px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--text3);">${n} <span onclick="kboRemoveUnop('${n.replace(/'/g, "\\'")}')" style="cursor:pointer;color:var(--red);font-weight:700;">✕</span></span>`).join('')}
+      </div>` : ''}
       ${staged ? `<button id="kbo-db-run" onclick="kboRunDbMode()" style="margin-top:10px;padding:9px 18px;font-size:12px;font-weight:700;background:rgba(0,229,255,0.08);border:1px solid var(--accent);border-radius:6px;color:var(--accent);cursor:pointer;">계산 실행</button>` : ''}
     </div>`;
 }
 
 async function kboRunDbMode() {
-  const f = _kboDbFiles;
-  if (!f.db) { alert('kbo.db를 먼저 드롭/선택하세요'); return; }
-  if (!Object.keys(f.unops).length) { alert('언옵 txt 파일(들)을 드롭/선택하세요 (25년~현재 전부)'); return; }
+  const unops = kboGetUnops();
+  if (!_kboDbFiles.db) { alert('최신 kbo.db를 드롭하세요 (zip 통째로도 가능)'); return; }
+  if (!Object.keys(unops).length) { alert('언옵 txt가 없습니다 — 25년~현재 파일을 드롭하세요 (한 번만 넣으면 저장됨)'); return; }
   const btn = document.getElementById('kbo-db-run');
   if (btn) { btn.disabled = true; btn.textContent = '계산 중…'; }
   try {
     const SQL = await kboLoadSqlJs();
-    const db = new SQL.Database(f.db);
+    const db = new SQL.Database(_kboDbFiles.db);
     const q = (sql) => {
       const res = db.exec(sql);
       if (!res.length) return [];
@@ -419,11 +485,11 @@ async function kboRunDbMode() {
       COALESCE(home_i1,0)+COALESCE(home_i2,0)+COALESCE(home_i3,0)+COALESCE(home_i4,0)+COALESCE(home_i5,0) as h5
       FROM inning_score WHERE date >= '2025-07-29'`);
     db.close();
-    const snap = kboBuildSnapshotFromDb({ pitcher_log, inning_score, unop_files: f.unops });
+    const snap = kboBuildSnapshotFromDb({ pitcher_log, inning_score, unop_files: unops });
     kboRevalUpdate(snap);
     Storage.setJSON(KEYS.KBO_SNAPSHOT, snap);
     if (typeof simToast === 'function') simToast(`✅ 계산 완료 — 경기 ${snap.n_games}건 · 백테스트 ${snap.model_health.sim_wins}-${snap.model_health.sim_losses} · 신호 ${snap.pitchers.filter(p => p.signal).length}명`, 'ok');
-    _kboDbFiles = { db: null, unops: {} };
+    _kboDbFiles = { db: null, dbName: null };
     renderKboF5();
   } catch (e) {
     alert('DB 모드 실패: ' + e.message);
@@ -455,4 +521,5 @@ if (typeof window !== 'undefined') {
   window.kboJudgeGameUi = kboJudgeGameUi;
   window.kboRegisterSystemBet = kboRegisterSystemBet;
   window.kboRegisterSupervisorBet = kboRegisterSupervisorBet;
+  window.kboRemoveUnop = kboRemoveUnop;
 }

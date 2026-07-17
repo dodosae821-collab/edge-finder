@@ -64,6 +64,7 @@ describe('KBO 엔진 골든 테스트 (v1.0 — 파이썬 참조 동치)', () =>
       expect(p.state_change).toBe(e.sc);
       expect(p.l1_side).toBe(e.l1 ?? null);
       expect(p.signal).toBe(e.signal ?? null);
+      expect(p.type_streak).toBe(e.type_streak);
     }
   });
 

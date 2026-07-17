@@ -40,6 +40,7 @@ window.KEYS = Object.freeze({
   SIM_GOAL_MANUAL:       'edge_sim_goal_manual',
   KBO_SNAPSHOT:          'edge_kbo_snapshot',
   KBO_REVAL_LOG:         'edge_kbo_reval_log',
+  KBO_UNOPS:             'edge_kbo_unops',
 
   // 라운드
   ROUNDS:                'edge_rounds',

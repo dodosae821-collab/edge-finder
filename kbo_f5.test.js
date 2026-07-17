@@ -15,7 +15,7 @@ const sandbox = {
     setJSON:(k,v)=>{_store[k]=JSON.stringify(v);}, getJSON:(k,d)=>(k in _store?JSON.parse(_store[k]):d),
     remove:(k)=>{delete _store[k];},
   },
-  KEYS: { KBO_SNAPSHOT: 'kbo', KBO_REVAL_LOG: 'krl' },
+  KEYS: { KBO_SNAPSHOT: 'kbo', KBO_REVAL_LOG: 'krl', KBO_UNOPS: 'kuo' },
   _round: null,
   attachRoundToBet: (b) => { if (sandbox._round) b.roundId = sandbox._round.id; return b; },
   applyRoundBet: (amt) => { if (sandbox._round) sandbox._round.remaining -= amt; },
@@ -40,19 +40,19 @@ const SNAP = {
   pitchers: [
     { pitcher:'후라도', team:'SAMSUNG', type:'C', type_prev:'C', stable:true, state_change:'non_worsen',
       l1_side:'below', signal:'UNDER', reason:'C형 안정 + non_worsen + below — 언더 신호',
-      n_prior:16, delta_whip:1.021, delta_h_ip:1.033, last_start:'2026-07-01' },
+      n_prior:16, type_streak:8, delta_whip:1.021, delta_h_ip:1.033, last_start:'2026-07-01' },
     { pitcher:'워슨투수', team:'LG', type:'C', type_prev:'C', stable:true, state_change:'worsen',
       l1_side:'below', signal:null, reason:'C형 안정이나 worsen — 신호 무효',
-      n_prior:12, delta_whip:1.25, delta_h_ip:1.31, last_start:'2026-07-02' },
+      n_prior:12, type_streak:5, delta_whip:1.25, delta_h_ip:1.31, last_start:'2026-07-02' },
     { pitcher:'에이형', team:'KT', type:'A', type_prev:'A', stable:true, state_change:'non_worsen',
       l1_side:'above', signal:'OVER', reason:'A형 안정 + above — 오버 신호',
-      n_prior:11, delta_whip:1.02, delta_h_ip:1.01, last_start:'2026-07-03' },
+      n_prior:11, type_streak:6, delta_whip:1.02, delta_h_ip:1.01, last_start:'2026-07-03' },
     { pitcher:'표준맨', team:'NC', type:'STD', type_prev:'STD', stable:true, state_change:'non_worsen',
       l1_side:'below', signal:null, reason:'표준 유형 — 프로토콜 대상 아님',
-      n_prior:14, delta_whip:1.0, delta_h_ip:1.0, last_start:'2026-07-04' },
+      n_prior:14, type_streak:9, delta_whip:1.0, delta_h_ip:1.0, last_start:'2026-07-04' },
     { pitcher:'신인미검증', team:'SSG', type:'?', type_prev:'?', stable:false, state_change:null,
       l1_side:null, signal:null, reason:'유형 판정 불가 (사전 언옵 N=2 < 5) — 미검증 선발',
-      n_prior:2, delta_whip:null, delta_h_ip:null, last_start:'2026-07-05' },
+      n_prior:2, type_streak:0, delta_whip:null, delta_h_ip:null, last_start:'2026-07-05' },
   ],
 };
 
@@ -94,6 +94,7 @@ describe('KBO F5 앱 계층 v83 (스키마 v2)', () => {
     expect(h).toContain('언더 신호');
     expect(h).toContain('L3 C형 안정');
     expect(h).toContain('L1 below');
+    expect(h).toContain('C형 연속 8회 판정');   // 멤버십 스트릭 표시 (v84)
     set('워슨투수');
     h = document.getElementById('kbo-verdict').innerHTML;
     expect(h).toContain('worsen — 신호 무효');
@@ -223,6 +224,28 @@ describe('KBO F5 앱 계층 v83 (스키마 v2)', () => {
     const html = document.getElementById('kbo-f5-body').innerHTML;
     expect(html).toContain('시스템');
     expect(html).toContain('감독자');
+  });
+
+  test('언옵 영구 저장 (v84): txt는 한 번만 — 저장·목록·삭제·kbo.db 외 무시', () => {
+    // txt 저장
+    expect(S.kboIngestNamedFile('26시즌_7월_5이닝_언옵.txt', 'text', '07.16 SSG KIA 5.5')).toBe('unop');
+    expect(S.kboIngestNamedFile('25년_언옵데이터.txt', 'text', '7.29 lg kt 4.5')).toBe('unop');
+    expect(Object.keys(S.kboGetUnops()).length).toBe(2);
+    // kbo.db만 수용, 나머지 db 무시
+    expect(S.kboIngestNamedFile('kbo.db', 'db', new Uint8Array([1]))).toBe('db');
+    expect(S.kboIngestNamedFile('kbo_2023.db', 'db', new Uint8Array([1]))).toBe('ignored');
+    expect(S.kboIngestNamedFile('chronology_v2.db', 'db', new Uint8Array([1]))).toBe('ignored');
+    // 렌더에 저장 목록 표시
+    S.kboSaveSnapshotText(JSON.stringify(SNAP));
+    S.renderKboF5();
+    let html = document.getElementById('kbo-f5-body').innerHTML;
+    expect(html).toContain('언옵 저장됨 ×2');
+    expect(html).toContain('25년_언옵데이터.txt');
+    // 삭제
+    S.kboRemoveUnop('25년_언옵데이터.txt');
+    expect(Object.keys(S.kboGetUnops()).length).toBe(1);
+    html = document.getElementById('kbo-f5-body').innerHTML;
+    expect(html).toContain('언옵 저장됨 ×1');
   });
 
   test('계산 이력 로그: 단순 기록 + 동일 데이터 스킵 (weaken 카운터 없음)', () => {
