@@ -1,4 +1,4 @@
-// kbo_f5.test.js — KBO F5 프로토콜 앱 계층 (스냅샷 계약·판정·미결 연결·성적표)
+// kbo_f5.test.js — KBO F5 앱 계층 v83 (스키마 v2 · 경기 판정 · 이중 원장)
 const vm = require('vm');
 const fs = require('fs');
 const path = require('path');
@@ -7,8 +7,8 @@ let _bets = [], _store = {};
 const sandbox = {
   window, document, console, navigator: window.navigator, localStorage: window.localStorage,
   setTimeout: (fn)=>{fn();return 0;}, clearTimeout: ()=>{}, setInterval, clearInterval,
-  Math, Date, JSON, parseInt, parseFloat, isNaN, isFinite, Number, String, Boolean, Array, Object, Set, Map, RegExp, Error,
-  alert: () => { sandbox._lastAlert = arguments; }, confirm: () => true,
+  Math, Date, JSON, parseInt, parseFloat, isNaN, isFinite, Number, String, Boolean, Array, Object, Set, Map, RegExp, Error, Promise, FileReader: function(){},
+  alert: (m) => { sandbox._lastAlert = m; }, confirm: () => true,
   getBets: () => _bets, saveBets: (n)=>{ _bets=n.map(b=>({...b})); return _bets; },
   simToast: () => {},
   Storage: {
@@ -20,142 +20,219 @@ const sandbox = {
   attachRoundToBet: (b) => { if (sandbox._round) b.roundId = sandbox._round.id; return b; },
   applyRoundBet: (amt) => { if (sandbox._round) sandbox._round.remaining -= amt; },
 };
-sandbox.alert = (m)=>{ sandbox._lastAlert = m; };
 sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
+// 엔진(kboJudgeGame) + 앱 계층 로드
+vm.runInContext(fs.readFileSync(path.join(__dirname,'kbo_engine.js'),'utf8'), sandbox, { filename:'kbo_engine.js' });
 vm.runInContext(fs.readFileSync(path.join(__dirname,'kbo_f5.js'),'utf8'), sandbox, { filename:'kbo_f5.js' });
 const S = sandbox;
 
+// v2 스냅샷 목업 — 신호/무신호/미검증/오버 4종
 const SNAP = {
-  schema_version: 1, model_version: 'C+SC-2step v1 (L-36/L-37)',
+  schema_version: 2, model_version: 'L1+L2+L3+stability v1.0 (v71 L-49)',
   generated_at: new Date().toISOString().slice(0,16).replace('T',' '),
-  data_through: '2026-07-05', thr: 1.10, breakeven_pct: 56.8,
-  model_health: { C_n:224, C_under:62.1, C_res:-0.576, non_worsen_n:148, non_worsen_under:67.6,
-                  non_worsen_res:-0.932, worsen_n:64, worsen_under:46.9, worsen_res:0.422,
-                  ttest_p:0.000963, cohens_d:0.501, below_pct:83.9, weaken_streak:1 },
-  limits: ['후보군 생성기이지 베팅 신호가 아님 (L-36)'],
+  data_through: '2026-07-05', log_through: '2026-07-09',
+  thr: 1.10, bb9_cutoff: 4.32, ref_breakeven_pct: 56.8,
+  model_health: { sim_picks:68, sim_wins:40, sim_losses:28, sim_rate:58.8,
+                  sim_0615_picks:29, sim_0615_wins:17, sim_0615_losses:12 },
+  limits: ['후보군 생성기이지 확정 신호가 아님 (L-36)', '공식 판독은 시즌 종료 시 1회 (v71 L-49)'],
+  n_games: 430,
   pitchers: [
-    { pitcher:'후라도', team:'SAMSUNG', type:'C', state_change:'non_worsen', candidate:true,
-      reason:'언더 후보군 (후보일 뿐, 최종판단 별도)', delta_whip:1.021, delta_h_ip:1.033, last_start:'2026-07-01' },
-    { pitcher:'금지투수', team:'LG', type:'C', state_change:'worsen', candidate:false,
-      reason:'언더 신호 무효화 (베팅 금지 영역)', delta_whip:1.25, delta_h_ip:1.31, last_start:'2026-07-02' },
-    { pitcher:'에이형', team:'KT', type:'A', state_change:null, candidate:false,
-      reason:'A형 — 프로토콜 대상 아님', delta_whip:null, delta_h_ip:null, last_start:'2026-07-03' },
+    { pitcher:'후라도', team:'SAMSUNG', type:'C', type_prev:'C', stable:true, state_change:'non_worsen',
+      l1_side:'below', signal:'UNDER', reason:'C형 안정 + non_worsen + below — 언더 신호',
+      n_prior:16, delta_whip:1.021, delta_h_ip:1.033, last_start:'2026-07-01' },
+    { pitcher:'워슨투수', team:'LG', type:'C', type_prev:'C', stable:true, state_change:'worsen',
+      l1_side:'below', signal:null, reason:'C형 안정이나 worsen — 신호 무효',
+      n_prior:12, delta_whip:1.25, delta_h_ip:1.31, last_start:'2026-07-02' },
+    { pitcher:'에이형', team:'KT', type:'A', type_prev:'A', stable:true, state_change:'non_worsen',
+      l1_side:'above', signal:'OVER', reason:'A형 안정 + above — 오버 신호',
+      n_prior:11, delta_whip:1.02, delta_h_ip:1.01, last_start:'2026-07-03' },
+    { pitcher:'표준맨', team:'NC', type:'STD', type_prev:'STD', stable:true, state_change:'non_worsen',
+      l1_side:'below', signal:null, reason:'표준 유형 — 프로토콜 대상 아님',
+      n_prior:14, delta_whip:1.0, delta_h_ip:1.0, last_start:'2026-07-04' },
+    { pitcher:'신인미검증', team:'SSG', type:'?', type_prev:'?', stable:false, state_change:null,
+      l1_side:null, signal:null, reason:'유형 판정 불가 (사전 언옵 N=2 < 5) — 미검증 선발',
+      n_prior:2, delta_whip:null, delta_h_ip:null, last_start:'2026-07-05' },
   ],
 };
 
 beforeEach(() => {
-  _bets = []; _store = {};
+  _bets = []; _store = {}; sandbox._lastAlert = null; sandbox._round = null;
   document.body.innerHTML = `<div id="kbo-f5-body"></div>`;
 });
 
-describe('KBO F5 앱 계층', () => {
+describe('KBO F5 앱 계층 v83 (스키마 v2)', () => {
 
-  test('스냅샷 저장·렌더: 모델 건강 + 후보 칩 + 약화 카운터 표시', () => {
+  test('스냅샷 저장·렌더: 백테스트 전적 + 신호 칩 + 규율 문구', () => {
     expect(S.kboSaveSnapshotText(JSON.stringify(SNAP))).toBe(true);
     S.renderKboF5();
     const html = document.getElementById('kbo-f5-body').innerHTML;
-    expect(html).toContain('67.6');            // 후보조합 언더율
-    expect(html).toContain('0.501');           // Cohen's d
-    expect(html).toContain('1회');             // 약화 연속
-    expect(html).toContain('후라도');          // 후보 칩
-    expect(html).not.toContain('금지투수 <span'); // 금지 투수는 후보 칩에 없음
-    expect(html).toContain('후보군 생성기');   // L-36 한계 문구 박제
+    expect(html).toContain('40-28');           // 백테스트 전적
+    expect(html).toContain('17-12');           // 6/15 이후
+    expect(html).toContain('후라도');          // 신호 칩
+    expect(html).toContain('에이형');          // 오버 신호 칩
+    expect(html).not.toContain('워슨투수 U');  // worsen은 신호 칩 아님
+    expect(html).toContain('시즌 종료 시 1회'); // L-49 문구 박제
+    expect(html).toContain('이중 원장');        // L-52
   });
 
-  test('스키마 가드: 지원보다 새 schema_version은 거부', () => {
-    const bad = { ...SNAP, schema_version: 99 };
-    expect(S.kboSaveSnapshotText(JSON.stringify(bad))).toBe(false);
+  test('스키마 가드: 구버전(v1)·미래버전 모두 거부', () => {
+    const v1 = { ...SNAP, schema_version: 1 };
+    expect(S.kboSaveSnapshotText(JSON.stringify(v1))).toBe(false);
+    expect(String(S._lastAlert)).toContain('재계산');
+    const v99 = { ...SNAP, schema_version: 99 };
+    expect(S.kboSaveSnapshotText(JSON.stringify(v99))).toBe(false);
     expect(S.kboGetSnapshot()).toBeNull();
   });
 
-  test('판정: 후보/금지/대상아님 3분류 렌더', () => {
+  test('투수 조회: 3층 배지 + 신호/무효/미검증 렌더', () => {
     S.kboSaveSnapshotText(JSON.stringify(SNAP));
     S.renderKboF5();
     const set = (n)=>{ document.getElementById('kbo-pitcher-input').value = n; S.kboLookup(); };
     set('후라도');
-    expect(document.getElementById('kbo-verdict').innerHTML).toContain('언더 후보군');
-    expect(document.getElementById('kbo-verdict').innerHTML).toContain('미결 등록');
-    set('금지투수');
-    expect(document.getElementById('kbo-verdict').innerHTML).toContain('베팅 금지');
-    expect(document.getElementById('kbo-verdict').innerHTML).not.toContain('미결 등록');
-    set('에이형');
-    expect(document.getElementById('kbo-verdict').innerHTML).toContain('대상 아님');
-    set('없는투수');
-    expect(document.getElementById('kbo-verdict').innerHTML).toContain('스냅샷에 없는 투수');
+    let h = document.getElementById('kbo-verdict').innerHTML;
+    expect(h).toContain('언더 신호');
+    expect(h).toContain('L3 C형 안정');
+    expect(h).toContain('L1 below');
+    set('워슨투수');
+    h = document.getElementById('kbo-verdict').innerHTML;
+    expect(h).toContain('worsen — 신호 무효');
+    set('신인미검증');
+    h = document.getElementById('kbo-verdict').innerHTML;
+    expect(h).toContain('미검증 선발');
+    set('아예없는사람');
+    expect(document.getElementById('kbo-verdict').innerHTML).toContain('데이터에 없는 투수');
   });
 
-  test('미결 등록: PENDING 레코드 계약 (source·kboMeta·isSim:false·myProb 공란)', () => {
+  test('경기 판정: 신호→방향 / 미검증 포함→PASS(① 조항) / 충돌→PASS', () => {
     S.kboSaveSnapshotText(JSON.stringify(SNAP));
     S.renderKboF5();
-    document.getElementById('kbo-pitcher-input').value = '후라도'; S.kboLookup();
-    document.getElementById('kbo-bet-line').value = '4.5';
-    document.getElementById('kbo-bet-odds').value = '1.76';
-    document.getElementById('kbo-bet-amt').value = '10000';
-    S.kboRegisterPending('후라도');
+    const judge = (h,a,line,ou,oo) => {
+      document.getElementById('kbo-g-home').value = h;
+      document.getElementById('kbo-g-away').value = a;
+      document.getElementById('kbo-g-line').value = line;
+      document.getElementById('kbo-g-odds-u').value = ou;
+      document.getElementById('kbo-g-odds-o').value = oo;
+      S.kboJudgeGameUi();
+      return document.getElementById('kbo-game-verdict').innerHTML;
+    };
+    // 신호 투수 + 표준 → UNDER + 픽별 손익분기(1/1.66=60.2%)
+    let h = judge('후라도','표준맨','5.5','1.66','1.87');
+    expect(h).toContain('UNDER');
+    expect(h).toContain('60.2%');
+    expect(h).toContain('시스템 원장 등록');
+    // 미검증 선발 포함 → PASS + 감독자 원장 안내
+    h = judge('신인미검증','후라도','5.5','1.58','1.99');
+    expect(h).toContain('PASS');
+    expect(h).toContain('미검증');
+    expect(h).toContain('감독자 원장 등록');
+    // 언더·오버 충돌 → PASS
+    h = judge('후라도','에이형','4.5','1.7','1.8');
+    expect(h).toContain('PASS');
+    expect(h).toContain('충돌');
+  });
+
+  test('시스템 원장 등록: PENDING 레코드 계약 (ledger·odds·breakeven 메모)', () => {
+    S.kboSaveSnapshotText(JSON.stringify(SNAP));
+    S.renderKboF5();
+    document.getElementById('kbo-g-home').value = '후라도';
+    document.getElementById('kbo-g-away').value = '표준맨';
+    document.getElementById('kbo-g-line').value = '5.5';
+    document.getElementById('kbo-g-odds-u').value = '1.66';
+    document.getElementById('kbo-g-odds-o').value = '1.87';
+    S.kboJudgeGameUi();
+    document.getElementById('kbo-g-amt').value = '10000';
+    S.kboRegisterSystemBet();
     expect(_bets.length).toBe(1);
     const r = _bets[0];
     expect(r.result).toBe('PENDING');
     expect(r.isSim).toBe(false);
     expect(r.source).toBe('kbo_f5');
     expect(r.sport).toBe('KBO');
-    expect(r.type).toBe('언/옵');
-    expect(r.betmanOdds).toBe(1.76);
-    expect(r.myProb).toBeNull();               // 정직성: 개별 확률 아님 → 공란
-    expect(r.kboMeta.pitcher).toBe('후라도');
-    expect(r.kboMeta.line).toBe(4.5);
-    expect(r.game).toContain('F5 4.5 언더');
+    expect(r.betmanOdds).toBe(1.66);
+    expect(r.myProb).toBeNull();
+    expect(r.kboMeta.ledger).toBe('system');
+    expect(r.kboMeta.verdict).toBe('UNDER');
+    expect(r.kboMeta.line).toBe(5.5);
+    expect(r.game).toContain('F5 5.5 언더');
+    expect(r.memo).toContain('60.2%');         // 픽별 손익분기 박제
   });
 
-  test('미결 등록: 활성 회차 있으면 roundId 부여 + 예산 차감', () => {
+  test('감독자 원장 등록: PASS 경기의 재량 픽 (ledger=supervisor)', () => {
+    S.kboSaveSnapshotText(JSON.stringify(SNAP));
+    S.renderKboF5();
+    document.getElementById('kbo-g-home').value = '신인미검증';
+    document.getElementById('kbo-g-away').value = '후라도';
+    document.getElementById('kbo-g-line').value = '5.5';
+    document.getElementById('kbo-g-odds-u').value = '1.58';
+    document.getElementById('kbo-g-odds-o').value = '1.99';
+    S.kboJudgeGameUi();
+    document.getElementById('kbo-s-dir').value = 'UNDER';
+    document.getElementById('kbo-s-odds').value = '1.58';
+    document.getElementById('kbo-s-amt').value = '10000';
+    S.kboRegisterSupervisorBet();
+    expect(_bets.length).toBe(1);
+    expect(_bets[0].kboMeta.ledger).toBe('supervisor');
+    expect(_bets[0].memo).toContain('재량 픽');
+  });
+
+  test('시스템 등록 가드: PASS 경기는 시스템 원장 등록 불가', () => {
+    S.kboSaveSnapshotText(JSON.stringify(SNAP));
+    S.renderKboF5();
+    document.getElementById('kbo-g-home').value = '신인미검증';
+    document.getElementById('kbo-g-away').value = '표준맨';
+    document.getElementById('kbo-g-line').value = '4.5';
+    document.getElementById('kbo-g-odds-u').value = '1.7';
+    document.getElementById('kbo-g-odds-o').value = '1.8';
+    S.kboJudgeGameUi();
+    S.kboRegisterSystemBet();
+    expect(_bets.length).toBe(0);
+    expect(String(S._lastAlert)).toContain('신호');
+  });
+
+  test('회차 연동: roundId 부여 + 예산 차감 (기존 계약 유지)', () => {
     S._round = { id: 'R9', remaining: 50000 };
     S.kboSaveSnapshotText(JSON.stringify(SNAP));
     S.renderKboF5();
-    document.getElementById('kbo-pitcher-input').value = '후라도'; S.kboLookup();
-    document.getElementById('kbo-bet-line').value = '4.5';
-    document.getElementById('kbo-bet-odds').value = '1.76';
-    document.getElementById('kbo-bet-amt').value = '10000';
-    S.kboRegisterPending('후라도');
+    document.getElementById('kbo-g-home').value = '후라도';
+    document.getElementById('kbo-g-away').value = '표준맨';
+    document.getElementById('kbo-g-line').value = '5.5';
+    document.getElementById('kbo-g-odds-u').value = '1.66';
+    document.getElementById('kbo-g-odds-o').value = '1.87';
+    S.kboJudgeGameUi();
+    document.getElementById('kbo-g-amt').value = '10000';
+    S.kboRegisterSystemBet();
     expect(_bets[0].roundId).toBe('R9');
     expect(S._round.remaining).toBe(40000);
-    S._round = null;
   });
 
-  test('약화 회귀로그: 시드(7/5, streak1)에서 이어짐 + 2연속 경고 + 동일데이터 스킵', () => {
-    let alerted = null; S.alert = (m) => { alerted = m; };
-    // 새 데이터(7/12)에서 또 약화 (d·언더율 둘 다 감소) → streak 2 + 경고
-    const snap2 = { data_through:'2026-07-12', n_games:455,
-                    model_health:{ cohens_d:0.45, non_worsen_under:66.9 } };
-    expect(S.kboRevalUpdate(snap2)).toBe(2);
-    expect(String(alerted)).toContain('L-39');
-    // 동일 데이터 재실행 → 기록 없이 직전 streak 유지
-    expect(S.kboRevalUpdate(snap2)).toBe(2);
-    const log = JSON.parse(_store['krl']);
-    expect(log.length).toBe(3);              // 시드2 + 신규1 (재실행 미기록)
-    // 회복 (d 상승) → streak 0 리셋
-    const snap3 = { data_through:'2026-07-19', n_games:480,
-                    model_health:{ cohens_d:0.55, non_worsen_under:68.0 } };
-    expect(S.kboRevalUpdate(snap3)).toBe(0);
-  });
-
-  test('성적표: 확정 결과 집계 (적중률·손익·미결)', () => {
+  test('이중 원장 분리 집계: 구기록(ledger 없음)은 시스템 귀속', () => {
     S.kboSaveSnapshotText(JSON.stringify(SNAP));
     _bets = [
-      { source:'kbo_f5', isSim:false, result:'WIN',  profit: 7600 },
-      { source:'kbo_f5', isSim:false, result:'WIN',  profit: 7600 },
-      { source:'kbo_f5', isSim:false, result:'LOSE', profit: -10000 },
-      { source:'kbo_f5', isSim:false, result:'PENDING', profit: 0 },
-      { source:'strategy', isSim:false, result:'WIN', profit: 99999 },  // 다른 소스 — 제외
+      { source:'kbo_f5', isSim:false, result:'WIN',  profit: 6600, kboMeta:{ ledger:'system' } },
+      { source:'kbo_f5', isSim:false, result:'LOSE', profit: -10000, kboMeta:{ ledger:'system' } },
+      { source:'kbo_f5', isSim:false, result:'WIN',  profit: 5800, kboMeta:{} },              // 구기록 → system
+      { source:'kbo_f5', isSim:false, result:'WIN',  profit: 8000, kboMeta:{ ledger:'supervisor' } },
+      { source:'kbo_f5', isSim:false, result:'PENDING', profit: 0, kboMeta:{ ledger:'supervisor' } },
+      { source:'strategy', isSim:false, result:'WIN', profit: 99999 },                        // 타 소스 제외
     ];
-    const st = S.kboProtocolStats();
-    expect(st.total).toBe(4);
-    expect(st.pending).toBe(1);
-    expect(st.done).toBe(3);
-    expect(st.winPct).toBeCloseTo(66.67, 1);
-    expect(st.profit).toBe(5200);
+    const sys = S.kboLedgerStats('system'), sup = S.kboLedgerStats('supervisor');
+    expect(sys.done).toBe(3); expect(sys.win).toBe(2); expect(sys.profit).toBe(2400);
+    expect(sup.total).toBe(2); expect(sup.pending).toBe(1); expect(sup.win).toBe(1);
     S.renderKboF5();
     const html = document.getElementById('kbo-f5-body').innerHTML;
-    expect(html).toContain('66.7');
-    expect(html).toContain('30건 넘기 전엔');  // 소표본 경고
+    expect(html).toContain('시스템');
+    expect(html).toContain('감독자');
+  });
+
+  test('계산 이력 로그: 단순 기록 + 동일 데이터 스킵 (weaken 카운터 없음)', () => {
+    const mk = (dt, n) => ({ data_through: dt, n_games: n, model_version:'v1.0',
+      model_health:{ sim_picks:68, sim_wins:40, sim_losses:28, sim_rate:58.8 } });
+    expect(S.kboRevalUpdate(mk('2026-07-05', 430))).toBe(1);
+    expect(S.kboRevalUpdate(mk('2026-07-05', 430))).toBe(1);   // 동일 → 스킵
+    expect(S.kboRevalUpdate(mk('2026-07-12', 455))).toBe(2);
+    const log = JSON.parse(_store['krl']);
+    expect(log.length).toBe(2);
+    expect(log[1].sim.wins).toBe(40);
   });
 });

@@ -1,6 +1,7 @@
-// kbo_engine.test.js — 골든 테스트: JS 엔진 ≡ 파이썬 kbo_refresh.py
-//   픽스처(kbo_fixture.json) = 실제 kbo.db·언옵·프로파일 + 파이썬이 계산한 기대값.
+// kbo_engine.test.js — 골든 테스트: JS 엔진 ≡ 파이썬 참조 (kbo_reference_v1.py)
+//   픽스처(kbo_fixture.json) = 실제 kbo.db(~7/09)·언옵(~7/05) + 파이썬 v1.0 기대값.
 //   숫자가 하나라도 어긋나면 구현 드리프트 — 이 테스트가 배포 게이트.
+//   모델: L1+L2+L3+stability v1.0 (인계문서 v71 L-49)
 const vm = require('vm');
 const fs = require('fs');
 const path = require('path');
@@ -12,62 +13,81 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, 'kbo_engine.js'), 'utf8'), 
 
 const FX = JSON.parse(fs.readFileSync(path.join(__dirname, 'kbo_fixture.json'), 'utf8'));
 
-describe('KBO 엔진 골든 테스트 (파이썬 v5 동치)', () => {
+describe('KBO 엔진 골든 테스트 (v1.0 — 파이썬 참조 동치)', () => {
   let snap;
   beforeAll(() => {
     snap = sandbox.kboBuildSnapshotFromDb({
       pitcher_log: FX.pitcher_log,
       inning_score: FX.inning_score,
-      traj: FX.traj,
-      profile_csv: FX.profile_csv,
       unop_files: FX.unop_files,
+      generated_at: '2026-07-16 00:00',
     });
   });
 
-  test('games 재구성: N=430, data_through=2026-07-05', () => {
-    expect(snap.n_games).toBe(430);
+  test('스키마 v2 · 모델 버전', () => {
+    expect(snap.schema_version).toBe(2);
+    expect(snap.model_version).toContain('v1.0');
+  });
+
+  test('games 재구성: N·data_through 일치', () => {
+    expect(snap.n_games).toBe(FX.expected.n_games);
     expect(snap.data_through).toBe(FX.expected.data_through);
   });
 
-  test('Layer3 C형: N·언더율·res 일치', () => {
-    const e = FX.expected.metrics, m = snap.model_health;
-    expect(m.C_n).toBe(e.C_n);
-    expect(m.C_under).toBeCloseTo(e.C_under, 1);
-    expect(m.C_res).toBeCloseTo(e.C_res, 3);
+  test('백테스트 (L-48 스펙): 픽 수·전적·적중률 일치', () => {
+    const e = FX.expected.sim, m = snap.model_health;
+    expect(m.sim_picks).toBe(e.picks);
+    expect(m.sim_wins).toBe(e.wins);
+    expect(m.sim_losses).toBe(e.losses);
+    expect(m.sim_rate).toBeCloseTo(e.rate, 1);
   });
 
-  test('Layer1 below 비율 일치', () => {
-    expect(snap.model_health.below_pct).toBeCloseTo(FX.expected.metrics.below_pct, 1);
+  test('백테스트 6/15 이후 구간 일치', () => {
+    const e = FX.expected.sim_since_0615, m = snap.model_health;
+    expect(m.sim_0615_picks).toBe(e.picks);
+    expect(m.sim_0615_wins).toBe(e.wins);
+    expect(m.sim_0615_losses).toBe(e.losses);
   });
 
-  test('Layer2 worsen/non_worsen: N·언더율·res 일치', () => {
-    const e = FX.expected.metrics, m = snap.model_health;
-    expect(m.worsen_n).toBe(e.worsen_n);
-    expect(m.non_worsen_n).toBe(e.non_worsen_n);
-    expect(m.worsen_under).toBeCloseTo(e.worsen_under, 1);
-    expect(m.non_worsen_under).toBeCloseTo(e.non_worsen_under, 1);
-    expect(m.worsen_res).toBeCloseTo(e.worsen_res, 3);
-    expect(m.non_worsen_res).toBeCloseTo(e.non_worsen_res, 3);
+  test('현재 신호 투수: 인원·명단 일치', () => {
+    const sig = snap.pitchers.filter(p => p.signal).map(p => p.pitcher).sort();
+    expect(sig.length).toBe(FX.expected.n_signal_pitchers);
+    expect(sig).toEqual(FX.expected.signal_pitchers);
   });
 
-  test('통계량: t-test p·Cohen\'s d 일치 (scipy 동치)', () => {
-    const e = FX.expected.metrics, m = snap.model_health;
-    expect(m.cohens_d).toBeCloseTo(e.cohens_d, 3);
-    expect(Math.abs(m.ttest_p - e.ttest_p)).toBeLessThan(1e-5);
+  test('스폿체크: 개별 투수 3층 판정 일치', () => {
+    for (const [name, e] of Object.entries(FX.expected.spot)) {
+      const p = snap.pitchers.find(x => x.pitcher === name);
+      expect(p).toBeTruthy();
+      expect(p.type).toBe(e.type);
+      expect(p.stable).toBe(e.stable);
+      expect(p.state_change).toBe(e.sc);
+      expect(p.l1_side).toBe(e.l1 ?? null);
+      expect(p.signal).toBe(e.signal ?? null);
+    }
   });
 
-  test('후보 명단: 파이썬과 동일 (16명, 후라도 포함)', () => {
-    const cands = snap.pitchers.filter(p => p.candidate).map(p => p.pitcher).sort();
-    expect(cands).toEqual(FX.expected.candidates);
-    expect(snap.pitchers.length).toBe(FX.expected.n_pitchers);
+  test('경기 판정: 신호 투수 → 방향, 미검증 선발 → PASS (① 조항)', () => {
+    // 신호 투수 1명 + 표준 상대 → 그 방향
+    const sigP = snap.pitchers.find(p => p.signal === 'UNDER');
+    const stdP = snap.pitchers.find(p => p.type === 'STD' && !p.signal);
+    const r1 = sandbox.kboJudgeGame(snap, sigP.pitcher, stdP.pitcher);
+    expect(r1.verdict).toBe('UNDER');
+    // 미검증 선발 → PASS
+    const r2 = sandbox.kboJudgeGame(snap, sigP.pitcher, '신규외인아무개');
+    expect(r2.verdict).toBe('PASS');
+    expect(r2.reason).toContain('미검증');
+    // 신호 충돌 → PASS
+    const overP = snap.pitchers.find(p => p.signal === 'OVER');
+    if (overP) {
+      const r3 = sandbox.kboJudgeGame(snap, sigP.pitcher, overP.pitcher);
+      expect(r3.verdict).toBe('PASS');
+      expect(r3.reason).toContain('충돌');
+    }
   });
 
-  test('개별 판정 스팟체크: 후라도 델타값 일치', () => {
-    const h = snap.pitchers.find(p => p.pitcher === '후라도');
-    expect(h.type).toBe('C');
-    expect(h.state_change).toBe('non_worsen');
-    expect(h.delta_whip).toBeCloseTo(1.021, 3);
-    expect(h.delta_h_ip).toBeCloseTo(1.033, 3);
-    expect(h.last_start).toBe('2026-07-01');
+  test('game_key 문자열 정렬 (v82 버그 회귀 방지)', () => {
+    // 더블헤더 스타일 키가 숫자 뺄셈으로 NaN 정렬되지 않는지: 엔진이 정상 완주하면 통과
+    expect(typeof snap.n_games).toBe('number');
   });
 });

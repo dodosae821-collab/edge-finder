@@ -1,5 +1,7 @@
-// 동결 프로파일 (pitcher_rank_profile.csv 2026-06-06판 내장)
-// 재생성은 파이썬 --regen-profile로만. 새 프로파일은 KBO 탭에 csv 드롭으로 오버라이드.
+// [폐기 — v83] 동결 프로파일 (pitcher_rank_profile.csv 2026-06-06판)
+// v71 L-40 감사: 동결 스냅샷의 소급 적용 = look-ahead. v1.0부터 유형은
+// kbo_engine.js가 PIT expanding으로 자동 산출 — 이 상수는 판정에 사용되지 않는다.
+// 역사 기록용 참고 보존만.
 const KBO_PROFILE_FROZEN = `pitcher,N,mean_allowed,blowup_pct,pos_ext_pct,neg_ext_pct,SR_pct,mean_r,MAR,rank_allowed,rank_posext,rank_gap
 이의리,10,6.4,70.0,60.0,10.0,70.0,3.5,4.3,1,1,0
 이승현,5,4.4,40.0,20.0,40.0,60.0,1.5,4.9,2,24,22

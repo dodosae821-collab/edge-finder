@@ -1,20 +1,22 @@
 // ============================================================
-// KBO F5 프로토콜 (v73) — 스냅샷 기반 판정 + 미결 연결 + 프로토콜 성적표
+// KBO F5 프로토콜 (v83) — v1.0 판정 · 경기 카드 · 이중 원장
 //
 // 역할 분리 (설계 계약):
-//   · 파이썬(kbo_refresh.py) = 두뇌: games_clean 재구성 → L-39 전수 재검증
-//     → kbo_snapshot.json 생성. 판정 "규칙"은 전부 파이썬에 있음.
-//   · 이 파일 = 실전 창구: 스냅샷의 판정 "결과"를 표시·기록·추적만 한다.
-//     연구 모델이 바뀌어도(임계값·유형 기준 등) 스냅샷 내용만 달라질 뿐
-//     이 파일은 수정 불필요. 스키마가 깨질 때만 schema_version이 올라간다.
+//   · kbo_engine.js = 두뇌: v1.0 전체 스택(L1+L2+L3+안정) 판정. 골든 테스트 보증.
+//   · 이 파일 = 실전 창구: 경기/투수 판정 표시 · 원장 기록 · 추적.
 //
-// 규율 반영 (인계문서):
-//   · L-36: 이것은 "후보군 생성기"이지 베팅 신호가 아님 — 화면에 상시 표시
-//   · 오래된 스냅샷 경고 (3일 초과)
-//   · weaken_streak 표시 (L-39 약화 카운터)
+// v83 변경 (인계문서 v71 반영):
+//   · 스키마 v2 — 구(v1) 스냅샷은 거부하고 DB 모드 재계산 안내
+//   · 경기 판정 카드: 홈/원정 선발 + 기준점 + 배당 → v1.0 판정 (kboJudgeGame)
+//     - 미검증 선발 포함 → 시스템 PASS (L-49 ①) · 신호 충돌 → PASS
+//   · 이중 원장 (L-52): 시스템 원장(신호 픽만) / 감독자 원장(재량 픽)
+//     - 경기 시작 전 기록만 공식 — 사후 등록 금지는 사용자 규율
+//   · 손익분기 = 픽별 1/배당 (L-45). 1.76 균일 가정 폐기.
+//   · 판독은 시즌 종료 시 1회 (L-49) — 중간 수치로 규칙 변경 금지 문구 상시.
+//   · 구 weaken 카운터 폐기 (L-41: 그 지표 자체가 누설 산물) → 단순 계산 이력만.
 // ============================================================
 
-const KBO_SCHEMA_SUPPORTED = 1;
+const KBO_SCHEMA_SUPPORTED = 2;
 const KBO_STALE_DAYS = 3;
 
 function kboGetSnapshot() {
@@ -23,10 +25,14 @@ function kboGetSnapshot() {
 
 function kboSaveSnapshotText(text) {
   let snap;
-  try { snap = JSON.parse(text); } catch (e) { alert('JSON 파싱 실패 — kbo_snapshot.json 내용 그대로 붙여넣었는지 확인'); return false; }
+  try { snap = JSON.parse(text); } catch (e) { alert('JSON 파싱 실패 — kbo_snapshot.json 내용 그대로인지 확인'); return false; }
   if (!snap || !Array.isArray(snap.pitchers) || !snap.model_version) { alert('스냅샷 형식이 아님 (pitchers/model_version 없음)'); return false; }
+  if ((snap.schema_version || 0) < KBO_SCHEMA_SUPPORTED) {
+    alert(`구버전 스냅샷(schema v${snap.schema_version || 1}) — v71 감사로 폐기된 모델입니다. DB 모드로 재계산하세요 (kbo.db + 언옵 txt 드롭 → 계산 실행).`);
+    return false;
+  }
   if ((snap.schema_version || 0) > KBO_SCHEMA_SUPPORTED) {
-    alert(`스냅샷 schema v${snap.schema_version} — 앱이 지원하는 v${KBO_SCHEMA_SUPPORTED}보다 새 버전. 앱 업데이트 필요.`);
+    alert(`스냅샷 schema v${snap.schema_version} — 앱 지원(v${KBO_SCHEMA_SUPPORTED})보다 새 버전. 앱 업데이트 필요.`);
     return false;
   }
   Storage.setJSON(KEYS.KBO_SNAPSHOT, snap);
@@ -54,7 +60,7 @@ function kboStaleDays(snap) {
   } catch (e) { return null; }
 }
 
-// ── 판정 조회 ────────────────────────────────────────────────
+// ── 투수 조회 ────────────────────────────────────────────────
 function kboFindPitcher(name) {
   const snap = kboGetSnapshot();
   if (!snap) return null;
@@ -69,81 +75,148 @@ function kboLookup() {
   const host = document.getElementById('kbo-verdict');
   if (!host) return;
   const p = kboFindPitcher(name);
-  if (!p) { host.innerHTML = `<div class="hint" style="padding:8px 0;">'${name}' — 스냅샷에 없는 투수 (프로필 없음 또는 오타)</div>`; return; }
-  host.innerHTML = kboVerdictCardHtml(p);
+  if (!p) { host.innerHTML = `<div class="hint" style="padding:8px 0;">'${name}' — 데이터에 없는 투수 (미검증 선발 또는 오타). 경기 판정에서는 자동 PASS 처리됩니다.</div>`; return; }
+  host.innerHTML = kboPitcherCardHtml(p);
 }
 
-function kboVerdictCardHtml(p) {
-  const snap = kboGetSnapshot();
-  const isCand = p.candidate;
-  const isBan = p.type === 'C' && p.state_change === 'worsen';
-  const col = isCand ? 'var(--green)' : isBan ? 'var(--red)' : 'var(--text3)';
-  const badge = isCand ? '🟢 언더 후보군' : isBan ? '🚫 베팅 금지 영역' : '⚪ 대상 아님';
-  const nb = snap?.model_health?.non_worsen_under;
-  const deltas = (p.delta_whip != null)
-    ? `ΔWHIP ${p.delta_whip} · ΔH/IP ${p.delta_h_ip} (기준 1.10)` : 'Δ 계산 불가';
+function kboLayerBadge(ok, label) {
+  const col = ok === true ? 'var(--green)' : ok === false ? 'var(--red)' : 'var(--text3)';
+  const mark = ok === true ? '✓' : ok === false ? '✗' : '·';
+  return `<span style="padding:2px 8px;font-size:10px;border-radius:10px;border:1px solid ${col};color:${col};white-space:nowrap;">${mark} ${label}</span>`;
+}
+
+function kboPitcherCardHtml(p) {
+  const col = p.signal === 'UNDER' ? 'var(--green)' : p.signal === 'OVER' ? 'var(--accent2, #ff9f0a)' : 'var(--text3)';
+  const badge = p.signal === 'UNDER' ? '🟢 언더 신호' : p.signal === 'OVER' ? '🟠 오버 신호' : p.type === '?' ? '❔ 미검증 선발' : '⚪ 신호 없음';
+  const l3ok = p.type === 'A' || p.type === 'C' ? p.stable : (p.type === '?' ? null : false);
+  const l2ok = p.type === 'C' ? (p.state_change === 'non_worsen') : null;
+  const l1need = p.type === 'A' ? 'above' : 'below';
+  const l1ok = (p.type === 'A' || p.type === 'C') ? (p.l1_side === l1need) : null;
   return `
     <div style="background:var(--bg3);border:1px solid ${col};border-radius:10px;padding:12px 14px;margin-top:8px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
         <span style="font-size:15px;font-weight:800;color:var(--text);">${p.pitcher}</span>
-        <span class="hint">${p.team} · 최근 등판 ${p.last_start || '—'}</span>
+        <span class="hint">${p.team} · 최근 등판 ${p.last_start || '—'} · 언옵 N=${p.n_prior}</span>
         <span style="margin-left:auto;font-size:12px;font-weight:700;color:${col};">${badge}</span>
       </div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">유형 <b>${p.type}형</b>${p.state_change ? ` · State Change <b>${p.state_change}</b>` : ''} — ${p.reason}</div>
-      <div class="hint">${deltas}${isCand && nb != null ? ` · 이 조합의 역사적 언더율 ${nb}% (개별 경기 확률 아님)` : ''}</div>
-      ${isCand ? `
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:6px;margin-top:10px;align-items:end;">
-        <label class="hint">F5 라인<input type="number" id="kbo-bet-line" step="0.5" placeholder="4.5" class="sim-num" style="width:100%;margin-top:3px;"></label>
-        <label class="hint">배당<input type="number" id="kbo-bet-odds" step="0.01" placeholder="1.76" class="sim-num" style="width:100%;margin-top:3px;"></label>
-        <label class="hint">금액<input type="number" id="kbo-bet-amt" step="1000" placeholder="10000" class="sim-num" style="width:100%;margin-top:3px;"></label>
-        <button onclick="kboRegisterPending('${p.pitcher.replace(/'/g, "\\'")}')" style="padding:8px 12px;font-size:12px;font-weight:700;background:rgba(0,230,118,0.1);border:1px solid var(--green);border-radius:6px;color:var(--green);cursor:pointer;">미결 등록</button>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;">
+        ${kboLayerBadge(l3ok, `L3 ${p.type}형${p.type==='A'||p.type==='C' ? (p.stable ? ' 안정' : ' 미안정('+p.type_prev+')') : ''}`)}
+        ${kboLayerBadge(l2ok, `L2 ${p.state_change || 'Δ불가'}`)}
+        ${kboLayerBadge(l1ok, `L1 ${p.l1_side || '판정불가'}`)}
       </div>
-      <div class="hint-mt4">등록하면 베팅기록 미결(PENDING)로 들어가고, 결과 확정 시 아래 프로토콜 성적표에 자동 집계됩니다.</div>` : ''}
+      <div style="font-size:12px;color:var(--text2);">${p.reason}</div>
+      <div class="hint" style="margin-top:3px;">${p.delta_whip != null ? `ΔWHIP ${p.delta_whip} · ΔH/IP ${p.delta_h_ip} (기준 1.10, 직전 등판까지)` : 'Δ 계산 불가'}</div>
     </div>`;
 }
 
-// ── 미결 등록 (베팅기록 연결) ────────────────────────────────
-function kboRegisterPending(pitcherName) {
-  const p = kboFindPitcher(pitcherName);
-  if (!p || !p.candidate) { alert('후보 자격이 아닙니다'); return; }
-  const line = parseFloat(document.getElementById('kbo-bet-line')?.value);
-  const odds = parseFloat(document.getElementById('kbo-bet-odds')?.value);
-  const amt = parseInt(document.getElementById('kbo-bet-amt')?.value) || 0;
-  if (!(line > 0)) { alert('F5 라인을 입력하세요 (예: 4.5)'); return; }
-  if (!(odds >= 1.01)) { alert('배당을 입력하세요'); return; }
-  if (!(amt > 0)) { alert('금액을 입력하세요'); return; }
+// ── 경기 판정 ────────────────────────────────────────────────
+let _kboLastJudge = null;
+
+function kboJudgeGameUi() {
   const snap = kboGetSnapshot();
-  const rec = {
+  const host = document.getElementById('kbo-game-verdict');
+  if (!snap || !host) return;
+  const hp = document.getElementById('kbo-g-home')?.value || '';
+  const ap = document.getElementById('kbo-g-away')?.value || '';
+  const line = parseFloat(document.getElementById('kbo-g-line')?.value);
+  const oddsU = parseFloat(document.getElementById('kbo-g-odds-u')?.value);
+  const oddsO = parseFloat(document.getElementById('kbo-g-odds-o')?.value);
+  if (!hp.trim() || !ap.trim()) { alert('홈·원정 선발을 모두 입력하세요'); return; }
+  const j = kboJudgeGame(snap, hp, ap);
+  _kboLastJudge = { j, home: hp.trim(), away: ap.trim(), line, oddsU, oddsO };
+  const col = j.verdict === 'UNDER' ? 'var(--green)' : j.verdict === 'OVER' ? 'var(--accent2, #ff9f0a)' : 'var(--text3)';
+  const odds = j.verdict === 'UNDER' ? oddsU : j.verdict === 'OVER' ? oddsO : null;
+  const be = Number.isFinite(odds) && odds > 1 ? (100 / odds).toFixed(1) : null;
+  const sideCard = s => s.p ? kboPitcherCardHtml(s.p)
+    : `<div class="hint" style="padding:6px 0;">${s.role} ${s.name || '?'} — 데이터 없음 (미검증 선발)</div>`;
+  host.innerHTML = `
+    <div style="background:var(--bg3);border:2px solid ${col};border-radius:10px;padding:12px 14px;margin-top:10px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:16px;font-weight:900;color:${col};">${j.verdict === 'PASS' ? '⏸ PASS' : (j.verdict === 'UNDER' ? '🟢 UNDER' : '🟠 OVER') + (Number.isFinite(line) ? ` ${line}` : '')}</span>
+        <span style="font-size:12px;color:var(--text2);">${j.reason}</span>
+        ${be ? `<span class="hint" style="margin-left:auto;">배당 ${odds} → 손익분기 ${be}% (픽별 1/배당 — L-45)</span>` : ''}
+      </div>
+      ${j.verdict !== 'PASS' ? `
+      <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:10px;align-items:end;">
+        <label class="hint">금액<input type="number" id="kbo-g-amt" step="1000" placeholder="10000" class="sim-num" style="width:100%;margin-top:3px;"></label>
+        <button onclick="kboRegisterSystemBet()" style="padding:8px 14px;font-size:12px;font-weight:700;background:rgba(0,230,118,0.1);border:1px solid var(--green);border-radius:6px;color:var(--green);cursor:pointer;">시스템 원장 등록</button>
+      </div>
+      <div class="hint" style="margin-top:4px;">경기 시작 전에만 등록 (L-52 — 사후 등록은 공식 기록이 아님)</div>` : `
+      <div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:6px;margin-top:10px;align-items:end;">
+        <label class="hint">재량 방향<select id="kbo-s-dir" class="sim-num" style="margin-top:3px;"><option value="UNDER">언더</option><option value="OVER">오버</option></select></label>
+        <label class="hint">배당<input type="number" id="kbo-s-odds" step="0.01" placeholder="1.76" class="sim-num" style="width:100%;margin-top:3px;"></label>
+        <label class="hint">금액<input type="number" id="kbo-s-amt" step="1000" placeholder="10000" class="sim-num" style="width:100px;margin-top:3px;"></label>
+        <button onclick="kboRegisterSupervisorBet()" style="padding:8px 14px;font-size:12px;font-weight:700;background:rgba(0,229,255,0.08);border:1px solid var(--accent);border-radius:6px;color:var(--accent);cursor:pointer;">감독자 원장 등록</button>
+      </div>
+      <div class="hint" style="margin-top:4px;">시스템은 PASS — 재량으로 진행하려면 감독자 원장으로 (L-52 이중 원장 · 시즌말 병렬 판독)</div>`}
+      <div style="margin-top:10px;">${j.sides.map(sideCard).join('')}</div>
+    </div>`;
+}
+
+function kboMakeRec({ dir, line, odds, amt, ledger, extraMemo }) {
+  const lj = _kboLastJudge || {};
+  const snap = kboGetSnapshot();
+  return {
     id: Date.now() + Math.floor(Math.random() * 100000),
     isSim: false,
     date: new Date().toISOString().split('T')[0],
-    game: `${p.team} 선발 ${p.pitcher} F5 ${line} 언더`,
+    game: `${lj.home || '?'}(홈) vs ${lj.away || '?'}(원정) F5 ${line} ${dir === 'UNDER' ? '언더' : '오버'}`,
     mode: 'single', folderCount: '',
     sport: 'KBO', type: '언/옵',
     betmanOdds: odds, amount: amt,
     result: 'PENDING', profit: 0,
-    myProb: null,                       // 후보군이지 개별 경기 확률이 아님 — 정직하게 공란
-    isValue: false,
-    memo: `[KBO F5] ${p.pitcher} C형+non_worsen 언더 후보 (모델 ${snap?.model_version || '?'})`,
+    myProb: null, isValue: false,
+    memo: `[KBO F5 v1.0/${ledger === 'system' ? '시스템' : '감독자'}] ${extraMemo || ''} (손익분기 ${(100 / odds).toFixed(1)}%)`,
     folderMemos: [], folderOdds: [], folderProbs: [], folderSports: [], folderTypes: [],
     emotion: '보통', violations: [],
     savedAt: new Date().toISOString(),
     ev: null, evRaw: null, adjustedProb: null, evCalibrated: null, calibProb: null,
     source: 'kbo_f5',
-    kboMeta: { pitcher: p.pitcher, team: p.team, line, state_change: p.state_change,
+    kboMeta: { ledger, verdict: dir, home_pitcher: lj.home, away_pitcher: lj.away, line, odds,
                model_version: snap?.model_version || null, data_through: snap?.data_through || null },
   };
-  // 현재 회차 반영 (베팅기록 폼과 동일 경로)
+}
+
+function kboSaveRec(rec) {
   if (typeof attachRoundToBet === 'function') attachRoundToBet(rec);
-  if (typeof applyRoundBet === 'function') applyRoundBet(amt);
+  if (typeof applyRoundBet === 'function') applyRoundBet(rec.amount);
   saveBets([...getBets(), rec], { refresh: false });
-  if (typeof simToast === 'function') simToast(`✅ ${p.pitcher} F5 ${line} 언더 — 미결 등록됨`, 'ok');
+  if (typeof simToast === 'function') simToast(`✅ ${rec.game} — 미결 등록됨 (${rec.kboMeta.ledger === 'system' ? '시스템' : '감독자'} 원장)`, 'ok');
   renderKboF5();
 }
 
-// ── 프로토콜 성적표 (실전 검증 데이터 자동 축적) ─────────────
-function kboProtocolStats() {
-  const bets = (typeof getBets === 'function' ? getBets() : []).filter(b => b.source === 'kbo_f5' && !b.isSim);
+function kboRegisterSystemBet() {
+  const lj = _kboLastJudge;
+  if (!lj || !lj.j || lj.j.verdict === 'PASS') { alert('시스템 신호가 있는 경기만 시스템 원장에 등록됩니다'); return; }
+  const line = lj.line, dir = lj.j.verdict;
+  const odds = dir === 'UNDER' ? lj.oddsU : lj.oddsO;
+  const amt = parseInt(document.getElementById('kbo-g-amt')?.value) || 0;
+  if (!(line > 0)) { alert('기준점을 입력하세요 (예: 4.5)'); return; }
+  if (!(odds >= 1.01)) { alert(`${dir === 'UNDER' ? '언더' : '오버'} 배당을 입력하세요 (배당 기록은 필수 — L-45)`); return; }
+  if (!(amt > 0)) { alert('금액을 입력하세요'); return; }
+  kboSaveRec(kboMakeRec({ dir, line, odds, amt, ledger: 'system',
+    extraMemo: lj.j.reason }));
+}
+
+function kboRegisterSupervisorBet() {
+  const lj = _kboLastJudge;
+  if (!lj) { alert('먼저 경기 판정을 실행하세요'); return; }
+  const dir = document.getElementById('kbo-s-dir')?.value || 'UNDER';
+  const line = lj.line;
+  const odds = parseFloat(document.getElementById('kbo-s-odds')?.value);
+  const amt = parseInt(document.getElementById('kbo-s-amt')?.value) || 0;
+  if (!(line > 0)) { alert('기준점을 입력하세요'); return; }
+  if (!(odds >= 1.01)) { alert('배당을 입력하세요 (배당 기록은 필수 — L-45)'); return; }
+  if (!(amt > 0)) { alert('금액을 입력하세요'); return; }
+  kboSaveRec(kboMakeRec({ dir, line, odds, amt, ledger: 'supervisor',
+    extraMemo: `재량 픽 (시스템 판정: ${lj.j?.verdict || '?'})` }));
+}
+
+// ── 이중 원장 성적표 ─────────────────────────────────────────
+function kboLedgerStats(ledger) {
+  const bets = (typeof getBets === 'function' ? getBets() : [])
+    .filter(b => b.source === 'kbo_f5' && !b.isSim)
+    .filter(b => (b.kboMeta?.ledger || 'system') === ledger);   // 구기록은 시스템으로 귀속
   const done = bets.filter(b => b.result === 'WIN' || b.result === 'LOSE');
   const win = done.filter(b => b.result === 'WIN').length;
   const profit = done.reduce((s, b) => s + (Number(b.profit) || 0), 0);
@@ -151,11 +224,20 @@ function kboProtocolStats() {
            done: done.length, win, winPct: done.length ? win / done.length * 100 : null, profit };
 }
 
+function kboLedgerRowHtml(name, st) {
+  return `<div style="display:grid;grid-template-columns:90px repeat(4,1fr);gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+    <div style="font-size:12px;font-weight:700;color:var(--text2);">${name}</div>
+    <div style="text-align:center;"><span class="hint">기록</span> <b style="font-family:'JetBrains Mono',monospace;">${st.total}</b></div>
+    <div style="text-align:center;"><span class="hint">미결</span> <b style="font-family:'JetBrains Mono',monospace;color:var(--gold);">${st.pending}</b></div>
+    <div style="text-align:center;"><span class="hint">전적</span> <b style="font-family:'JetBrains Mono',monospace;">${st.win}-${st.done - st.win}${st.winPct != null ? ` (${st.winPct.toFixed(1)}%)` : ''}</b></div>
+    <div style="text-align:center;"><span class="hint">손익</span> <b style="font-family:'JetBrains Mono',monospace;color:${st.profit >= 0 ? 'var(--green)' : 'var(--red)'};">${st.profit.toLocaleString()}원</b></div>
+  </div>`;
+}
+
 // ── 페이지 렌더 ──────────────────────────────────────────────
 function renderKboF5() {
   const host = document.getElementById('kbo-f5-body');
   if (!host) return;
-  // 스냅샷 드래그&드롭 (탭 전체 영역) — 1회만 바인딩
   if (!host.dataset.dropBound) {
     host.dataset.dropBound = '1';
     host.addEventListener('dragover', e => { e.preventDefault(); host.style.outline = '2px dashed var(--accent)'; });
@@ -164,7 +246,7 @@ function renderKboF5() {
       e.preventDefault(); host.style.outline = '';
       const files = Array.from(e.dataTransfer?.files || []);
       if (!files.length) return;
-      for (const f of files) await kboRouteDroppedFile(f);   // .json→스냅샷 / .db·.txt·.csv→DB모드 적재
+      for (const f of files) await kboRouteDroppedFile(f);
       renderKboF5();
     });
   }
@@ -173,7 +255,7 @@ function renderKboF5() {
   if (!snap) {
     host.innerHTML = kboDbModeSectionHtml() + `
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px;">
-        <div class="hint-mb8">스냅샷이 없습니다. 파이썬에서 <b style="color:var(--text2)">python3 kbo_refresh.py</b> 실행 후 생성되는 <b style="color:var(--text2)">kbo_snapshot.json</b>을 업로드하세요. (이 영역에 파일을 끌어다 놓아도 됩니다)</div>
+        <div class="hint-mb8">스냅샷이 없습니다. 위 DB 모드에 <b style="color:var(--text2)">kbo.db + 언옵 txt 전부</b>를 드롭하고 계산을 실행하세요. (kbo_snapshot.json 업로드도 가능)</div>
         <input type="file" accept=".json" onchange="kboSnapshotFile(this)" style="font-size:12px;margin-bottom:8px;">
         <textarea id="kbo-snap-paste" placeholder="또는 kbo_snapshot.json 내용 붙여넣기" style="width:100%;height:80px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:11px;font-family:'JetBrains Mono',monospace;padding:8px;"></textarea>
         <button onclick="kboUploadSnapshot()" style="margin-top:6px;padding:8px 14px;font-size:12px;font-weight:700;background:rgba(0,229,255,0.08);border:1px solid var(--accent);border-radius:6px;color:var(--accent);cursor:pointer;">스냅샷 저장</button>
@@ -183,61 +265,68 @@ function renderKboF5() {
 
   const stale = kboStaleDays(snap);
   const mh = snap.model_health || {};
-  const cands = snap.pitchers.filter(p => p.candidate);
-  const st = kboProtocolStats();
-  const be = snap.breakeven_pct || 56.8;
+  const sigs = snap.pitchers.filter(p => p.signal);
+  const sysSt = kboLedgerStats('system');
+  const supSt = kboLedgerStats('supervisor');
 
   host.innerHTML = kboDbModeSectionHtml() + `
-    <!-- 모델 상태 헤더 -->
+    <!-- 모델 상태 -->
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <span style="font-size:12px;font-weight:700;color:var(--text2);">${snap.model_version}</span>
-        <span class="hint">데이터 ~${snap.data_through} · 생성 ${snap.generated_at}</span>
-        ${stale != null && stale > KBO_STALE_DAYS ? `<span style="font-size:11px;color:var(--red);font-weight:700;">⚠ ${stale}일 지난 스냅샷 — kbo_refresh 재실행 권장</span>` : ''}
+        <span class="hint">언옵 ~${snap.data_through} · 등판로그 ~${snap.log_through || '?'} · 생성 ${snap.generated_at}</span>
+        ${stale != null && stale > KBO_STALE_DAYS ? `<span style="font-size:11px;color:var(--red);font-weight:700;">⚠ ${stale}일 지난 스냅샷 — 최신 kbo.db·언옵으로 재계산 권장</span>` : ''}
         <button onclick="kboClearSnapshot()" class="sim-mini-btn" style="margin-left:auto;">스냅샷 교체</button>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;text-align:center;">
-        <div><div class="hint">C형 언더율</div><div style="font-size:15px;font-weight:800;color:var(--text2);font-family:'JetBrains Mono',monospace;">${mh.C_under ?? '—'}%</div></div>
-        <div><div class="hint">후보조합 언더율</div><div style="font-size:15px;font-weight:800;color:var(--green);font-family:'JetBrains Mono',monospace;">${mh.non_worsen_under ?? '—'}%</div><div class="hint">(손익분기 ${be}%)</div></div>
-        <div><div class="hint">Cohen's d</div><div style="font-size:15px;font-weight:800;color:var(--text2);font-family:'JetBrains Mono',monospace;">${mh.cohens_d ?? '—'}</div></div>
-        <div><div class="hint">약화 연속</div><div style="font-size:15px;font-weight:800;color:${(mh.weaken_streak || 0) >= 2 ? 'var(--red)' : (mh.weaken_streak || 0) === 1 ? 'var(--warn, #ff9f0a)' : 'var(--green)'};font-family:'JetBrains Mono',monospace;">${mh.weaken_streak ?? 0}회</div><div class="hint">${(mh.weaken_streak || 0) >= 2 ? '재검토 필요!' : '2회 연속 시 재검토'}</div></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;text-align:center;">
+        <div><div class="hint">백테스트 (개막~, L-48 스펙)</div><div style="font-size:15px;font-weight:800;color:var(--text2);font-family:'JetBrains Mono',monospace;">${mh.sim_wins}-${mh.sim_losses} (${mh.sim_rate}%)</div></div>
+        <div><div class="hint">6/15 이후</div><div style="font-size:15px;font-weight:800;color:var(--text2);font-family:'JetBrains Mono',monospace;">${mh.sim_0615_wins}-${mh.sim_0615_losses}</div></div>
+        <div><div class="hint">현재 신호 투수</div><div style="font-size:15px;font-weight:800;color:var(--green);font-family:'JetBrains Mono',monospace;">${sigs.length}명</div></div>
       </div>
       <div class="hint-mt4" style="line-height:1.6;">⚠ ${(snap.limits || []).join(' · ')}</div>
     </div>
 
-    <!-- 투수 판정 -->
+    <!-- 경기 판정 (v1.0 핵심 창구) -->
+    <div style="background:var(--bg3);border:1px solid var(--accent);border-radius:10px;padding:12px 14px;margin-bottom:12px;">
+      <div class="sec-title">경기 판정 — 오늘의 카드 (v1.0 전체 스택)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 70px 80px 80px auto;gap:6px;align-items:end;">
+        <label class="hint">홈 선발<input id="kbo-g-home" placeholder="예: 올러" class="sim-num" style="width:100%;margin-top:3px;"></label>
+        <label class="hint">원정 선발<input id="kbo-g-away" placeholder="예: 곽빈" class="sim-num" style="width:100%;margin-top:3px;"></label>
+        <label class="hint">기준점<input id="kbo-g-line" type="number" step="0.5" placeholder="4.5" class="sim-num" style="width:100%;margin-top:3px;"></label>
+        <label class="hint">언더 배당<input id="kbo-g-odds-u" type="number" step="0.01" placeholder="1.66" class="sim-num" style="width:100%;margin-top:3px;"></label>
+        <label class="hint">오버 배당<input id="kbo-g-odds-o" type="number" step="0.01" placeholder="1.87" class="sim-num" style="width:100%;margin-top:3px;"></label>
+        <button onclick="kboJudgeGameUi()" style="padding:8px 16px;font-size:12px;font-weight:700;background:rgba(0,229,255,0.08);border:1px solid var(--accent);border-radius:6px;color:var(--accent);cursor:pointer;">판정</button>
+      </div>
+      <div id="kbo-game-verdict"></div>
+    </div>
+
+    <!-- 투수 단건 조회 -->
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px;">
-      <div class="sec-title">오늘 선발 판정</div>
+      <div class="sec-title">투수 판정 조회</div>
       <div style="display:flex;gap:6px;">
         <input id="kbo-pitcher-input" placeholder="투수명 입력 (예: 후라도)" class="sim-num" style="flex:1;font-size:13px;" onkeydown="if(event.key==='Enter')kboLookup()">
         <button onclick="kboLookup()" style="padding:8px 16px;font-size:12px;font-weight:700;background:rgba(0,229,255,0.08);border:1px solid var(--accent);border-radius:6px;color:var(--accent);cursor:pointer;">판정</button>
       </div>
       <div id="kbo-verdict"></div>
       <div style="margin-top:12px;">
-        <div class="hint-mb5">현재 후보 자격 (${cands.length}명 — 오늘 등판 여부는 직접 확인)</div>
+        <div class="hint-mb5">현재 신호 투수 (${sigs.length}명 — 오늘 등판 여부는 직접 확인)</div>
         <div style="display:flex;flex-wrap:wrap;gap:5px;">
-          ${cands.map(p => `<span onclick="document.getElementById('kbo-pitcher-input').value='${p.pitcher.replace(/'/g, "\\'")}';kboLookup()" style="padding:4px 10px;font-size:11px;background:rgba(0,230,118,0.07);border:1px solid rgba(0,230,118,0.3);border-radius:12px;color:var(--green);cursor:pointer;">${p.pitcher} <span class="hint">${p.team}</span></span>`).join('')}
+          ${sigs.map(p => `<span onclick="document.getElementById('kbo-pitcher-input').value='${p.pitcher.replace(/'/g, "\\'")}';kboLookup()" style="padding:4px 10px;font-size:11px;background:${p.signal === 'UNDER' ? 'rgba(0,230,118,0.07)' : 'rgba(255,159,10,0.09)'};border:1px solid ${p.signal === 'UNDER' ? 'rgba(0,230,118,0.3)' : 'rgba(255,159,10,0.35)'};border-radius:12px;color:${p.signal === 'UNDER' ? 'var(--green)' : 'var(--accent2, #ff9f0a)'};cursor:pointer;">${p.pitcher} ${p.signal === 'UNDER' ? 'U' : 'O'} <span class="hint">${p.team}</span></span>`).join('')}
         </div>
       </div>
     </div>
 
-    <!-- 프로토콜 성적표 -->
+    <!-- 이중 원장 성적표 -->
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
-      <div class="sec-title">프로토콜 성적표 — 실전 검증 (다음 재검증의 원료)</div>
-      ${st.total === 0
-        ? `<div class="hint">아직 기록 없음. 후보를 미결 등록하고 결과를 확정하면 여기에 실전 적중률이 쌓입니다.</div>`
-        : `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">
-            <div><div class="hint">누적 기록</div><div style="font-size:15px;font-weight:800;color:var(--text2);font-family:'JetBrains Mono',monospace;">${st.total}건</div></div>
-            <div><div class="hint">미결</div><div style="font-size:15px;font-weight:800;color:var(--gold);font-family:'JetBrains Mono',monospace;">${st.pending}건</div></div>
-            <div><div class="hint">실전 적중률</div><div style="font-size:15px;font-weight:800;color:${st.winPct != null && st.winPct >= be ? 'var(--green)' : 'var(--red)'};font-family:'JetBrains Mono',monospace;">${st.winPct != null ? st.winPct.toFixed(1) + '%' : '—'}</div><div class="hint">확정 ${st.done}건 / 손익분기 ${be}%</div></div>
-            <div><div class="hint">누적 손익</div><div style="font-size:15px;font-weight:800;color:${st.profit >= 0 ? 'var(--green)' : 'var(--red)'};font-family:'JetBrains Mono',monospace;">${st.profit.toLocaleString()}원</div></div>
-          </div>
-          <div class="hint-mt4">역사적 ${mh.non_worsen_under ?? '—'}% vs 실전 — 확정 표본이 30건 넘기 전엔 실전 수치로 결론 내리지 말 것.</div>`}
+      <div class="sec-title">이중 원장 — 시즌말 병렬 판독 (L-52)</div>
+      ${kboLedgerRowHtml('시스템', sysSt)}
+      ${kboLedgerRowHtml('감독자', supSt)}
+      <div class="hint-mt4">공식 판독은 시즌 종료 시 1회 (L-49). 중간 수치로 규칙을 바꾸는 순간 표본이 오염됩니다. 경기 시작 전 기록만 공식.</div>
     </div>`;
 }
 
 function kboClearSnapshot() {
-  if (!confirm('스냅샷을 지우고 새로 업로드할까요? (기록·성적표는 유지)')) return;
+  if (!confirm('스냅샷을 지우고 새로 계산할까요? (원장·기록은 유지)')) return;
   try { Storage.remove(KEYS.KBO_SNAPSHOT); } catch (e) {}
   renderKboF5();
 }
@@ -247,20 +336,11 @@ if (typeof document !== 'undefined') {
 }
 
 // ============================================================
-// DB 모드 (v76) — kbo.db를 앱이 직접 읽어 판정 계산
-//   사용자가 이미 크롤링한 db 파일이 있으므로 파이썬 중간 단계 불필요.
-//   계산은 kbo_engine.js(골든 테스트로 파이썬 동치 보증)가 수행.
-//   sql.js(WASM SQLite)는 cdnjs에서 지연 로드 — 오프라인이면 JSON 모드 사용.
+// DB 모드 — kbo.db를 앱이 직접 읽어 v1.0 판정 계산
+//   sql.js(WASM SQLite)는 cdnjs에서 지연 로드.
+//   v83: chronology_v2.db·프로파일 csv 불필요 (v1.0은 kbo.db+언옵만 사용).
 // ============================================================
-const KBO_REVAL_SEED = [
-  // 파이썬 revalidation_log와 동일한 이력 시드 — 약화 카운터 연속성 보장
-  { ts:'2026-06-21', data_through:'2026-06-21', n_games:373,
-    metrics:{ cohens_d:0.623, non_worsen_under:68.8 }, weaken_streak:0 },
-  { ts:'2026-07-09', data_through:'2026-07-05', n_games:430,
-    metrics:{ cohens_d:0.501, non_worsen_under:67.6 }, weaken_streak:1 },
-];
-
-let _kboDbFiles = { db: null, chrono: null, unops: {}, profile: null };
+let _kboDbFiles = { db: null, unops: {} };
 let _kboSqlJs = null;
 
 function kboLoadSqlJs() {
@@ -285,13 +365,13 @@ function kboRouteDroppedFile(file) {
     const r = new FileReader();
     r.onload = () => {
       if (isDb) {
-        const buf = new Uint8Array(r.result);
-        if (name.includes('chronology')) _kboDbFiles.chrono = buf;
-        else _kboDbFiles.db = buf;
+        if (name.includes('chronology')) { /* v2에서 미사용 — 무시 */ }
+        else _kboDbFiles.db = new Uint8Array(r.result);
       } else if (name.endsWith('.txt')) {
         _kboDbFiles.unops[name] = String(r.result);
       } else if (name.endsWith('.csv')) {
-        _kboDbFiles.profile = String(r.result);
+        /* 프로파일 csv — v2에서 미사용 (L-40 look-ahead 폐기). 무시 */
+        if (typeof simToast === 'function') simToast('프로파일 csv는 v1.0에서 사용하지 않습니다 (PIT 자동 계산)', 'info');
       } else if (name.endsWith('.json')) {
         if (kboSaveSnapshotText(String(r.result))) { renderKboF5(); if (typeof simToast === 'function') simToast('✅ 스냅샷 적용됨', 'ok'); }
       }
@@ -301,35 +381,27 @@ function kboRouteDroppedFile(file) {
   });
 }
 
-
 function kboDbModeSectionHtml() {
-  const staged = _kboDbFiles.db || Object.keys(_kboDbFiles.unops).length || _kboDbFiles.chrono || _kboDbFiles.profile;
+  const f = _kboDbFiles;
+  const staged = f.db || Object.keys(f.unops).length;
+  const chip = (ok, label) => `<span style="padding:3px 8px;font-size:10px;border-radius:10px;border:1px solid ${ok ? 'var(--green)' : 'var(--border)'};color:${ok ? 'var(--green)' : 'var(--text3)'};">${ok ? '✓' : '·'} ${label}</span>`;
   return `
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px;">
-      <div class="sec-title">DB 모드 — kbo.db로 직접 계산 (파이썬 불필요)</div>
-      <div class="hint-mb6" style="line-height:1.6;">크롤링해 둔 <b style="color:var(--text2)">kbo.db + 언옵 txt 전부</b>를 이 화면에 끌어다 놓거나 아래에서 선택 → 계산 실행. chronology_v2.db·프로파일 csv는 선택사항. 계산은 파이썬과 숫자까지 동일함이 검증돼 있음(골든 테스트).</div>
-      <input type="file" multiple accept=".db,.txt,.csv,.json" onchange="(async()=>{for(const f of Array.from(this.files))await kboRouteDroppedFile(f);renderKboF5();}).call(this)" style="font-size:11px;">
-      ${kboDbStatusHtml()}
+      <div class="sec-title">DB 모드 — kbo.db로 직접 계산 (v1.0 · 파이썬 불필요)</div>
+      <div class="hint-mb6" style="line-height:1.6;">크롤링해 둔 <b style="color:var(--text2)">kbo.db + 언옵 txt 전부</b>를 끌어다 놓거나 선택 → 계산 실행. 유형은 PIT로 자동 산출 — 프로파일 csv·chronology.db 불필요. 계산은 파이썬 참조와 숫자까지 동일(골든 테스트).</div>
+      <input type="file" multiple accept=".db,.txt,.json" onchange="(async()=>{for(const f of Array.from(this.files))await kboRouteDroppedFile(f);renderKboF5();}).call(this)" style="font-size:11px;">
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;">
+        ${chip(!!f.db, 'kbo.db')}
+        ${chip(Object.keys(f.unops).length > 0, `언옵 txt ×${Object.keys(f.unops).length}`)}
+      </div>
       ${staged ? `<button id="kbo-db-run" onclick="kboRunDbMode()" style="margin-top:10px;padding:9px 18px;font-size:12px;font-weight:700;background:rgba(0,229,255,0.08);border:1px solid var(--accent);border-radius:6px;color:var(--accent);cursor:pointer;">계산 실행</button>` : ''}
     </div>`;
-}
-
-function kboDbStatusHtml() {
-  const f = _kboDbFiles;
-  const chip = (ok, label) => `<span style="padding:3px 8px;font-size:10px;border-radius:10px;border:1px solid ${ok ? 'var(--green)' : 'var(--border)'};color:${ok ? 'var(--green)' : 'var(--text3)'};">${ok ? '✓' : '·'} ${label}</span>`;
-  const nUnop = Object.keys(f.unops).length;
-  return `<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;">
-    ${chip(!!f.db, 'kbo.db')}
-    ${chip(nUnop > 0, `언옵 txt ×${nUnop}`)}
-    ${chip(!!f.chrono, 'chronology_v2.db (선택)')}
-    ${chip(!!f.profile, '프로파일 csv (선택 — 없으면 내장 동결판)')}
-  </div>`;
 }
 
 async function kboRunDbMode() {
   const f = _kboDbFiles;
   if (!f.db) { alert('kbo.db를 먼저 드롭/선택하세요'); return; }
-  if (!Object.keys(f.unops).length) { alert('언옵 txt 파일(들)을 드롭/선택하세요 (25년·26시즌 전부)'); return; }
+  if (!Object.keys(f.unops).length) { alert('언옵 txt 파일(들)을 드롭/선택하세요 (25년~현재 전부)'); return; }
   const btn = document.getElementById('kbo-db-run');
   if (btn) { btn.disabled = true; btn.textContent = '계산 중…'; }
   try {
@@ -347,24 +419,11 @@ async function kboRunDbMode() {
       COALESCE(home_i1,0)+COALESCE(home_i2,0)+COALESCE(home_i3,0)+COALESCE(home_i4,0)+COALESCE(home_i5,0) as h5
       FROM inning_score WHERE date >= '2025-07-29'`);
     db.close();
-    let traj = [];
-    if (f.chrono) {
-      const cdb = new SQL.Database(f.chrono);
-      const res = cdb.exec("SELECT pitcher_name, date, boundary_side FROM pitcher_trajectory_ledger_v2");
-      if (res.length) traj = res[0].values.map(v => ({ pitcher: v[0], date: v[1], side: v[2] }));
-      cdb.close();
-    }
-    const snap = kboBuildSnapshotFromDb({
-      pitcher_log, inning_score, traj,
-      profile_csv: f.profile || (typeof KBO_PROFILE_FROZEN !== 'undefined' ? KBO_PROFILE_FROZEN : ''),
-      unop_files: f.unops,
-    });
-    // 약화 회귀로그 (앱 내 영속 — 파이썬 로그와 동일 규칙)
-    const streak = kboRevalUpdate(snap);
-    snap.model_health.weaken_streak = streak;
+    const snap = kboBuildSnapshotFromDb({ pitcher_log, inning_score, unop_files: f.unops });
+    kboRevalUpdate(snap);
     Storage.setJSON(KEYS.KBO_SNAPSHOT, snap);
-    if (typeof simToast === 'function') simToast(`✅ 계산 완료 — 경기 ${snap.n_games}건, 후보 ${snap.pitchers.filter(p => p.candidate).length}명`, 'ok');
-    _kboDbFiles = { db: null, chrono: null, unops: {}, profile: null };
+    if (typeof simToast === 'function') simToast(`✅ 계산 완료 — 경기 ${snap.n_games}건 · 백테스트 ${snap.model_health.sim_wins}-${snap.model_health.sim_losses} · 신호 ${snap.pitchers.filter(p => p.signal).length}명`, 'ok');
+    _kboDbFiles = { db: null, unops: {} };
     renderKboF5();
   } catch (e) {
     alert('DB 모드 실패: ' + e.message);
@@ -372,25 +431,28 @@ async function kboRunDbMode() {
   }
 }
 
-// 약화 회귀로그: d↓ AND non_worsen_under↓ = 약화. 동일 데이터 재실행은 기록 생략 (파이썬과 동일 규칙)
+// 계산 이력 로그 (v83): 단순 기록만 — 구 weaken 카운터는 L-41로 폐기
+//   (그 지표의 원료였던 non_worsen/d 통계가 당일 혼입 누설 산물이었음)
 function kboRevalUpdate(snap) {
   let log;
   try { log = Storage.getJSON(KEYS.KBO_REVAL_LOG, null); } catch (e) { log = null; }
-  if (!Array.isArray(log) || !log.length) log = KBO_REVAL_SEED.slice();
+  if (!Array.isArray(log)) log = [];
   const prev = log[log.length - 1];
   const cur = { ts: new Date().toISOString().slice(0, 10), data_through: snap.data_through, n_games: snap.n_games,
-                metrics: { cohens_d: snap.model_health.cohens_d, non_worsen_under: snap.model_health.non_worsen_under } };
-  if (prev.data_through === cur.data_through && prev.n_games === cur.n_games) return prev.weaken_streak || 0;
-  const weakened = cur.metrics.cohens_d < prev.metrics.cohens_d && cur.metrics.non_worsen_under < prev.metrics.non_worsen_under;
-  cur.weaken_streak = weakened ? (prev.weaken_streak || 0) + 1 : 0;
+                model: snap.model_version,
+                sim: { picks: snap.model_health.sim_picks, wins: snap.model_health.sim_wins,
+                       losses: snap.model_health.sim_losses, rate: snap.model_health.sim_rate } };
+  if (prev && prev.data_through === cur.data_through && prev.n_games === cur.n_games) return log.length;
   log.push(cur);
   try { Storage.setJSON(KEYS.KBO_REVAL_LOG, log); } catch (e) {}
-  if (cur.weaken_streak >= 2) alert('🚨 [L-39 발동] 약화 2회 연속 — Layer2 재검토 전까지 실전 신중!');
-  return cur.weaken_streak;
+  return log.length;
 }
 
 if (typeof window !== 'undefined') {
   window.kboRunDbMode = kboRunDbMode;
   window.kboRouteDroppedFile = kboRouteDroppedFile;
   window.kboRevalUpdate = kboRevalUpdate;
+  window.kboJudgeGameUi = kboJudgeGameUi;
+  window.kboRegisterSystemBet = kboRegisterSystemBet;
+  window.kboRegisterSupervisorBet = kboRegisterSupervisorBet;
 }
