@@ -66,7 +66,7 @@ describe('v85 Layer4 표시 모듈', () => {
   test('대체값 체계: 개인/등급/신규용병/신인급', () => {
     const r = sandbox.kboTagLineupNames('L1 L2 L3 L4 L5 L6 L7 L8 마드리스*', st);
     expect(r.n).toBe(9);
-    expect(r.players[0].val).toBe(120);                    // PA≥100 개인값
+    expect(r.players[0].val).toBe(120);                    // PA≥150 개인값 그대로
     expect(r.players[0].src).toBe('개인');
     const foreign = r.players[8];
     expect(foreign.val).toBe(C('KBO_SUB_FOREIGN_NEW')); // 신규 외국인 110
@@ -82,13 +82,15 @@ describe('v85 Layer4 표시 모듈', () => {
     expect(sandbox.kboV2Pass('PASS', 4.5)).toBeNull();
   });
 
-  test('표시 태그는 v1.0 UNDER에서만, 기준선 기준으로 갈림', () => {
+  test('표시 태그: 약체(-3 이하)만 라벨, 정예·중립은 null', () => {
     const bl = { value: 110, n: 50 };
     expect(sandbox.kboLineupDisplayTag('OVER', 100, bl)).toBeNull();
     expect(sandbox.kboLineupDisplayTag('PASS', 100, bl)).toBeNull();
     expect(sandbox.kboLineupDisplayTag('UNDER', 100, bl).label).toMatch(/약체/);
-    expect(sandbox.kboLineupDisplayTag('UNDER', 120, bl).label).toMatch(/정예/);
-    expect(sandbox.kboLineupDisplayTag('UNDER', 100, null)).toBeNull();  // 기준선 미성립
+    expect(sandbox.kboLineupDisplayTag('UNDER', 107, bl).label).toMatch(/약체/);   // 정확히 -3
+    expect(sandbox.kboLineupDisplayTag('UNDER', 108, bl)).toBeNull();              // 중립
+    expect(sandbox.kboLineupDisplayTag('UNDER', 120, bl)).toBeNull();              // 정예 = 라벨 없음
+    expect(sandbox.kboLineupDisplayTag('UNDER', 100, null)).toBeNull();
   });
 
   test('단일시즌: 타 시즌 행 유입 시에도 시즌 상수는 2026', () => {
@@ -140,5 +142,61 @@ describe('v85.1 features 시즌 가드', () => {
   });
   test('kbo.db는 정상 수용', () => {
     expect(sb.kboIngestNamedFile('kbo.db', 'db', new Uint8Array([1]))).toBe('db');
+  });
+});
+
+
+// v85.2: 혼합 대체값(PA<150 수축) + 중립구간
+describe('v85.2 혼합 대체값 / 중립구간', () => {
+  const vmx = require('vm'), fsx = require('fs'), px = require('path');
+  const sb = { console, Math, Number, String, Boolean, Array, Object, Set, Map, JSON,
+               isNaN, isFinite, parseFloat, parseInt, Date, RegExp, Error };
+  sb.globalThis = sb; vmx.createContext(sb);
+  vmx.runInContext(fsx.readFileSync(px.join(__dirname, 'kbo_engine.js'), 'utf8'), sb);
+  const C = n => vmx.runInContext(n, sb);
+
+  test('PA>=150은 개인값 불변', () => {
+    expect(sb.kboBlendWrc(192, 400, 114.9)).toBe(192);
+    expect(sb.kboBlendWrc(62.9, 227, 114.9)).toBe(62.9);
+    expect(sb.kboBlendWrc(37.1, 197, 91.8)).toBe(37.1);
+  });
+  test('PA<150은 등급평균 쪽으로 수축 (k=50)', () => {
+    // 문정빈: 184.2, 110PA, 주전 → 184.2*110/160 + 114.9*50/160 = 162.6
+    expect(sb.kboBlendWrc(184.2, 110, 114.9)).toBeCloseTo(162.6, 0);
+    // 김현준 28PA는 하한(30) 미만 → 등급평균
+    expect(sb.kboBlendWrc(165.3, 28, 80.9)).toBe(80.9);
+    // 40PA면 보정 적용: 165.3*40/90 + 80.9*50/90 = 118.4
+    expect(sb.kboBlendWrc(165.3, 40, 80.9)).toBeCloseTo(118.4, 0);
+  });
+  test('수축은 위아래 양방향', () => {
+    expect(sb.kboBlendWrc(20, 60, 91.8)).toBeGreaterThan(20);   // 저조도 끌어올림
+    expect(sb.kboBlendWrc(200, 60, 91.8)).toBeLessThan(200);
+  });
+  test('등급 없으면 개인값 그대로 / PA 0이면 등급평균', () => {
+    expect(sb.kboBlendWrc(150, 20, null)).toBe(150);
+    expect(sb.kboBlendWrc(150, 0, 91.8)).toBe(91.8);
+  });
+  test('약체 단독 라벨 (중립·정예 null)', () => {
+    const bl = { value: 111, n: 100 };
+    expect(sb.kboLineupDisplayTag('UNDER', 111, bl)).toBeNull();
+    expect(sb.kboLineupDisplayTag('UNDER', 115, bl)).toBeNull();
+    expect(sb.kboLineupDisplayTag('UNDER', 108, bl).tone).toBe('green');
+    expect(sb.kboLineupDisplayTag('UNDER', 95, bl).tone).toBe('green');
+    expect(C('KBO_NEUTRAL_BAND')).toBe(3);
+  });
+  test('팀 기준선: 최소 60 팀-경기', () => {
+    const mk = n => Array.from({ length: n }, (_, i) => ({ date: '2026-05-01', avg: 100 + (i % 20) }));
+    expect(sb.kboTeamBaseline(mk(59), null)).toBeNull();
+    expect(sb.kboTeamBaseline(mk(60), null)).toBeGreaterThan(100);
+  });
+  test('PA<30은 개인값 무시, 등급평균만', () => {
+    expect(sb.kboBlendWrc(49, 11, 80.9)).toBe(80.9);     // 임근우 케이스
+    expect(sb.kboBlendWrc(200, 29, 91.8)).toBe(91.8);
+    expect(sb.kboBlendWrc(165.3, 30, 80.9)).toBeCloseTo(112.4, 0);  // 30부터는 보정
+  });
+  test('상수 확인', () => {
+    expect(C('KBO_PA_FULL')).toBe(150);
+    expect(C('KBO_SHRINK_K')).toBe(50);
+    expect(C('KBO_PA_FLOOR')).toBe(30);
   });
 });

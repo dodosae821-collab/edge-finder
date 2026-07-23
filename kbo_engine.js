@@ -382,8 +382,22 @@ const KBO_HITTER_SEASON = '2026';                 // 27시즌 전환 시 이 값
 const KBO_TIER_MEAN = { '주전': 114.9, '준주전': 91.8, '백업': 80.9 };  // 26단독 실측 (L-55)
 const KBO_SUB_FOREIGN_NEW = 110;   // 시즌중 합류 외국인 5명 실측 109.4 반올림 (v73 S12-5, 스톤 포함)
 const KBO_SUB_ROOKIE = 80.9;       // 국내 신인급 = 백업 평균 (감독자 도메인 결정)
-const KBO_PA_TRUST = 100;          // 개인 wRC+ 신뢰 최소 PA
+const KBO_PA_FULL = 150;           // 이 이상이면 개인 wRC+ 그대로 (v73 S12-5 v1.2)
+const KBO_SHRINK_K = 50;           // 30<=PA<150 구간 등급평균 쪽 수축 상수
+const KBO_PA_FLOOR = 30;           // 이 미만은 개인값 무시, 등급평균만 (감독자 승인 2026-07-23)
 const KBO_BASELINE_MIN = 30;       // 동적 기준선 최소 성립 경기 수 (사전등록 v1.1)
+const KBO_NEUTRAL_BAND = 3;        // 기준선 ±3 = 중립 (감독자 승인 2026-07-23)
+
+// 대체값 체계 v1.2 — PA<150은 등급평균 쪽으로 수축 (소표본 뻥튀기 교정)
+//   실측: 김현준(28PA) 165→111, 문정빈(110PA) 184→163, 손성빈(227PA) 불변
+function kboBlendWrc(wrc, pa, tierMean) {
+  if (tierMean == null) return wrc;
+  if (!(pa > 0)) return tierMean;
+  if (pa < KBO_PA_FLOOR) return tierMean;   // 30타석 미만 = 노이즈, 등급평균만
+  if (pa >= KBO_PA_FULL) return wrc;
+  const k = KBO_SHRINK_K;
+  return wrc * pa / (pa + k) + tierMean * k / (pa + k);
+}
 
 // 유형 판정 근거 수치 (투수 카드 노출용 — kboTypeAt와 동일 산식)
 function kboTypeEvidence(pitcherGames, pitcher, asof) {
@@ -408,7 +422,8 @@ function kboRecent5Map(recentRows /* {pitcher,date,opp,outs,er,hits,bb,k,np} */)
   for (const p of Object.keys(byP)) {
     const rows = byP[p].sort((a, b) => a.date < b.date ? -1 : 1).slice(-5).reverse();
     out[kboRenameWhite(p, rows[0]?.team)] = rows.map(r => ({
-      date: r.date, opp: r.opp || '?',
+      date: r.date, opp: r.opp || '?', side: r.side || null,
+      f5: (r.f5_allowed == null ? null : Number(r.f5_allowed)),
       ip: `${Math.floor((r.outs || 0) / 3)}.${(r.outs || 0) % 3}`,
       er: r.er ?? '?', hits: r.hits ?? '?', bb: r.bb ?? '?', k: r.k ?? '?', np: r.np ?? '?' }));
   }
@@ -482,12 +497,11 @@ function kboHitterState(hitterRows, wrcRows) {
       const vals = [];
       for (const nm of names) {
         const w = wrcAt[`${nm}|${team}|${date}`];
-        if (w && w.pa >= KBO_PA_TRUST) { vals.push(w.wrc); continue; }
         const s10 = s10Pre[`${gk}|${nm}`];
-        if (s10 != null) {
-          const tier = s10 >= 8 ? '주전' : s10 >= 4 ? '준주전' : '백업';
-          vals.push(KBO_TIER_MEAN[tier]);
-        }
+        const tierMean = s10 == null ? null
+          : KBO_TIER_MEAN[s10 >= 8 ? '주전' : s10 >= 4 ? '준주전' : '백업'];
+        if (w && w.pa > 0) vals.push(kboBlendWrc(w.wrc, w.pa, tierMean));
+        else if (tierMean != null) vals.push(tierMean);
       }
       if (vals.length < 8) { avgs.length = 0; break; }
       avgs.push(vals.reduce((s, v) => s + v, 0) / vals.length);
@@ -495,7 +509,29 @@ function kboHitterState(hitterRows, wrcRows) {
     if (avgs.length === 2) pool.push({ date, avg: Math.round((avgs[0] + avgs[1]) / 2 * 10) / 10 });
   }
   pool.sort((a, b) => a.date < b.date ? -1 : 1);
-  return { season: KBO_HITTER_SEASON, players: latest, wrc_latest: wrcLatest, baseline_pool: pool };
+  // 팀 단위 풀 (팀별 편차 표시용 — 판정은 양팀 평균 기준 유지)
+  const teamPool = [];
+  for (const gk of Object.keys(teamsByGk)) {
+    const date = gameDate[gk];
+    for (const team of teamsByGk[gk]) {
+      const names = order[`${gk}|${team}`] || [];
+      if (names.length < 9) continue;
+      const vals = [];
+      for (const nm of names) {
+        const w = wrcAt[`${nm}|${team}|${date}`];
+        const s10 = s10Pre[`${gk}|${nm}`];
+        const tierMean = s10 == null ? null
+          : KBO_TIER_MEAN[s10 >= 8 ? '주전' : s10 >= 4 ? '준주전' : '백업'];
+        if (w && w.pa > 0) vals.push(kboBlendWrc(w.wrc, w.pa, tierMean));
+        else if (tierMean != null) vals.push(tierMean);
+      }
+      if (vals.length >= 8)
+        teamPool.push({ date, avg: Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10 });
+    }
+  }
+  teamPool.sort((a, b) => a.date < b.date ? -1 : 1);
+  return { season: KBO_HITTER_SEASON, players: latest, wrc_latest: wrcLatest,
+           baseline_pool: pool, team_pool: teamPool };
 }
 
 // 판정 시점 라인업 태깅 (v73 S12-5 대체값 체계 — '*' = 신규 외국인)
@@ -507,11 +543,18 @@ function kboTagLineupNames(namesStr, hitters) {
     const name = foreignNew ? tok.slice(0, -1) : tok;
     const p = hitters?.players?.[name] || null;
     const w = hitters?.wrc_latest?.[name] || null;
-    if (w && w.pa >= KBO_PA_TRUST)
-      return { name, val: Math.round(w.wrc), src: '개인', s10: p?.s10 ?? null, tier: p?.tier ?? null, pa: w.pa };
-    if (p && p.tier)
-      return { name, val: Math.round(KBO_TIER_MEAN[p.tier] * 10) / 10, src: `${p.tier} 대체`,
-               s10: p.s10, tier: p.tier, pa: w?.pa ?? 0 };
+    const tierMean = p?.tier ? KBO_TIER_MEAN[p.tier] : null;
+    if (w && w.pa > 0) {
+      const blended = kboBlendWrc(w.wrc, w.pa, tierMean);
+      const full = (w.pa >= KBO_PA_FULL || tierMean == null);
+      const floored = (tierMean != null && w.pa < KBO_PA_FLOOR);
+      return { name, val: Math.round(blended * 10) / 10,
+               src: full ? '개인' : floored ? `${p.tier} 대체(PA ${w.pa})` : `보정(PA ${w.pa})`,
+               s10: p?.s10 ?? null, tier: p?.tier ?? null, pa: w.pa, raw_wrc: Math.round(w.wrc) };
+    }
+    if (tierMean != null)
+      return { name, val: Math.round(tierMean * 10) / 10, src: `${p.tier} 대체`,
+               s10: p.s10, tier: p.tier, pa: 0 };
     if (foreignNew)
       return { name, val: KBO_SUB_FOREIGN_NEW, src: '신규용병 실측기대', s10: null, tier: null, pa: 0 };
     return { name, val: KBO_SUB_ROOKIE, src: '신인급 백업대체', s10: null, tier: null, pa: 0 };
@@ -529,6 +572,14 @@ function kboDynBaseline(pool, asof) {
   return { value: Math.round(med * 10) / 10, n: vals.length };
 }
 
+// 팀 단위 기준선 (표시용) — 최소 60 팀-경기
+function kboTeamBaseline(teamPool, asof) {
+  const vals = (teamPool || []).filter(e => !asof || e.date < asof).map(e => e.avg).sort((a, b) => a - b);
+  if (vals.length < KBO_BASELINE_MIN * 2) return null;
+  const m = vals.length >> 1;
+  return Math.round((vals.length % 2 ? vals[m] : (vals[m - 1] + vals[m]) / 2) * 10) / 10;
+}
+
 // v2.0 필터 — (a) UNDER & 기준점≤4.5 제거만 구현. (b) 김건우류: 정의 유실·미구현 (v73 S12-2)
 function kboV2Pass(verdict, line) {
   if (verdict !== 'UNDER' && verdict !== 'OVER') return null;
@@ -537,11 +588,14 @@ function kboV2Pass(verdict, line) {
 }
 
 // 사전등록 v1.1 표시 — v1.0 UNDER 픽에서만, 픽 판정 불변
+// 검증(3~6월 54픽): 약체는 문턱 -3~-5 전 구간 65~75% 일관 + 기전 있음.
+// 정예/중립은 문턱 이동 시 부호 반전, 야구적 기전 없음 → 라벨 미부여 (숫자만 표시).
 function kboLineupDisplayTag(v1verdict, bothAvg, baseline) {
   if (v1verdict !== 'UNDER' || bothAvg == null || !baseline) return null;
-  return bothAvg <= baseline.value
-    ? { label: '타선 약체 — 언더 강화', tone: 'green' }
-    : { label: '타선 정예 — 언더 주의', tone: 'warn' };
+  const diff = Math.round((bothAvg - baseline.value) * 10) / 10;
+  if (diff <= -KBO_NEUTRAL_BAND)
+    return { label: '타선 약체 — 언더 강화', tone: 'green', diff };
+  return null;   // 중립·정예: 근거 없음 → 숫자만
 }
 
 if (typeof window !== 'undefined') {
@@ -551,10 +605,13 @@ if (typeof window !== 'undefined') {
   window.kboV2Pass = kboV2Pass;
   window.kboLineupDisplayTag = kboLineupDisplayTag;
   window.kboTypeEvidence = kboTypeEvidence;
+  window.kboBlendWrc = kboBlendWrc;
+  window.kboTeamBaseline = kboTeamBaseline;
   window.kboRecent5Map = kboRecent5Map;
 }
 if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, { kboHitterState, kboTagLineupNames, kboDynBaseline,
     kboV2Pass, kboLineupDisplayTag, kboTypeEvidence, kboRecent5Map,
-    KBO_TIER_MEAN, KBO_SUB_FOREIGN_NEW, KBO_SUB_ROOKIE, KBO_BASELINE_MIN });
+    kboBlendWrc, kboTeamBaseline, KBO_TIER_MEAN, KBO_SUB_FOREIGN_NEW, KBO_SUB_ROOKIE,
+    KBO_BASELINE_MIN, KBO_PA_FULL, KBO_SHRINK_K, KBO_PA_FLOOR, KBO_NEUTRAL_BAND });
 }

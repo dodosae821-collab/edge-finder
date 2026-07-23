@@ -128,17 +128,23 @@ function kboRecent5Html(name) {
   if (!rows || !rows.length) return '';
   const td = 'padding:2px 6px;font-family:\'JetBrains Mono\',monospace;font-size:11px;';
   return `<div style="margin-top:6px;overflow-x:auto;">
+    <div class="hint" style="margin-bottom:2px;">최근 5선발 — <b style="color:var(--accent)">F5 실점</b>이 판정 기준 (풀게임 기록은 참고)</div>
     <table style="width:100%;border-collapse:collapse;">
       <tr style="color:var(--text3);font-size:10px;text-align:left;">
-        <th style="${td}">최근 등판</th><th style="${td}">상대</th><th style="${td}">IP</th>
-        <th style="${td}">자책</th><th style="${td}">피안타</th><th style="${td}">BB</th><th style="${td}">K</th><th style="${td}">투구</th></tr>
+        <th style="${td}">최근 등판</th><th style="${td}">홈/원정</th><th style="${td}">상대</th>
+        <th style="${td}color:var(--accent);">F5 실점</th>
+        <th style="${td}">풀 IP</th><th style="${td}">풀 자책</th><th style="${td}">피안타</th><th style="${td}">BB</th><th style="${td}">K</th><th style="${td}">투구</th></tr>
       ${rows.map(r => {
-        const er = Number(r.er);
-        const c = Number.isFinite(er) ? (er <= 1 ? 'var(--green)' : er >= 4 ? 'var(--red)' : 'var(--text2)') : 'var(--text2)';
+        const f5 = Number(r.f5);
+        const cf = Number.isFinite(f5) ? (f5 <= 1 ? 'var(--green)' : f5 >= 4 ? 'var(--red)' : 'var(--text2)') : 'var(--text3)';
         return `<tr style="border-top:1px solid var(--border);color:var(--text2);">
-          <td style="${td}">${r.date.slice(5)}</td><td style="${td}">${r.opp}</td><td style="${td}">${r.ip}</td>
-          <td style="${td}color:${c};font-weight:700;">${r.er}</td><td style="${td}">${r.hits}</td>
-          <td style="${td}">${r.bb}</td><td style="${td}">${r.k}</td><td style="${td}">${r.np}</td></tr>`;
+          <td style="${td}">${r.date.slice(5)}</td>
+          <td style="${td}">${r.side === 'HOME' ? '홈' : r.side === 'AWAY' ? '원정' : '-'}</td>
+          <td style="${td}">${r.opp}</td>
+          <td style="${td}color:${cf};font-weight:800;font-size:12px;">${Number.isFinite(f5) ? f5 : '-'}</td>
+          <td style="${td}opacity:.7;">${r.ip}</td><td style="${td}opacity:.7;">${r.er}</td>
+          <td style="${td}opacity:.7;">${r.hits}</td>
+          <td style="${td}opacity:.7;">${r.bb}</td><td style="${td}opacity:.7;">${r.k}</td><td style="${td}opacity:.7;">${r.np}</td></tr>`;
       }).join('')}
     </table></div>`;
 }
@@ -163,9 +169,10 @@ function kboJudgeGameUi() {
   const luA = kboTagLineupNames(document.getElementById('kbo-g-lu-away')?.value, snap.hitters);
   const bothAvg = (luH && luA) ? Math.round((luH.avg + luA.avg) / 2 * 10) / 10 : null;
   const baseline = snap.hitters ? kboDynBaseline(snap.hitters.baseline_pool, null) : null;
+  const teamBase = snap.hitters ? kboTeamBaseline(snap.hitters.team_pool, null) : null;
   const luTag = kboLineupDisplayTag(j.verdict, bothAvg, baseline);
   _kboLastJudge = { j, home: hp.trim(), away: ap.trim(), line, oddsU, oddsO,
-                    v2, luH, luA, bothAvg, baseline, luTag };
+                    v2, luH, luA, bothAvg, baseline, teamBase, luTag };
   const col = j.verdict === 'UNDER' ? 'var(--green)' : j.verdict === 'OVER' ? 'var(--accent2, #ff9f0a)' : 'var(--text3)';
   const odds = j.verdict === 'UNDER' ? oddsU : j.verdict === 'OVER' ? oddsO : null;
   const be = Number.isFinite(odds) && odds > 1 ? (100 / odds).toFixed(1) : null;
@@ -179,7 +186,7 @@ function kboJudgeGameUi() {
         ${be ? `<span class="hint" style="margin-left:auto;">배당 ${odds} → 손익분기 ${be}% (픽별 1/배당 — L-45)</span>` : ''}
       </div>
       ${kboV1V2RowHtml(j.verdict, v2, line)}
-      ${kboLineupBlockHtml(luH, luA, bothAvg, baseline, luTag)}
+      ${kboLineupBlockHtml(luH, luA, bothAvg, baseline, luTag, j.verdict, teamBase, ap.trim(), hp.trim())}
       ${j.verdict !== 'PASS' ? `
       <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:10px;align-items:end;">
         <label class="hint">금액<input type="number" id="kbo-g-amt" step="1000" placeholder="10000" class="sim-num" style="width:100%;margin-top:3px;"></label>
@@ -215,41 +222,63 @@ function kboV1V2RowHtml(verdict, v2, line) {
       <div style="font-size:13px;font-weight:800;color:${v2col};margin-top:2px;">${v2txt}</div>
     </div>
   </div>
-  <div class="hint" style="margin-top:3px;">v2 = 필터(a) 언더&기준점≤4.5 제거만 구현 · 필터(b)는 정의 유실로 미구현 · v2 수치는 in-sample(과최적화 편향)</div>`;
+  <div class="hint" style="margin-top:3px;">v2 = 필터(a) 언더&기준점≤4.5 제거 · 필터(b)는 재구성 검증 결과 무신호로 폐기(상대선발 편차 상관 +0.02) · v2 수치는 in-sample(과최적화 편향)</div>`;
 }
 
 // v85: 라인업 카드 — 9명 태깅 + 평균 + 동적 기준선 + 사전등록 표시
-function kboLineupBlockHtml(luH, luA, bothAvg, baseline, luTag) {
+function kboLineupBlockHtml(luH, luA, bothAvg, baseline, luTag, verdict, teamBase, awayPit, homePit) {
   if (!luH && !luA) return '';
-  const one = (lu, role) => {
+  const one = (lu, role, facing) => {
     if (!lu) return `<div class="hint">${role} 라인업 미입력</div>`;
+    const dv = teamBase != null ? Math.round((lu.avg - teamBase) * 10) / 10 : null;
+    const dvCol = dv == null ? 'var(--text3)' : dv <= -3 ? 'var(--green)' : dv >= 3 ? 'var(--accent2, #ff9f0a)' : 'var(--text3)';
     return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:12px;font-weight:700;color:var(--text2);">${role}</span>
+        ${facing ? `<span class="hint">vs ${facing}</span>` : ''}
         <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:var(--text);">wRC+ ${lu.avg}</span>
+        ${dv != null ? `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${dvCol};">${dv >= 0 ? '+' : ''}${dv}</span>` : ''}
       </div>
       <div style="margin-top:5px;display:flex;flex-direction:column;gap:1px;">
-        ${lu.players.map((p, i) => `<div style="display:flex;gap:6px;font-size:11px;color:var(--text2);">
+        ${lu.players.map((p, i) => `<div style="display:flex;gap:6px;font-size:11px;color:var(--text2);align-items:baseline;">
           <span style="width:14px;color:var(--text3);">${i + 1}</span>
           <span style="flex:1;">${p.name}</span>
           <span class="hint">${p.s10 != null ? `s10 ${p.s10}` : '—'}</span>
-          <span style="width:96px;text-align:right;font-family:'JetBrains Mono',monospace;color:${p.src === '개인' ? 'var(--text)' : 'var(--text3)'};">${p.val}${p.src === '개인' ? '' : ` <span style="font-size:9px;">${p.src}</span>`}</span>
+          <span style="width:120px;text-align:right;font-family:'JetBrains Mono',monospace;color:${p.src === '개인' ? 'var(--text)' : 'var(--text3)'};">
+            ${p.raw_wrc != null && p.src !== '개인' ? `<span style="font-size:9px;opacity:.6;text-decoration:line-through;">${p.raw_wrc}</span> ` : ''}${p.val}${p.src === '개인' ? '' : ` <span style="font-size:9px;">${p.src}</span>`}</span>
         </div>`).join('')}
       </div>
       ${lu.n_input !== 9 ? `<div class="hint" style="color:var(--gold, #ffd60a);margin-top:3px;">⚠ ${lu.n_input}명 입력됨 (9명 권장)</div>` : ''}
     </div>`;
   };
-  const tagHtml = luTag
-    ? `<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:${luTag.tone === 'green' ? 'rgba(0,230,118,0.07)' : 'rgba(255,159,10,0.09)'};border:1px solid ${luTag.tone === 'green' ? 'rgba(0,230,118,0.35)' : 'rgba(255,159,10,0.4)'};">
-        <span style="font-size:13px;font-weight:800;color:${luTag.tone === 'green' ? 'var(--green)' : 'var(--accent2, #ff9f0a)'};">${luTag.label}</span>
-        <span class="hint" style="margin-left:6px;">양팀 평균 ${bothAvg} · 오늘 기준선 ${baseline.value} (직전 ${baseline.n}경기 중앙값)</span>
-        <div class="hint" style="margin-top:3px;">사전등록 v1.1 — <b>표시 전용</b>. 픽 판정에 관여하지 않음. 후반기 forward로 판정 예정 (적중률 미표시)</div>
-      </div>`
-    : (bothAvg != null && !baseline
-        ? `<div class="hint" style="margin-top:6px;">기준선 미성립(30경기 미달) — 표시 생략</div>` : '');
+  const TONE = { green: ['rgba(0,230,118,0.07)', 'rgba(0,230,118,0.35)', 'var(--green)'],
+                 warn:  ['rgba(255,159,10,0.09)', 'rgba(255,159,10,0.4)', 'var(--accent2, #ff9f0a)'],
+                 neutral: ['rgba(255,255,255,0.03)', 'var(--border)', 'var(--text2)'] };
+  let tagHtml = '';
+  if (bothAvg != null && baseline) {
+    const diff = Math.round((bothAvg - baseline.value) * 10) / 10;
+    const info = `양팀 평균 <b style="color:var(--text);">${bothAvg}</b> · 오늘 기준선 ${baseline.value} (직전 ${baseline.n}경기 중앙값) · <b>${diff >= 0 ? '+' : ''}${diff}</b>`;
+    if (luTag) {
+      const [bg, bd, fg] = TONE[luTag.tone] || TONE.neutral;
+      tagHtml = `<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:${bg};border:1px solid ${bd};">
+        <span style="font-size:13px;font-weight:800;color:${fg};">${luTag.label}</span>
+        <span class="hint" style="margin-left:6px;">${info}</span>
+        <div class="hint" style="margin-top:3px;">사전등록 v1.2 — <b>표시 전용</b>. 픽 판정에 관여하지 않음 (중립대 ±3, 적중률 미표시)</div>
+      </div>`;
+    } else {
+      tagHtml = `<div style="margin-top:8px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid var(--border);">
+        <span class="hint">${info}</span>
+        <div class="hint" style="margin-top:2px;">${verdict === 'UNDER'
+          ? '약체 기준(기준선 −3 이하) 미달 — 라벨 없음. 정예·중립은 검증상 근거 없어 라벨을 붙이지 않습니다'
+          : '강화 라벨은 v1.0 UNDER 픽에서만 — 여기서는 정보만 참고'}</div>
+      </div>`;
+    }
+  } else if (bothAvg != null) {
+    tagHtml = `<div class="hint" style="margin-top:6px;">양팀 평균 ${bothAvg} · 기준선 미성립(30경기 미달)</div>`;
+  }
   return `<div style="margin-top:10px;">
-    <div class="hint-mb5">선발 라인업 (Layer4 — 정보 표시)</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">${one(luH, '홈')}${one(luA, '원정')}</div>
+    <div class="hint-mb5">선발 라인업 (Layer4 — 정보 표시) ${teamBase != null ? `<span style="opacity:.7;">· 팀 기준선 ${teamBase}</span>` : ''}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">${one(luH, '홈', awayPit)}${one(luA, '원정', homePit)}</div>
     ${tagHtml}</div>`;
 }
 
@@ -414,7 +443,8 @@ function renderKboF5() {
         <label class="hint">홈 라인업 (발표 후 9명 붙여넣기)<input id="kbo-g-lu-home" placeholder="정준재 박성한 마드리스* 김재환 ..." class="sim-num" style="width:100%;margin-top:3px;font-size:12px;"></label>
         <label class="hint">원정 라인업<input id="kbo-g-lu-away" placeholder="한태양 고승민 레이예스 ..." class="sim-num" style="width:100%;margin-top:3px;font-size:12px;"></label>
       </div>
-      <div class="hint" style="margin-top:3px;">공백 구분 · 타순대로 9명 · <b style="color:var(--text2)">신규 외국인은 이름 뒤 *</b> (예: 마드리스*) — KBO 기록 없을 때만 적용(실측기대 ${typeof KBO_SUB_FOREIGN_NEW !== 'undefined' ? KBO_SUB_FOREIGN_NEW : 110}). 표기 없고 기록도 없으면 신인급(백업 대체)</div>
+      <div class="hint" style="margin-top:3px;">공백 구분 · 타순대로 9명 · <b style="color:var(--accent)">대체 외국인은 이름 뒤에 * 를 붙이세요</b> (예: <code>마드리스*</code>)
+        <div class="hint" style="margin-top:2px;">* 는 <b>KBO 기록이 없을 때만</b> 적용됩니다(실측기대 ${typeof KBO_SUB_FOREIGN_NEW !== 'undefined' ? KBO_SUB_FOREIGN_NEW : 110}). 타석이 쌓이면 자동으로 실제 성적으로 바뀌므로 계속 * 를 붙여도 됩니다. * 없이 기록도 없으면 신인급(백업 80.9) 처리.</div></div>
       ` : `<div class="hint" style="margin-top:6px;">라인업 표시 OFF — features db를 드롭하면 활성화됩니다</div>`}
       <div id="kbo-game-verdict"></div>
     </div>
@@ -624,9 +654,15 @@ async function kboRunDbMode() {
     const hitter_rows = q(`SELECT id, game_key, date, team, name, inning FROM hitter_inning_log
       WHERE date >= '${SEASON}-01-01' AND date <= '${SEASON}-12-31' ORDER BY game_key, inning, id`);
     // v85: 최근 5선발 표 — 직관 판단용 (감독자 요구)
-    const recent_rows = q(`SELECT name as pitcher, date, team, opponent_team as opp,
-      outs_recorded as outs, er, hits, bb, k, pitch_count as np FROM pitcher_log
-      WHERE is_starter=1 AND date >= '${SEASON}-01-01' ORDER BY name, date`);
+    const recent_rows = q(`SELECT p.name as pitcher, p.date, p.team, p.opponent_team as opp,
+      p.outs_recorded as outs, p.er, p.hits, p.bb, p.k, p.pitch_count as np,
+      CASE WHEN p.team = i.home_team THEN 'HOME' ELSE 'AWAY' END as side,
+      CASE WHEN p.team = i.home_team
+        THEN COALESCE(i.away_i1,0)+COALESCE(i.away_i2,0)+COALESCE(i.away_i3,0)+COALESCE(i.away_i4,0)+COALESCE(i.away_i5,0)
+        ELSE COALESCE(i.home_i1,0)+COALESCE(i.home_i2,0)+COALESCE(i.home_i3,0)+COALESCE(i.home_i4,0)+COALESCE(i.home_i5,0)
+      END as f5_allowed
+      FROM pitcher_log p JOIN inning_score i ON p.game_key = i.game_key
+      WHERE p.is_starter=1 AND p.date >= '${SEASON}-01-01' ORDER BY p.name, p.date`);
     db.close();
     // v85: features db (선택) — 26시즌 행만 사용, 타 시즌 행은 제외하고 카운트 보고
     let wrc_rows = null, wrc_excluded = null;
