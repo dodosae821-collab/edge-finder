@@ -106,7 +106,41 @@ function kboPitcherCardHtml(p) {
       </div>
       <div style="font-size:12px;color:var(--text2);">${p.reason}</div>
       <div class="hint" style="margin-top:3px;">${p.delta_whip != null ? `ΔWHIP ${p.delta_whip} · ΔH/IP ${p.delta_h_ip} (기준 1.10, 직전 등판까지)` : 'Δ 계산 불가'}</div>
+      ${kboTypeEvidenceHtml(p.pitcher)}
+      ${kboRecent5Html(p.pitcher)}
     </div>`;
+}
+
+// v85: 유형 판정 근거 수치 — 배지가 왜 붙었는지 숫자로 (감독자 요구)
+function kboTypeEvidenceHtml(name) {
+  const ev = kboGetSnapshot()?.type_evidence?.[name];
+  if (!ev) return '';
+  const cCut = ev.mean_allowed <= 2.0 && ev.pos_ext_pct <= 20;
+  const aCut = ev.mean_allowed >= 4.0 && ev.pos_ext_pct >= 40;
+  const col = cCut ? 'var(--green)' : aCut ? 'var(--accent2, #ff9f0a)' : 'var(--text3)';
+  return `<div class="hint" style="margin-top:4px;">유형 근거 — 언옵 N=<b>${ev.n}</b> · F5 평균실점 <b style="color:${col}">${ev.mean_allowed.toFixed(2)}</b> · 폭발률 <b style="color:${col}">${ev.pos_ext_pct}%</b>
+    <span style="opacity:.75;">(C형 ≤2.0 & ≤20% · A형 ≥4.0 & ≥40%)</span></div>`;
+}
+
+// v85: 최근 5선발 표 — 직관 판단용
+function kboRecent5Html(name) {
+  const rows = kboGetSnapshot()?.recent5?.[name];
+  if (!rows || !rows.length) return '';
+  const td = 'padding:2px 6px;font-family:\'JetBrains Mono\',monospace;font-size:11px;';
+  return `<div style="margin-top:6px;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;">
+      <tr style="color:var(--text3);font-size:10px;text-align:left;">
+        <th style="${td}">최근 등판</th><th style="${td}">상대</th><th style="${td}">IP</th>
+        <th style="${td}">자책</th><th style="${td}">피안타</th><th style="${td}">BB</th><th style="${td}">K</th><th style="${td}">투구</th></tr>
+      ${rows.map(r => {
+        const er = Number(r.er);
+        const c = Number.isFinite(er) ? (er <= 1 ? 'var(--green)' : er >= 4 ? 'var(--red)' : 'var(--text2)') : 'var(--text2)';
+        return `<tr style="border-top:1px solid var(--border);color:var(--text2);">
+          <td style="${td}">${r.date.slice(5)}</td><td style="${td}">${r.opp}</td><td style="${td}">${r.ip}</td>
+          <td style="${td}color:${c};font-weight:700;">${r.er}</td><td style="${td}">${r.hits}</td>
+          <td style="${td}">${r.bb}</td><td style="${td}">${r.k}</td><td style="${td}">${r.np}</td></tr>`;
+      }).join('')}
+    </table></div>`;
 }
 
 // ── 경기 판정 ────────────────────────────────────────────────
@@ -123,7 +157,15 @@ function kboJudgeGameUi() {
   const oddsO = parseFloat(document.getElementById('kbo-g-odds-o')?.value);
   if (!hp.trim() || !ap.trim()) { alert('홈·원정 선발을 모두 입력하세요'); return; }
   const j = kboJudgeGame(snap, hp, ap);
-  _kboLastJudge = { j, home: hp.trim(), away: ap.trim(), line, oddsU, oddsO };
+  // v85: v2.0 필터 + Layer4 라인업 표시 (전부 표시 전용 — v1.0 판정 불변)
+  const v2 = kboV2Pass(j.verdict, line);
+  const luH = kboTagLineupNames(document.getElementById('kbo-g-lu-home')?.value, snap.hitters);
+  const luA = kboTagLineupNames(document.getElementById('kbo-g-lu-away')?.value, snap.hitters);
+  const bothAvg = (luH && luA) ? Math.round((luH.avg + luA.avg) / 2 * 10) / 10 : null;
+  const baseline = snap.hitters ? kboDynBaseline(snap.hitters.baseline_pool, null) : null;
+  const luTag = kboLineupDisplayTag(j.verdict, bothAvg, baseline);
+  _kboLastJudge = { j, home: hp.trim(), away: ap.trim(), line, oddsU, oddsO,
+                    v2, luH, luA, bothAvg, baseline, luTag };
   const col = j.verdict === 'UNDER' ? 'var(--green)' : j.verdict === 'OVER' ? 'var(--accent2, #ff9f0a)' : 'var(--text3)';
   const odds = j.verdict === 'UNDER' ? oddsU : j.verdict === 'OVER' ? oddsO : null;
   const be = Number.isFinite(odds) && odds > 1 ? (100 / odds).toFixed(1) : null;
@@ -136,6 +178,8 @@ function kboJudgeGameUi() {
         <span style="font-size:12px;color:var(--text2);">${j.reason}</span>
         ${be ? `<span class="hint" style="margin-left:auto;">배당 ${odds} → 손익분기 ${be}% (픽별 1/배당 — L-45)</span>` : ''}
       </div>
+      ${kboV1V2RowHtml(j.verdict, v2, line)}
+      ${kboLineupBlockHtml(luH, luA, bothAvg, baseline, luTag)}
       ${j.verdict !== 'PASS' ? `
       <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:10px;align-items:end;">
         <label class="hint">금액<input type="number" id="kbo-g-amt" step="1000" placeholder="10000" class="sim-num" style="width:100%;margin-top:3px;"></label>
@@ -153,6 +197,62 @@ function kboJudgeGameUi() {
     </div>`;
 }
 
+
+// v85: v1 / v2 칸 분리 표시 — v2는 필터(a)만 구현 (필터(b) 김건우류: 정의 유실, v73 S12-2)
+function kboV1V2RowHtml(verdict, v2, line) {
+  if (verdict === 'PASS') return '';
+  const dirTxt = verdict === 'UNDER' ? '언더' : '오버';
+  const v2txt = v2 === true ? `✓ ${dirTxt} (필터 통과)`
+    : v2 === false ? `✗ 제거 — 기준점 ${line} ≤ 4.5` : '—';
+  const v2col = v2 === true ? 'var(--green)' : v2 === false ? 'var(--text3)' : 'var(--text3)';
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
+      <div class="hint">v1.0 (넓게 · 백테스트 58.8%)</div>
+      <div style="font-size:13px;font-weight:800;color:var(--green);margin-top:2px;">✓ ${dirTxt} 신호</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
+      <div class="hint">v2.0 (좁게 · in-sample 69.7%)</div>
+      <div style="font-size:13px;font-weight:800;color:${v2col};margin-top:2px;">${v2txt}</div>
+    </div>
+  </div>
+  <div class="hint" style="margin-top:3px;">v2 = 필터(a) 언더&기준점≤4.5 제거만 구현 · 필터(b)는 정의 유실로 미구현 · v2 수치는 in-sample(과최적화 편향)</div>`;
+}
+
+// v85: 라인업 카드 — 9명 태깅 + 평균 + 동적 기준선 + 사전등록 표시
+function kboLineupBlockHtml(luH, luA, bothAvg, baseline, luTag) {
+  if (!luH && !luA) return '';
+  const one = (lu, role) => {
+    if (!lu) return `<div class="hint">${role} 라인업 미입력</div>`;
+    return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:12px;font-weight:700;color:var(--text2);">${role}</span>
+        <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:var(--text);">wRC+ ${lu.avg}</span>
+      </div>
+      <div style="margin-top:5px;display:flex;flex-direction:column;gap:1px;">
+        ${lu.players.map((p, i) => `<div style="display:flex;gap:6px;font-size:11px;color:var(--text2);">
+          <span style="width:14px;color:var(--text3);">${i + 1}</span>
+          <span style="flex:1;">${p.name}</span>
+          <span class="hint">${p.s10 != null ? `s10 ${p.s10}` : '—'}</span>
+          <span style="width:96px;text-align:right;font-family:'JetBrains Mono',monospace;color:${p.src === '개인' ? 'var(--text)' : 'var(--text3)'};">${p.val}${p.src === '개인' ? '' : ` <span style="font-size:9px;">${p.src}</span>`}</span>
+        </div>`).join('')}
+      </div>
+      ${lu.n_input !== 9 ? `<div class="hint" style="color:var(--gold, #ffd60a);margin-top:3px;">⚠ ${lu.n_input}명 입력됨 (9명 권장)</div>` : ''}
+    </div>`;
+  };
+  const tagHtml = luTag
+    ? `<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:${luTag.tone === 'green' ? 'rgba(0,230,118,0.07)' : 'rgba(255,159,10,0.09)'};border:1px solid ${luTag.tone === 'green' ? 'rgba(0,230,118,0.35)' : 'rgba(255,159,10,0.4)'};">
+        <span style="font-size:13px;font-weight:800;color:${luTag.tone === 'green' ? 'var(--green)' : 'var(--accent2, #ff9f0a)'};">${luTag.label}</span>
+        <span class="hint" style="margin-left:6px;">양팀 평균 ${bothAvg} · 오늘 기준선 ${baseline.value} (직전 ${baseline.n}경기 중앙값)</span>
+        <div class="hint" style="margin-top:3px;">사전등록 v1.1 — <b>표시 전용</b>. 픽 판정에 관여하지 않음. 후반기 forward로 판정 예정 (적중률 미표시)</div>
+      </div>`
+    : (bothAvg != null && !baseline
+        ? `<div class="hint" style="margin-top:6px;">기준선 미성립(30경기 미달) — 표시 생략</div>` : '');
+  return `<div style="margin-top:10px;">
+    <div class="hint-mb5">선발 라인업 (Layer4 — 정보 표시)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">${one(luH, '홈')}${one(luA, '원정')}</div>
+    ${tagHtml}</div>`;
+}
+
 function kboMakeRec({ dir, line, odds, amt, ledger, extraMemo }) {
   const lj = _kboLastJudge || {};
   const snap = kboGetSnapshot();
@@ -166,14 +266,26 @@ function kboMakeRec({ dir, line, odds, amt, ledger, extraMemo }) {
     betmanOdds: odds, amount: amt,
     result: 'PENDING', profit: 0,
     myProb: null, isValue: false,
-    memo: `[KBO F5 v1.0/${ledger === 'system' ? '시스템' : '감독자'}] ${extraMemo || ''} (손익분기 ${(100 / odds).toFixed(1)}%)`,
+    memo: `[KBO F5 v1.0/${ledger === 'system' ? '시스템' : '감독자'}] ${extraMemo || ''}`
+      + `${lj.v2 === true ? ' · v2✓' : lj.v2 === false ? ' · v2✗(기준점)' : ''}`
+      + `${lj.luTag ? ` · ${lj.luTag.label}(평균 ${lj.bothAvg}/기준선 ${lj.baseline?.value})` : ''}`
+      + ` (손익분기 ${(100 / odds).toFixed(1)}%)`,
     folderMemos: [], folderOdds: [], folderProbs: [], folderSports: [], folderTypes: [],
     emotion: '보통', violations: [],
     savedAt: new Date().toISOString(),
     ev: null, evRaw: null, adjustedProb: null, evCalibrated: null, calibProb: null,
     source: 'kbo_f5',
     kboMeta: { ledger, verdict: dir, home_pitcher: lj.home, away_pitcher: lj.away, line, odds,
-               model_version: snap?.model_version || null, data_through: snap?.data_through || null },
+               model_version: snap?.model_version || null, data_through: snap?.data_through || null,
+               // v85 — 사전등록 판정용 (표시값 기록. 픽 판정에는 미관여)
+               v2_pass: lj.v2 ?? null,
+               lineup_home_avg: lj.luH?.avg ?? null, lineup_away_avg: lj.luA?.avg ?? null,
+               lineup_both_avg: lj.bothAvg ?? null,
+               lineup_baseline: lj.baseline?.value ?? null, lineup_baseline_n: lj.baseline?.n ?? null,
+               lineup_tag: lj.luTag?.label ?? null,
+               lineup_home: lj.luH ? lj.luH.players.map(p => `${p.name}:${p.val}${p.src === '개인' ? '' : '(' + p.src + ')'}`) : null,
+               lineup_away: lj.luA ? lj.luA.players.map(p => `${p.name}:${p.val}${p.src === '개인' ? '' : '(' + p.src + ')'}`) : null,
+               registered_at: new Date().toISOString() },
   };
 }
 
@@ -297,6 +409,13 @@ function renderKboF5() {
         <label class="hint">오버 배당<input id="kbo-g-odds-o" type="number" step="0.01" placeholder="1.87" class="sim-num" style="width:100%;margin-top:3px;"></label>
         <button onclick="kboJudgeGameUi()" style="padding:8px 16px;font-size:12px;font-weight:700;background:rgba(0,229,255,0.08);border:1px solid var(--accent);border-radius:6px;color:var(--accent);cursor:pointer;">판정</button>
       </div>
+      ${snap.hitters ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;">
+        <label class="hint">홈 라인업 (발표 후 9명 붙여넣기)<input id="kbo-g-lu-home" placeholder="정준재 박성한 마드리스* 김재환 ..." class="sim-num" style="width:100%;margin-top:3px;font-size:12px;"></label>
+        <label class="hint">원정 라인업<input id="kbo-g-lu-away" placeholder="한태양 고승민 레이예스 ..." class="sim-num" style="width:100%;margin-top:3px;font-size:12px;"></label>
+      </div>
+      <div class="hint" style="margin-top:3px;">공백 구분 · 타순대로 9명 · <b style="color:var(--text2)">신규 외국인은 이름 뒤 *</b> (예: 마드리스*) — KBO 기록 없을 때만 적용(실측기대 ${typeof KBO_SUB_FOREIGN_NEW !== 'undefined' ? KBO_SUB_FOREIGN_NEW : 110}). 표기 없고 기록도 없으면 신인급(백업 대체)</div>
+      ` : `<div class="hint" style="margin-top:6px;">라인업 표시 OFF — features db를 드롭하면 활성화됩니다</div>`}
       <div id="kbo-game-verdict"></div>
     </div>
 
@@ -340,7 +459,7 @@ if (typeof document !== 'undefined') {
 //   sql.js(WASM SQLite)는 cdnjs에서 지연 로드.
 //   v83: chronology_v2.db·프로파일 csv 불필요 (v1.0은 kbo.db+언옵만 사용).
 // ============================================================
-let _kboDbFiles = { db: null, dbName: null };
+let _kboDbFiles = { db: null, dbName: null, features: null, featuresName: null };
 let _kboSqlJs = null, _kboJsZip = null;
 
 // ── 언옵 txt 영구 저장 (v84): 과거 시즌·월 파일은 한 번만 넣으면 됨 ──
@@ -385,13 +504,20 @@ function kboLoadJsZip() {
 }
 
 // ── 파일 라우팅 (드롭·선택·zip 내부 공용) ──
-//   수용: kbo.db(정확히 이 이름) / *.txt(언옵→영구저장) / *.json(스냅샷)
-//   무시: kbo_2023/2024.db·chronology·features db·csv·py·jsonl — v1.0에 불필요
+//   수용: kbo.db(정확히 이 이름) / *features*.db(라인업 표시용, 26시즌 행만 사용) / *.txt(언옵) / *.json(스냅샷)
+//   무시: kbo_2023/2024.db·chronology·csv·py·jsonl — 불필요
 function kboIngestNamedFile(name, kind, content) {
   const base = name.split('/').pop();
   if (kind === 'db') {
     if (base === 'kbo.db') { _kboDbFiles.db = content; _kboDbFiles.dbName = base; return 'db'; }
-    return 'ignored';   // kbo_2023.db·chronology_v2.db·kbo_features.db 등 — 미사용
+    if (/features.*\.db$/i.test(base)) {
+      // 단일시즌 원칙: 파일명에 시즌 연도가 있으면 현재 시즌과 일치할 때만 수용
+      const SEASON = (typeof KBO_HITTER_SEASON !== 'undefined') ? KBO_HITTER_SEASON : '2026';
+      const yr = base.match(/(20\d{2})/);
+      if (yr && yr[1] !== SEASON) return 'wrong_season';
+      _kboDbFiles.features = content; _kboDbFiles.featuresName = base; return 'features';
+    }
+    return 'ignored';   // kbo_2023.db·chronology_v2.db 등 — 미사용
   }
   if (base.endsWith('.txt')) { kboSaveUnop(base, content); return 'unop'; }
   if (base.endsWith('.json')) {
@@ -408,6 +534,12 @@ async function kboIngestZip(arrayBuffer) {
   for (const entry of Object.values(zip.files)) {
     if (entry.dir) continue;
     const base = entry.name.split('/').pop();
+    if (/features.*\.db$/i.test(base)) {
+      const buf = await entry.async('arraybuffer');
+      const res = kboIngestNamedFile(base, 'db', new Uint8Array(buf));
+      if (res === 'features') nDb++; else nSkip++;
+      continue;
+    }
     if (base === 'kbo.db') {
       const buf = new Uint8Array(await entry.async('arraybuffer'));
       kboIngestNamedFile(base, 'db', buf); nDb++;
@@ -428,7 +560,9 @@ function kboRouteDroppedFile(file) {
         if (name.endsWith('.zip')) await kboIngestZip(r.result);
         else if (name.endsWith('.db')) {
           const res = kboIngestNamedFile(name, 'db', new Uint8Array(r.result));
-          if (res === 'ignored' && typeof simToast === 'function') simToast(`'${name}' — v1.0에 불필요한 파일 (kbo.db만 사용)`, 'info');
+          if (res === 'wrong_season' && typeof simToast === 'function')
+            simToast(`'${name}' — 다른 시즌 features 파일이라 무시했습니다 (단일시즌 원칙: ${typeof KBO_HITTER_SEASON !== 'undefined' ? KBO_HITTER_SEASON : '2026'}시즌 파일만 사용)`, 'info');
+          else if (res === 'ignored' && typeof simToast === 'function') simToast(`'${name}' — v1.0에 불필요한 파일 (kbo.db만 사용)`, 'info');
         } else kboIngestNamedFile(name, 'text', String(r.result));
       } catch (e) { alert('파일 처리 실패: ' + e.message); }
       resolve();
@@ -448,13 +582,14 @@ function kboDbModeSectionHtml() {
       <div class="sec-title">DB 모드 — v1.0 계산 (파이썬 불필요)</div>
       <div class="hint-mb6" style="line-height:1.7;">
         필요한 것은 <b style="color:var(--text2)">딱 두 가지</b>:
-        ① <b style="color:var(--text2)">최신 kbo.db</b> — 매번 새로 드롭 (25+26시즌이 이 한 파일에 들어있음. <b>kbo_2023/2024.db·chronology·features·csv 전부 불필요 — 드롭해도 자동 무시</b>)
+        ① <b style="color:var(--text2)">최신 kbo.db</b> — 매번 새로 드롭 · ② <b style="color:var(--accent)">kbo_features db</b> (라인업 wRC+ 표시용 — <b>26시즌 행만 자동 사용, 25행 자동 제외</b>. 없으면 라인업 표시만 생략) · kbo_2023/2024·chronology·csv는 자동 무시
         ② <b style="color:var(--text2)">언옵 txt</b> — <b>한 번 넣으면 브라우저에 영구 저장</b>. 끝난 시즌·월 파일은 다시 넣을 필요 없고, 새 달 파일만 추가하면 됨.
         <b style="color:var(--accent)">kbo파일.zip을 통째로 드롭해도 됨</b> — kbo.db와 txt만 자동 추출.
       </div>
       <input type="file" multiple accept=".db,.txt,.json,.zip" onchange="(async()=>{for(const f of Array.from(this.files))await kboRouteDroppedFile(f);renderKboF5();}).call(this)" style="font-size:11px;">
       <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;align-items:center;">
         ${chip(!!_kboDbFiles.db, `kbo.db ${_kboDbFiles.db ? '(이번 세션 적재됨)' : '(드롭 필요)'}`)}
+        ${chip(!!_kboDbFiles.features, `features db ${_kboDbFiles.features ? '(적재됨 — 라인업 표시 ON)' : '(선택 — 없으면 라인업 표시 생략)'}`)}
         ${chip(unopNames.length > 0, `언옵 저장됨 ×${unopNames.length}`)}
       </div>
       ${unopNames.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">
@@ -484,12 +619,44 @@ async function kboRunDbMode() {
       COALESCE(away_i1,0)+COALESCE(away_i2,0)+COALESCE(away_i3,0)+COALESCE(away_i4,0)+COALESCE(away_i5,0) as a5,
       COALESCE(home_i1,0)+COALESCE(home_i2,0)+COALESCE(home_i3,0)+COALESCE(home_i4,0)+COALESCE(home_i5,0) as h5
       FROM inning_score WHERE date >= '2025-07-29'`);
+    // v85: 라인업 표시용 — 해당 시즌만 (단일시즌 원칙, 감독자 확정)
+    const SEASON = (typeof KBO_HITTER_SEASON !== 'undefined') ? KBO_HITTER_SEASON : '2026';
+    const hitter_rows = q(`SELECT id, game_key, date, team, name, inning FROM hitter_inning_log
+      WHERE date >= '${SEASON}-01-01' AND date <= '${SEASON}-12-31' ORDER BY game_key, inning, id`);
+    // v85: 최근 5선발 표 — 직관 판단용 (감독자 요구)
+    const recent_rows = q(`SELECT name as pitcher, date, team, opponent_team as opp,
+      outs_recorded as outs, er, hits, bb, k, pitch_count as np FROM pitcher_log
+      WHERE is_starter=1 AND date >= '${SEASON}-01-01' ORDER BY name, date`);
     db.close();
-    const snap = kboBuildSnapshotFromDb({ pitcher_log, inning_score, unop_files: unops });
+    // v85: features db (선택) — 26시즌 행만 사용, 타 시즌 행은 제외하고 카운트 보고
+    let wrc_rows = null, wrc_excluded = null;
+    if (_kboDbFiles.features) {
+      try {
+        const fdb = new SQL.Database(_kboDbFiles.features);
+        const fq = (sql) => {
+          const res = fdb.exec(sql);
+          if (!res.length) return [];
+          const cols = res[0].columns;
+          return res[0].values.map(v => Object.fromEntries(cols.map((c, i) => [c, v[i]])));
+        };
+        const total = fq("SELECT COUNT(*) as n FROM player_hitting_stats")[0]?.n || 0;
+        wrc_rows = fq(`SELECT name, team, as_of_date as date, hit_wrc_plus_nopark as wrc, pa
+          FROM player_hitting_stats WHERE as_of_date >= '${SEASON}-01-01' AND as_of_date <= '${SEASON}-12-31'`);
+        wrc_excluded = total - wrc_rows.length;
+        fdb.close();
+        if (wrc_excluded > 0 && typeof simToast === 'function')
+          simToast(`⚠ features db에 ${SEASON}시즌 외 행 ${wrc_excluded.toLocaleString()}개 — 자동 제외 (단일시즌 원칙). wRC+는 ${SEASON} 단독 빌드 권장`, 'info');
+      } catch (e) {
+        if (typeof simToast === 'function') simToast('features db 읽기 실패 — 라인업 표시 생략: ' + e.message, 'info');
+        wrc_rows = null;
+      }
+    }
+    const snap = kboBuildSnapshotFromDb({ pitcher_log, inning_score, unop_files: unops,
+      hitter_rows, recent_rows, wrc_rows, wrc_excluded });
     kboRevalUpdate(snap);
     Storage.setJSON(KEYS.KBO_SNAPSHOT, snap);
     if (typeof simToast === 'function') simToast(`✅ 계산 완료 — 경기 ${snap.n_games}건 · 백테스트 ${snap.model_health.sim_wins}-${snap.model_health.sim_losses} · 신호 ${snap.pitchers.filter(p => p.signal).length}명`, 'ok');
-    _kboDbFiles = { db: null, dbName: null };
+    _kboDbFiles = { db: null, dbName: null, features: _kboDbFiles.features, featuresName: _kboDbFiles.featuresName };
     renderKboF5();
   } catch (e) {
     alert('DB 모드 실패: ' + e.message);
