@@ -187,6 +187,7 @@ function kboJudgeGameUi() {
       </div>
       ${kboV1V2RowHtml(j.verdict, v2, line)}
       ${kboLineupBlockHtml(luH, luA, bothAvg, baseline, luTag, j.verdict, teamBase, ap.trim(), hp.trim())}
+      ${kboWinLossBlockHtml(kboWinLossGate({ allGames: snap.allPitcherGames || {}, homeName: hp, awayName: ap, asof: '9999-12-31', luHomeAvg: luH ? luH.avg : null, luAwayAvg: luA ? luA.avg : null, states: snap.pitcherStates || {} }), hp.trim(), ap.trim())}
       ${j.verdict !== 'PASS' ? `
       <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:10px;align-items:end;">
         <label class="hint">금액<input type="number" id="kbo-g-amt" step="1000" placeholder="10000" class="sim-num" style="width:100%;margin-top:3px;"></label>
@@ -204,6 +205,48 @@ function kboJudgeGameUi() {
     </div>`;
 }
 
+
+// v85 승패(F5 우열) 블록 — 3축: 기대실점 + 타선 + L1 상태(삼중합의)
+// 별도 축: 언더/오버(총점)가 아니라 "누가 F5에 앞서나".
+function kboWinLossBlockHtml(wl, awayPit, homePit) {
+  const R = d => d === 'HOME' ? '홈' : d === 'AWAY' ? '원정' : '—';
+  const fx = v => v == null ? '—' : (Math.round(v * 100) / 100);
+  if (!wl || !wl.ok) {
+    return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-top:10px;">
+      <div class="hint">승패 예측 (F5 우열) — ${wl ? wl.reason : '계산 불가'}</div></div>`;
+  }
+  const triple = wl.triple, agree = wl.agree;
+  const bd = triple ? 'var(--accent, #29d)' : agree ? 'rgba(0,229,255,0.4)' : 'var(--border)';
+  const head = triple
+    ? `<span style="font-size:15px;font-weight:900;color:var(--accent, #29d);">★ ${R(wl.pick)} 우세 · 삼중합의</span>
+       <span class="hint">3축 모두 일치 → ${R(wl.pick)}</span>`
+    : agree
+    ? `<span style="font-size:14px;font-weight:800;color:rgba(0,229,255,0.85);">🔵 ${R(wl.pick)} 우세 · 합의(2축)</span>
+       <span class="hint">${wl.l1.dir && wl.l1.dir !== wl.pick ? '상태는 반대' : '상태 판정 불가'}</span>`
+    : `<span style="font-size:14px;font-weight:800;color:var(--text3);">⚠ 신호 충돌 — 픽 없음</span>
+       <span class="hint">투수·타선 엇갈림</span>`;
+  const hit = (dir) => dir === wl.pick && wl.pick;   // 픽 방향 축 강조
+  const axis = (label, hVal, aVal, dir, note) => `
+    <div style="display:flex;gap:6px;font-size:12px;align-items:baseline;">
+      <span style="width:64px;color:var(--text3);">${label}</span>
+      <span style="flex:1;font-family:'JetBrains Mono',monospace;">원정 ${fx(aVal)} <span style="color:var(--text3);">vs</span> 홈 ${fx(hVal)}</span>
+      <span style="width:82px;text-align:right;font-weight:700;color:${hit(dir) ? 'var(--accent, #29d)' : 'var(--text2)'};">→ ${R(dir)} ${note || ''}</span>
+    </div>`;
+  const stTxt = s => s || '—';
+  return `<div style="background:var(--bg3);border:1.5px solid ${bd};border-radius:8px;padding:9px 11px;margin-top:10px;">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">${head}</div>
+    <div style="display:flex;flex-direction:column;gap:3px;">
+      ${axis('① 기대실점', wl.sp.home, wl.sp.away, wl.sp.dir, '(적을수록 우세)')}
+      ${axis('② 라인업', wl.hit.home, wl.hit.away, wl.hit.dir, '(강할수록 우세)')}
+      <div style="display:flex;gap:6px;font-size:12px;align-items:baseline;${wl.l1.dir ? '' : 'opacity:.55;'}">
+        <span style="width:64px;color:var(--text3);">③ 상태</span>
+        <span style="flex:1;font-family:'JetBrains Mono',monospace;">원정 ${stTxt(wl.l1.away)} <span style="color:var(--text3);">vs</span> 홈 ${stTxt(wl.l1.home)}</span>
+        <span style="width:82px;text-align:right;font-weight:700;color:${hit(wl.l1.dir) ? 'var(--accent, #29d)' : 'var(--text2)'};">→ ${wl.l1.dir ? R(wl.l1.dir) + ' (안정)' : '판정불가'}</span>
+      </div>
+    </div>
+    <div class="hint" style="margin-top:6px;">SS·VC·CB·CC 순 안정 · 검증: 삼중합의 67% / 합의 게이트 62% (26시즌, 표본52/136 · forward 진행중)</div>
+  </div>`;
+}
 
 // v85: v1 / v2 칸 분리 표시 — v2는 필터(a)만 구현 (필터(b) 김건우류: 정의 유실, v73 S12-2)
 function kboV1V2RowHtml(verdict, v2, line) {

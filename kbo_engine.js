@@ -114,6 +114,125 @@ function kboBuildPitcherGames(games) {
   return byP;
 }
 
+// ── 승패(F5 우열) 재료: 전 경기 기반 투수 이력 (라인 무관 — 기대실점용) ──
+// kboBuildPitcherGames는 라인 매칭 경기만 담는다. 기대실점은 전 경기여야 정확(v74 연구 확정).
+function kboBuildPitcherAllGames(innRows, plRows) {
+  const spMap = {};
+  for (const p of plRows) spMap[`${p.game_key}|${p.team}`] = kboRenameWhite(p.pitcher, p.team);
+  const byP = {};
+  for (const r of innRows) {
+    if (r.a5 == null || r.h5 == null) continue;
+    const hp = spMap[`${r.game_key}|${r.home}`], ap = spMap[`${r.game_key}|${r.away}`];
+    if (hp) (byP[hp] ||= []).push({ date: r.date, allowed: r.a5 }); // 홈선발이 원정에 준 실점
+    if (ap) (byP[ap] ||= []).push({ date: r.date, allowed: r.h5 }); // 원정선발이 홈에 준 실점
+  }
+  for (const p of Object.keys(byP)) byP[p].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  return byP;
+}
+
+// 이름 해석: 정확 매칭 → includes 폴백 (화이트(한)/화이트(S) 등 팀별 개명 대응, 본체 find와 동일 규약)
+function kboResolveKey(map, name) {
+  const n = (name || '').trim(); if (!n) return null;
+  if (map[n]) return n;
+  const hit = Object.keys(map).find(k => k === n || k.includes(n) || n.includes(k));
+  return hit || null;
+}
+
+// 기대 F5 피실점 = asof 이전 등판 허용실점 평균 (최소 minN등판, 없으면 null)
+function kboExpAllow(allGames, pitcher, asof, minN = 3) {
+  const key = kboResolveKey(allGames, pitcher);
+  const rows = key ? allGames[key] : null;
+  if (!rows) return null;
+  const vals = [];
+  for (const r of rows) { if (r.date >= asof) break; vals.push(r.allowed); }
+  if (vals.length < minN) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+// 승패 합의 게이트 (1단계 · 2축: 기대실점 우열 + 타선 우열)
+//   방향: HOME = 홈이 F5에 앞선다. 기대실점 적은 쪽 우세 / 라인업 wRC+ 높은 쪽 우세.
+//   두 축 일치 → 그 방향 픽. 엇갈리면 픽 없음(신호 충돌).
+function kboWinLossGate({ allGames, homeName, awayName, asof, luHomeAvg, luAwayAvg, states }) {
+  const eH = kboExpAllow(allGames, (homeName || '').trim(), asof || '9999-12-31');
+  const eA = kboExpAllow(allGames, (awayName || '').trim(), asof || '9999-12-31');
+  const ORD = { SS: 0, VC: 1, CB: 2, CC: 3 };
+  const kH = states ? kboResolveKey(states, homeName) : null, kA = states ? kboResolveKey(states, awayName) : null;
+  const sH = kH ? states[kH] : null, sA = kA ? states[kA] : null;
+  const out = { ok: false, reason: '', pick: null, agree: false, triple: false,
+    sp: { home: eH, away: eA, dir: null },
+    hit: { home: luHomeAvg ?? null, away: luAwayAvg ?? null, dir: null },
+    l1: { home: sH ? sH.state : null, away: sA ? sA.state : null, dir: null } };
+  if (eH == null || eA == null) { out.reason = '기대실점 부족 (선발 등판 3경기 미만)'; return out; }
+  if (luHomeAvg == null || luAwayAvg == null) { out.reason = '라인업 미입력 (양팀 필요)'; return out; }
+  out.ok = true;
+  out.sp.dir  = eH < eA ? 'HOME' : eH > eA ? 'AWAY' : null;          // 기대실점 적은 쪽
+  out.hit.dir = luHomeAvg > luAwayAvg ? 'HOME' : luHomeAvg < luAwayAvg ? 'AWAY' : null;
+  const oH = out.l1.home in ORD ? ORD[out.l1.home] : null, oA = out.l1.away in ORD ? ORD[out.l1.away] : null;
+  out.l1.dir = (oH != null && oA != null && oH !== oA) ? (oH < oA ? 'HOME' : 'AWAY') : null;  // 안정(낮은순위) 쪽
+  out.agree = out.sp.dir && out.hit.dir && out.sp.dir === out.hit.dir;
+  out.pick = out.agree ? out.sp.dir : null;
+  out.triple = out.agree && out.l1.dir === out.pick;
+  out.reason = !out.agree ? (out.sp.dir && out.hit.dir ? '신호 충돌 (투수·타선 엇갈림)' : '방향 판정 불가')
+    : out.triple ? '삼중합의 (기대실점·타선·상태 모두 일치)'
+    : out.l1.dir && out.l1.dir !== out.pick ? '합의(2축) — 상태는 반대'
+    : '합의(2축) — 상태 판정 불가';
+  return out;
+}
+
+// ── 승패 2단계: L1 4상태 (SS/VC/CB/CC) — chronology 롤링중앙값 로직 포팅 ──
+// pitcher_log(er·outs·bb)로 원재료 재현: pre_game_bb9·r5_er_std·r5_exit_rate → 리그 14일 롤링중앙값 분류.
+// 반환: { [pitcher]: {state, date, gs_idx} } — 각 투수의 '현재(최근 등판)' 상태.
+function kboBuildStates(plRows) {
+  const STD = arr => { const n = arr.length; if (n < 2) return 0;
+    const m = arr.reduce((a, b) => a + b, 0) / n;
+    return Math.sqrt(arr.reduce((s, v) => s + (v - m) * (v - m), 0) / (n - 1)); };
+  const med = arr => { if (!arr.length) return NaN; const s = [...arr].sort((a, b) => a - b);
+    const h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
+  // 1) 투수별 시즌 타임라인 → 각 등판의 원재료
+  const rows = plRows.map(r => ({
+    pitcher: kboRenameWhite(r.pitcher, r.team), date: String(r.date).slice(0, 10),
+    season: String(r.date).slice(0, 4),
+    er: +r.er, outs: +r.outs, bb: +r.bb,
+  })).filter(r => Number.isFinite(r.er) && Number.isFinite(r.outs) && Number.isFinite(r.bb));
+  rows.sort((a, b) => a.pitcher < b.pitcher ? -1 : a.pitcher > b.pitcher ? 1 : a.date < b.date ? -1 : 1);
+  const byP = {};
+  for (const r of rows) (byP[`${r.pitcher}|${r.season}`] ||= []).push(r);
+  const starts = [];   // {pitcher, date, gs_idx, bb9_side, r5_std, r5_exit}
+  for (const key of Object.keys(byP)) {
+    const steps = byP[key];
+    let rbb = 0, rout = 0; const her = [], hex = [];
+    for (const s of steps) {
+      const cumOut = rout + s.outs, cumBb = rbb + s.bb;
+      const side = cumOut > 0 ? (cumBb / cumOut * 27 > 4.32 ? 'above' : 'below') : null;
+      const last5er = her.slice(-5), last5ex = hex.slice(-5);
+      starts.push({ pitcher: s.pitcher, date: s.date, gs_idx: her.length + 1,
+        side, r5_std: STD(last5er), r5_exit: last5ex.length ? last5ex.reduce((a, b) => a + b, 0) / last5ex.length : 0 });
+      rbb += s.bb; rout += s.outs; her.push(s.er); hex.push(s.outs < 15 ? 1 : 0);
+    }
+  }
+  // 2) 리그 풀 (gs_idx>=6) — 14일 롤링중앙값용
+  const pool = starts.filter(s => s.gs_idx >= 6 && s.side != null)
+    .map(s => ({ date: s.date, std: s.r5_std, exit: s.r5_exit }));
+  const rollMed = d => {
+    const lo = new Date(new Date(d) - 14 * 864e5).toISOString().slice(0, 10);
+    const w = pool.filter(p => p.date > lo && p.date <= d);
+    return w.length >= 5 ? { std: med(w.map(p => p.std)), exit: med(w.map(p => p.exit)) } : null;
+  };
+  // 3) 분류 → 투수별 현재(최근) 상태
+  const classify = s => {
+    if (s.gs_idx < 6 || s.side == null) return 'UNKNOWN';
+    const rm = rollMed(s.date); if (!rm) return 'UNKNOWN';
+    const bb = s.side === 'above', vr = s.r5_std > rm.std, ex = s.r5_exit > rm.exit;
+    if (bb && (vr || ex)) return 'CC'; if (bb) return 'CB'; if (vr || ex) return 'VC'; return 'SS';
+  };
+  const cur = {};
+  for (const s of starts) {   // starts는 투수·날짜 순 → 마지막이 최근
+    const st = classify(s);
+    cur[s.pitcher] = { state: st, date: s.date, gs_idx: s.gs_idx };
+  }
+  return cur;
+}
+
 function kboTypeAt(pitcherGames, pitcher, asof) {
   const rows = pitcherGames[pitcher];
   if (!rows) return null;
@@ -327,6 +446,9 @@ function kboBuildSnapshotFromDb(input) {
   const unop = kboParseUnopFiles(input.unop_files);
   const games = kboBuildGames(unop, input.inning_score, input.pitcher_log);
   const pitcherGames = kboBuildPitcherGames(games);
+  // v85 승패: 전 경기 기반 투수 이력 (기대실점용 — 라인 무관)
+  const allPitcherGames = kboBuildPitcherAllGames(input.inning_score, input.pitcher_log);
+  const pitcherStates = kboBuildStates(input.pitcher_log);   // v85 승패 2단계: L1 4상태
   let deltas = kboPitcherDeltas(input.pitcher_log);
   deltas = kboLayer1Sides(deltas);
   const bt = kboBacktest(games, pitcherGames, deltas);
@@ -362,6 +484,8 @@ function kboBuildSnapshotFromDb(input) {
     pitchers,
     hitters,                       // v85: 라인업 표시 상태 (없으면 null — features 미적재)
     recent5: recent5 || null,      // v85: 투수별 최근 5선발 상세
+    allPitcherGames,               // v85 승패: 전 경기 기반 기대실점 재료
+    pitcherStates,                 // v85 승패 2단계: 투수별 현재 L1 4상태
     type_evidence: typeEvidence,   // v85: 유형 판정 근거 수치 (N·평균실점·폭발률)
     wrc_excluded: input.wrc_excluded ?? null,  // v85: 시즌외 행 제외 수 (단일시즌 경고용)
   };
@@ -613,5 +737,6 @@ if (typeof module !== 'undefined' && module.exports) {
   Object.assign(module.exports, { kboHitterState, kboTagLineupNames, kboDynBaseline,
     kboV2Pass, kboLineupDisplayTag, kboTypeEvidence, kboRecent5Map,
     kboBlendWrc, kboTeamBaseline, KBO_TIER_MEAN, KBO_SUB_FOREIGN_NEW, KBO_SUB_ROOKIE,
-    KBO_BASELINE_MIN, KBO_PA_FULL, KBO_SHRINK_K, KBO_PA_FLOOR, KBO_NEUTRAL_BAND });
+    KBO_BASELINE_MIN, KBO_PA_FULL, KBO_SHRINK_K, KBO_PA_FLOOR, KBO_NEUTRAL_BAND,
+    kboBuildPitcherAllGames, kboExpAllow, kboWinLossGate, kboBuildStates });
 }
