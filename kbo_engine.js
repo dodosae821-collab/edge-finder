@@ -593,7 +593,7 @@ function kboHitterState(hitterRows, wrcRows) {
     const lastN = hist.slice(-10);
     const s10 = hist.length >= 10 ? lastN.reduce((s, v) => s + v, 0) : null;
     const tier = s10 == null ? null : s10 >= 8 ? '주전' : s10 >= 4 ? '준주전' : '백업';
-    latest[name] = { s10, tier, team: gs[gs.length - 1].team };
+    latest[name] = { s10, tier, team: gs[gs.length - 1].team, games: hist.length };
   }
   // (3) wRC 조회맵: 정확 날짜(풀용) + 선수별 최신(판정용)
   const wrcAt = {};      // name|team|date → {wrc, pa}
@@ -668,6 +668,18 @@ function kboTagLineupNames(namesStr, hitters) {
     const p = hitters?.players?.[name] || null;
     const w = hitters?.wrc_latest?.[name] || null;
     const tierMean = p?.tier ? KBO_TIER_MEAN[p.tier] : null;
+    // 대체용병(*): 10경기 등급 요건 면제. 등급 없으면 110 앵커로 k=50 타석수보정 연속 적용.
+    //   PA_FLOOR(30) 바닥 없이 PA에 비례해 개인값 반영 · PA150+면 개인값 · 데이터 없으면 110. 등급 잡히면 일반 경로.
+    if (foreignNew && tierMean == null) {
+      const pa = w && w.pa > 0 ? w.pa : 0;
+      if (pa <= 0) return { name, val: KBO_SUB_FOREIGN_NEW, src: '신규용병 기본(데이터 없음·110)',
+                            s10: p?.s10 ?? null, tier: '용병', pa: 0 };
+      const val = pa >= KBO_PA_FULL ? w.wrc
+        : w.wrc * pa / (pa + KBO_SHRINK_K) + KBO_SUB_FOREIGN_NEW * KBO_SHRINK_K / (pa + KBO_SHRINK_K);
+      return { name, val: Math.round(val * 10) / 10,
+               src: pa >= KBO_PA_FULL ? '용병 개인' : `용병 보정(PA ${pa}·110기준)`,
+               s10: p?.s10 ?? null, tier: '용병', pa, raw_wrc: Math.round(w.wrc) };
+    }
     if (w && w.pa > 0) {
       const blended = kboBlendWrc(w.wrc, w.pa, tierMean);
       const full = (w.pa >= KBO_PA_FULL || tierMean == null);
@@ -680,7 +692,7 @@ function kboTagLineupNames(namesStr, hitters) {
       return { name, val: Math.round(tierMean * 10) / 10, src: `${p.tier} 대체`,
                s10: p.s10, tier: p.tier, pa: 0 };
     if (foreignNew)
-      return { name, val: KBO_SUB_FOREIGN_NEW, src: '신규용병 실측기대', s10: null, tier: null, pa: 0 };
+      return { name, val: KBO_SUB_FOREIGN_NEW, src: '신규용병 기본(0경기·110)', s10: null, tier: '용병', pa: 0 };
     return { name, val: KBO_SUB_ROOKIE, src: '신인급 백업대체', s10: null, tier: null, pa: 0 };
   });
   const avg = players.reduce((s, p) => s + p.val, 0) / players.length;
