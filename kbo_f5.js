@@ -232,16 +232,21 @@ function kboWinLossBlockHtml(wl, awayPit, homePit) {
       <span style="flex:1;font-family:'JetBrains Mono',monospace;">원정 ${fx(aVal)} <span style="color:var(--text3);">vs</span> 홈 ${fx(hVal)}</span>
       <span style="width:82px;text-align:right;font-weight:700;color:${hit(dir) ? 'var(--accent, #29d)' : 'var(--text2)'};">→ ${R(dir)} ${note || ''}</span>
     </div>`;
-  const stTxt = s => s || '—';
+  const stTxt = s => (s && s !== 'UNKNOWN') ? s : '없음';
+  let l3note, l3dim = false;
+  if (wl.l1.dir) { l3note = R(wl.l1.dir) + ' (안정)'; }
+  else if (wl.l1.home == null || wl.l1.away == null || wl.l1.home === 'UNKNOWN' || wl.l1.away === 'UNKNOWN') { l3note = '상태 데이터 없음'; l3dim = true; }
+  else if (wl.l1.home === wl.l1.away) { l3note = `동급(${wl.l1.home}=${wl.l1.away})`; l3dim = true; }
+  else { l3note = '판정불가'; l3dim = true; }
   return `<div style="background:var(--bg3);border:1.5px solid ${bd};border-radius:8px;padding:9px 11px;margin-top:10px;">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">${head}</div>
     <div style="display:flex;flex-direction:column;gap:3px;">
       ${axis('① 기대실점', wl.sp.home, wl.sp.away, wl.sp.dir, '(적을수록 우세)')}
       ${axis('② 라인업', wl.hit.home, wl.hit.away, wl.hit.dir, '(강할수록 우세)')}
-      <div style="display:flex;gap:6px;font-size:12px;align-items:baseline;${wl.l1.dir ? '' : 'opacity:.55;'}">
+      <div style="display:flex;gap:6px;font-size:12px;align-items:baseline;${l3dim ? 'opacity:.6;' : ''}">
         <span style="width:64px;color:var(--text3);">③ 상태</span>
         <span style="flex:1;font-family:'JetBrains Mono',monospace;">원정 ${stTxt(wl.l1.away)} <span style="color:var(--text3);">vs</span> 홈 ${stTxt(wl.l1.home)}</span>
-        <span style="width:82px;text-align:right;font-weight:700;color:${hit(wl.l1.dir) ? 'var(--accent, #29d)' : 'var(--text2)'};">→ ${wl.l1.dir ? R(wl.l1.dir) + ' (안정)' : '판정불가'}</span>
+        <span style="width:104px;text-align:right;font-weight:700;color:${hit(wl.l1.dir) ? 'var(--accent, #29d)' : 'var(--text2)'};">→ ${l3note}</span>
       </div>
     </div>
     <div class="hint" style="margin-top:6px;">SS·VC·CB·CC 순 안정 · 검증: 삼중합의 67% / 합의 게이트 62% (26시즌, 표본52/136 · forward 진행중)</div>
